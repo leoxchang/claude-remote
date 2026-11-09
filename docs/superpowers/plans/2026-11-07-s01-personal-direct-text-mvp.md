@@ -23,7 +23,7 @@
 - 单条协议消息最大 64 KiB；prompt UTF-8 为 1–16,384 字节；工具输出单块 32 KiB；快照 payload 48 KiB、总消息 64 KiB、最多 200 条摘要事件。
 - 会话、run、事件和命令幂等只保存在内存；Agent 重启不得宣称恢复，配置和设备绑定可以保留。
 - 核心 TypeScript 与 Dart 业务逻辑覆盖率均不低于 80%；真实 SDK、Tailscale 和 iPhone E2E 不得被 Mock 结果替代。
-- 当前目录不是 Git 仓库。只有用户明确授权初始化/提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
+- 当前目录已是 Git 仓库（若执行时不是，先记录并与用户确认）。只有用户明确授权提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
 
 ## Review Focus
 

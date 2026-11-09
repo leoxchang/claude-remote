@@ -23,10 +23,10 @@
 - App 必须先持久化 mutating command 再发送；agentInstanceId 改变后停止自动重试并进入 confirmation_required，同 session 最多一个未确认 prompt.send/run.requeue。
 - afterSeq 以 sessionId+seq 连续推进；缺口或超过 1,000 条返回 RESYNC_REQUIRED。同步页最多 100 条/48 KiB，快照最多 8 页，每页总消息 64 KiB/payload 48 KiB。
 - 固定保留：events 30 天且每 session 最近 5,000 条；prompt 30 天且 requeue 不延长；审批/审计 90 天；只读结果 7 天；快照最新 2 份/30 天；Mac 512 MiB→448 MiB，App 20 MiB/200 events/10 sessions。
-- 审批 originalInput/content/resultPromise 永不入库；run prompt 只经认证 no-store endpoint 读取；token 只在 iPhone Keychain，Mac 只存 SHA-256，不保存模型/ASR 密钥。
+- 审批 originalInput/content/resultPromise 永不入库；run prompt 正文只存 `runs.promptText`，只经认证 no-store endpoint 读取，不得进入日志/快照/列表/错误；token 只在 iPhone Keychain，Mac 只存 SHA-256，不保存模型/ASR 密钥。
 - Mac 仅依赖 0600/FileVault，App 仅依赖 sandbox/NSFileProtectionComplete，不宣称 SQLCipher、额外加密或安全擦除；不开启 Funnel、不关闭 TLS、不修改全局 settings.json、不启用 bypassPermissions。
 - 核心 TypeScript 与 Dart 业务逻辑覆盖率均不低于 80%；Mock 不替代真实 SQLite 故障、固定 SDK resume、Tailscale 和 iPhone E2E。
-- 当前目录不是 Git 仓库。只有用户明确授权初始化/提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
+- 当前目录已是 Git 仓库（若执行时不是，先记录并与用户确认）。只有用户明确授权提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
 
 ## Review Focus
 
@@ -277,6 +277,7 @@ git commit -m "feat: persist command idempotency and first results"
 
 **Files:**
 - Create: `apps/agent/src/storage/repositories/session-repository.ts`, `apps/agent/src/storage/repositories/run-repository.ts`, `apps/agent/src/storage/repositories/event-repository.ts`, `apps/agent/src/events/durable-event-journal.ts`
+- Modify: `apps/agent/src/events/journal.ts`（改为 DurableEventJournal 的测试适配器或标记 deprecated；Runtime 不得同时 wiring 两套 journal）
 - Test: `apps/agent/test/storage/persistent-events.test.ts`, `event-publication.test.ts`
 
 **Interfaces:**
@@ -299,7 +300,7 @@ Expected: FAIL with missing durable journal/repositories。
 
 - [ ] **Step 4: Implement transactional event append and post-commit publication**
 
-appendWithin 只写 DB并收集事件，不直接通知 ConnectionManager；commit 返回后才 publish。Session/Run 仓库只接受当前 tx 的状态变更，所有记录新对象返回；不引入持久发送 Outbox。
+appendWithin 只写 DB并收集事件，不直接通知 ConnectionManager；commit 返回后才 publish。Session/Run 仓库只接受当前 tx 的状态变更，所有记录新对象返回；不引入持久发送 Outbox。旧 `EventJournal` 若保留，只能作为 `DurableEventJournal` 的测试适配器；Runtime 只 wiring `DurableEventJournal`，禁止双写/双读。
 
 - [ ] **Step 5: Run journal and S01–S03 event regressions**
 
@@ -345,7 +346,7 @@ Expected: FAIL with missing persistent admission。
 - [ ] **Step 5: Run admission tests**
 
 Run: `npm run test:agent -- test/storage/prompt-admission.test.ts test/storage/prompt-command-regression.test.ts test/idempotency-s02.test.ts`  
-Expected: PASS，S02 指纹/容量不回归，首次结果按 S04 收窄为 queued。
+Expected: PASS，S02 指纹/容量不回归，首次结果按 S04 收窄为 queued。同时把 S02 中所有断言首次结果可为 `starting` 的测试、Flutter 客户端和 `protocol/v1/README.md` 迁移为 `queued`-only；`starting` 只通过后续 `run.started` 观察，不得保留两套首次结果断言。
 
 - [ ] **Step 6: Commit**
 
@@ -358,6 +359,7 @@ git commit -m "feat: atomically persist prompt admission"
 
 **Files:**
 - Modify: `apps/agent/src/run/run-scheduler.ts`, `run-controller.ts`, `apps/agent/src/adapter/managed-run-driver.ts`, `apps/agent/src/storage/repositories/run-repository.ts`
+- Modify (migration): `apps/agent/test/run-scheduler-s03.test.ts`, `apps/agent/test/run-controller-s03.test.ts` 及构造 `RunRecord`/`ManagedRunStart` 的 fixture，补 `promptExpiresAt`/`recoveryGeneration` 等新必填字段和 DB-backed scheduler 初始化
 - Test: `apps/agent/test/storage/durable-scheduler.test.ts`, `run-start-crash.test.ts`, `run-controller-s04.test.ts`
 
 **Interfaces:**
@@ -380,7 +382,7 @@ Expected: FAIL with missing DB-backed start state transitions。
 
 - [ ] **Step 4: Implement DB state before every irreversible SDK boundary**
 
-drain 在同步调用栈内 beginStart→driver.startRun→registry.register→markStarted/run.started→resumeEvents。close 完成后才写终态/释放槽；SDK result、10 秒取消和 generation 隔离沿用 S02/S03。任何 DB 失败进入 degraded，不允许继续新 start。
+drain 在同步调用栈内 beginStart→driver.startRun→registry.register→markStarted/run.started→resumeEvents。close 完成后才写终态/释放槽；SDK result、10 秒取消和 generation 隔离沿用 S02/S03。任何 DB 失败进入 degraded，不允许继续新 start。同步迁移 S03 的 `run-scheduler-s03.test.ts`、`run-controller-s03.test.ts` 及 fixture，补 `promptExpiresAt`/`recoveryGeneration` 等新必填字段和 DB-backed scheduler 初始化；FIFO、双槽、取消断言不得放宽。
 
 - [ ] **Step 5: Run scheduler and run regressions**
 
@@ -390,7 +392,7 @@ Expected: PASS，无双 query、过期执行或旧 generation 污染。
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/agent/src/run apps/agent/src/adapter apps/agent/src/storage/repositories/run-repository.ts apps/agent/test/storage
+git add apps/agent/src/run apps/agent/src/adapter apps/agent/src/storage/repositories/run-repository.ts apps/agent/test/storage apps/agent/test/run-scheduler-s03.test.ts apps/agent/test/run-controller-s03.test.ts
 git commit -m "feat: drive managed runs from durable state"
 ```
 
@@ -398,6 +400,7 @@ git commit -m "feat: drive managed runs from durable state"
 
 **Files:**
 - Modify: `apps/agent/src/approval/approval-store.ts`, `permission-broker.ts`, `run-approval-bridge.ts`, `apps/agent/src/storage/repositories/approval-repository.ts`, `apps/agent/src/run/run-controller.ts`
+- Modify (migration): `apps/agent/test/permission-broker-request.test.ts`, `apps/agent/test/permission-broker-resolution.test.ts`, `apps/agent/test/permission-broker-invalidation.test.ts`，注入 DB-backed store 和 Volatile registry
 - Test: `apps/agent/test/storage/durable-approvals.test.ts`, `approval-storage-failure.test.ts`
 
 **Interfaces:**
@@ -421,7 +424,7 @@ Expected: FAIL with missing persistent/volatile split。
 
 - [ ] **Step 4: Implement register-before-publish and deny-on-storage-failure**
 
-先构造 volatile entry，再用一个同步调用栈提交 DB/requested；journal 在 commit 后 publish，因此 GET 可见时正文已注册。事务失败撤销 volatile entry。终态正常时在一个事务中同时写审批终态、pendingCount/session.status 和 resolved，随后 commit→publish→resolve；失败时跳过 allow，直接 deny/degraded。
+先构造 volatile entry，再用一个同步调用栈提交 DB/requested；journal 在 commit 后 publish，因此 GET 可见时正文已注册。事务失败撤销 volatile entry。终态正常时在一个事务中同时写审批终态、pendingCount/session.status 和 resolved，随后 commit→publish→resolve；失败时跳过 allow，直接 deny/degraded。同步迁移 S03 的 `permission-broker-request.test.ts`、`permission-broker-resolution.test.ts`、`permission-broker-invalidation.test.ts`，注入 DB-backed store 和 Volatile registry；120 秒、8/16、Promise identity 和重复 allow 断言不得放宽。
 
 - [ ] **Step 5: Run approval regressions**
 
@@ -431,7 +434,7 @@ Expected: PASS，S03 竞争、超时、工具范围和正文清理不回归。
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/agent/src/approval apps/agent/src/storage/repositories/approval-repository.ts apps/agent/src/run/run-controller.ts apps/agent/test/storage/durable-approvals.test.ts apps/agent/test/storage/approval-storage-failure.test.ts
+git add apps/agent/src/approval apps/agent/src/storage/repositories/approval-repository.ts apps/agent/src/run/run-controller.ts apps/agent/test/storage/durable-approvals.test.ts apps/agent/test/storage/approval-storage-failure.test.ts apps/agent/test/permission-broker-request.test.ts apps/agent/test/permission-broker-resolution.test.ts apps/agent/test/permission-broker-invalidation.test.ts
 git commit -m "feat: persist approval decisions without persisting content"
 ```
 
@@ -539,7 +542,7 @@ Expected: FAIL with missing S04 definitions/examples。
 
 - [ ] **Step 3: Implement additive protocol V1 schemas**
 
-保持原信封和 command.result 规则，固定 limit 默认/最大 100、快照最多 8 页、消息 48/64 KiB；记录 prompt.send queued-only、queue.remove recovery 扩展和同版本组合升级。
+保持原信封和 command.result 规则，固定 limit 默认/最大 100、快照最多 8 页、消息 48/64 KiB；在 README 明确记录 prompt.send 首次结果从 S02 的 `queued|starting` 收窄为 S04 的 `queued`-only、queue.remove recovery 扩展和同版本组合升级（客户端必须等待 run.started 才能看到 starting）。
 
 - [ ] **Step 4: Run protocol tests**
 
@@ -557,7 +560,7 @@ git commit -m "feat: define S04 recovery and sync protocol"
 
 **Files:**
 - Create: `apps/agent/src/sync/session-sync-service.ts`, `snapshot-service.ts`
-- Modify: `apps/agent/src/command/router.ts`, `apps/agent/src/events/snapshot-coordinator.ts`
+- Modify: `apps/agent/src/command/router.ts`, `apps/agent/src/events/snapshot-coordinator.ts`, `apps/agent/src/events/snapshot-factory.ts`（由 SnapshotService 复用或标记 deprecated；Runtime 只 wiring 分页快照路径）
 - Test: `apps/agent/test/storage/session-sync.test.ts`, `snapshot-service.test.ts`, `sync-live-race.test.ts`
 
 **Interfaces:**
@@ -582,7 +585,7 @@ Expected: FAIL with missing sync/snapshot services。
 
 - [ ] **Step 4: Implement consistent read-only commands and immutable pages**
 
-在 immediate 一致读中捕获 L/F/易失状态并保存只读首次结果；RESYNC 同事务创建快照。页 0 包含所有安全摘要+首批 recentEvents，后续页只含事件；SHA-256 对完整 canonical JSON UTF-8 bytes。新领域事件不占 seq，重复 command 不重复创建快照。
+在 immediate 一致读中捕获 L/F/易失状态并保存只读首次结果；RESYNC 同事务创建快照。页 0 包含所有安全摘要+首批 recentEvents，后续页只含事件；SHA-256 对完整 canonical JSON UTF-8 bytes。新领域事件不占 seq，重复 command 不重复创建快照。S03 的 `SnapshotFactory` 只作为分页快照的页内容投影工具；Runtime 不得同时暴露单消息快照和分页快照两条路径。
 
 - [ ] **Step 5: Run sync and snapshot tests**
 

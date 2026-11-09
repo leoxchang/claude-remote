@@ -21,9 +21,11 @@
 - `canUseTool` 继续立即 deny、`interrupt:false`，不得写永久规则或启用 `bypassPermissions`。
 - 项目授权配置持久保存；session/run/queue/Journal/idempotency 只在内存，Agent 重启生成新 agentInstanceId，不宣称恢复。
 - 单条协议消息最大 64 KiB；prompt UTF-8 为 1–16,384 字节；快照 payload 48 KiB、总消息 64 KiB、最多 200 条摘要事件，queuedRuns 也计入预算。
+- S02 的 `prompt.send` 首次结果允许 `queued|starting`；S04 会把首次结果收窄为 `queued`-only，S02 的测试和 Flutter 客户端在 S04 Task 6 统一迁移，本阶段不提前改。
+- S04 起 prompt 正文会持久化到 Mac SQLite 的 `runs.promptText`，仅经认证 no-store endpoint 读取；S02 阶段仍只保存在内存。
 - Mac 只监听 `127.0.0.1:8787` 与 `~/.claude-remote/agent.sock`；仅 Tailscale Serve，不启用 Funnel，不关闭 iOS TLS 校验。
 - 日志、快照、列表和错误不得包含 token、密钥、prompt 正文、queued 文本或非公开 rootPath；核心 TypeScript 与 Dart 业务逻辑覆盖率均不低于 80%。
-- 当前目录不是 Git 仓库。只有用户明确授权初始化/提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
+- 当前目录已是 Git 仓库（若执行时不是，先记录并与用户确认）。只有用户明确授权提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
 
 ## Review Focus
 
