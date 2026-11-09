@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - **当前入口为 BLOCKED：**Task 0 未确认 S00 Core、S01、S02、S03、S04 全部 PASS 前，不得执行 Task 1–13；Task 1 的 ASR-00 未以真实豆包服务、真实凭证和物理 iPhone 通过前，不得执行 Task 2–13。
+- S00 的 ASR-01–08 是 throwaway fake 契约，S05 不要求其回归；S05 以 ASR-00 和新 Provider 契约为准，并在 Task 0 更新/退役 `docs/s00/asr-contract.md` 的占位字段。
 - 当前只有 spec-to-spec 文档基线；Task 0 必须核对届时真实 Fastify/WSS 鉴权、revoke、RecoveryStore、PersistentCommandCoordinator 和 Composer 接口，不假设今天已有这些类。
 - 固定 endpoint `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async`；resourceId 只允许 `volc.seedasr.sauc.duration`（默认）或 `volc.seedasr.sauc.concurrent`。
 - API Key 只从 Mac 进程启动时的 `DOUBAO_ASR_API_KEY` 环境变量读取，禁止命令行参数、App、SQLite、协议、日志和示例；S05 不实现 Keychain/秘密服务，轮换需重启。
@@ -21,11 +22,12 @@
 - `partial.text` 是当前识别快照而非 delta；utterance definite 不等于 final；final 只在 finalizing 中接受且每流最多一次；cancel 后迟到 partial/final 全部丢弃。
 - 音频只在内存中转发；不写文件、SQLite、日志、崩溃上下文或诊断导出。ASR 事件不进入主控制 WSS、session seq、Journal、commands、audit_logs 或时间线。
 - final 只追加到 origin session 草稿；普通 Composer 是唯一执行入口，语音不创建 commandId/run/审批，不提供语音直接执行或语音审批。
+- voice_drafts 属于用户草稿，不参与缓存淘汰；origin session 在 recording/finalizing 期间阻止 archive/remove，用户发送/取消/显式清除时才删除。
 - `voice_drafts` 以增量 schema v2 迁移加入，必须保留既有 outbox_commands、sync_cursors、cached_events、cached_sessions 和 drafts，不清库重建。
 - 后台、锁屏、电话打断、音频断线、Agent 重启都停止当前流，不自动恢复、不自动重录、不自动重试已发送音频。
 - 不启用 Tailscale Funnel、不关闭 TLS 校验、不使用 `badCertificateCallback`、不修改全局 `settings.json`、不开启 `bypassPermissions`；device token 只在 iPhone Keychain，Mac 只存 SHA-256。
 - 核心 TypeScript 与 Dart 业务逻辑覆盖率均不低于 80%；fake Provider、桌面测试或模拟器不得替代 ASR-00、真实豆包、Tailscale 和物理 iPhone E2E。
-- 当前目录不是 Git 仓库。只有用户明确授权初始化/提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
+- 当前目录已是 Git 仓库（若执行时不是，先记录并与用户确认）。只有用户明确授权提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
 
 ## Review Focus
 
@@ -102,7 +104,7 @@ Expected: 全部 PASS，CONC-01、PERM-00、STORE-00、E2E 和覆盖率证据完
 
 - [ ] **Step 2: Record real interfaces and drift**
 
-核对 `/ws` 的 Fastify WSS 插件与 Bearer 鉴权函数、revoke/pair replace 通知、`RecoveryDatabase.open()` 的 schemaVersion/onUpgrade、drafts 表、`PersistentCommandCoordinator.send` 签名、ConnectionController 的 token/URL、Composer 的 session 草稿读写，以及 `record 7.1.2` 的 `AudioRecorder.startStream(RecordConfig(...))` 实际签名。差异写入 `preflight.md`，实现者不得猜测。
+核对 `/ws` 的 Fastify WSS 插件与 Bearer 鉴权函数、revoke/pair replace 通知、`RecoveryDatabase.open()` 的 schemaVersion/onUpgrade、drafts 表、`PersistentCommandCoordinator.send` 签名、ConnectionController 的 token/URL、Composer 的 session 草稿读写，以及 `record 7.1.2` 的 `AudioRecorder.startStream(RecordConfig(...))` 实际签名。差异写入 `preflight.md`，实现者不得猜测。同时核对 `docs/s00/asr-contract.md`：S00 的 APP_ID/ACCESS_TOKEN/ENDPOINT/MODEL 占位在本阶段退役，记录 ASR-01–08 与新 ASR-00/Provider 契约的映射；S00 fake 契约不再作为 S05 回归门禁。
 
 - [ ] **Step 3: Prepare isolated fixtures and paths**
 
@@ -592,6 +594,7 @@ git commit -m "feat: capture and packetize PCM audio on iPhone"
 **Files:**
 - Create: `apps/mobile/lib/voice/voice_draft.dart`, `apps/mobile/lib/voice/voice_draft_repository.dart`
 - Modify: `apps/mobile/lib/recovery/recovery_database.dart`, `apps/mobile/lib/recovery/recovery_store.dart`
+- Modify (migration): `apps/mobile/test/recovery/recovery_database_test.dart`, `apps/mobile/test/recovery/cache_repository_test.dart`（schemaVersion 改为 2，保留 v1 数据断言）
 - Test: `apps/mobile/test/voice/voice_draft_repository_test.dart`, `apps/mobile/test/recovery/recovery_migration_v2_test.dart`
 
 **Interfaces:**
@@ -621,6 +624,7 @@ class VoiceDraftRepository {
   });
   Future<List<VoiceDraft>> pendingForSession(String sessionId);
   Future<VoiceDraft?> find(String voiceDraftId);
+  Future<VoiceDraft> updateCombinedDraft(String voiceDraftId, String combinedDraft);
   Future<void> restoreOriginal(String voiceDraftId);
   Future<void> deleteWithin(Transaction txn, String voiceDraftId);
 }
@@ -632,7 +636,7 @@ class VoiceDraftRepository {
 
 - [ ] **Step 2: Write failing commit and cancel tests**
 
-原草稿非空时以单个换行追加 final，空时只用 final；录音后当前草稿被外部改变时仍追加而非覆盖；`commitFinal` 的 drafts 更新与 voice_drafts 插入同事务，注入失败后两者都不存在；`restoreOriginal` 恢复 originalDraft 并删除行，同事务；重开 App 后 pending 仍可读；合并超过 16 KiB 仍保存且可编辑；S04 `RecoveryStore.clearAll()`/unpair/replace 后 voice_drafts 为空。
+原草稿非空时以单个换行追加 final，空时只用 final；origin session 在 recording/finalizing 期间禁止直接编辑，其他 session 可编辑；final 后用户编辑 combinedDraft 时必须调用 `updateCombinedDraft` 同步持久化，App 被杀后恢复最后编辑文本；若 final 前检测到 origin 草稿被非本流程修改，不得静默覆盖，保留当前草稿并在 UI 提示冲突，由用户选择追加 final 或放弃本次识别；`commitFinal` 的 drafts 更新与 voice_drafts 插入同事务，注入失败后两者都不存在；`restoreOriginal` 恢复 originalDraft 并删除行，同事务；重开 App 后 pending 仍可读；合并超过 16 KiB 仍保存且可编辑；S04 `RecoveryStore.clearAll()`/unpair/replace 后 voice_drafts 为空。
 
 - [ ] **Step 3: Run tests to verify they fail**
 
@@ -641,12 +645,12 @@ Expected: FAIL with missing schema v2/repository。
 
 - [ ] **Step 4: Implement incremental migration and repository**
 
-`RecoveryDatabase` schemaVersion 改为 2，`onUpgrade` 只执行 `CREATE TABLE IF NOT EXISTS voice_drafts` 和索引；`commitFinal`/`restoreOriginal` 都通过 `RecoveryDatabase.transaction` 同时修改 drafts 与 voice_drafts，不重建数据库。
+`RecoveryDatabase` schemaVersion 改为 2，`onUpgrade` 只执行 `CREATE TABLE IF NOT EXISTS voice_drafts` 和索引；`commitFinal`/`restoreOriginal` 都通过 `RecoveryDatabase.transaction` 同时修改 drafts 与 voice_drafts，不重建数据库；`updateCombinedDraft` 在同一事务更新 voice_drafts.combinedDraft 与 drafts.text。
 
 - [ ] **Step 5: Run tests and S04 recovery regressions**
 
 Run: `cd apps/mobile && flutter test test/voice/voice_draft_repository_test.dart test/recovery`  
-Expected: PASS；S04 outbox/cursor/cache/drafts 回归不失败。
+Expected: PASS；S04 outbox/cursor/cache/drafts 回归不失败。S04 中硬编码 schemaVersion=1 的测试迁移为 2，v1→v2 数据保留断言必须保留。
 
 - [ ] **Step 6: Commit**
 
@@ -732,7 +736,7 @@ class VoiceInputController {
 
 - [ ] **Step 2: Write failing controller race tests**
 
-权限拒绝 → `ASR_PERMISSION_DENIED`，麦克风不启动；麦克风启动失败 → `ASR_MIC_UNAVAILABLE`；权限/connecting 阶段松手 → cancel 且不采集、不 finalize；迟到的 started 被忽略；started 后才采集；release → finalizing → final 只写 origin session，selectedSessionId 不变；取消后迟到 final 丢弃；旧 asrStreamId/sequence 不覆盖新状态；60 秒和 VAD autoFinish；background/interruption/socketClosed 取消且不自动恢复，电话打断显示 `ASR_INTERRUPTED` 安全状态；agentRestarted 取消；旧 Mac 拒绝 `/ws/asr` 时安全失败且文字输入仍可用；错误映射安全文案。
+权限拒绝 → `ASR_PERMISSION_DENIED`，麦克风不启动；麦克风启动失败 → `ASR_MIC_UNAVAILABLE`；权限/connecting 阶段松手 → cancel 且不采集、不 finalize；迟到的 started 被忽略；started 后才采集；release → finalizing → final 只写 origin session，selectedSessionId 不变；取消后迟到 final 丢弃；旧 asrStreamId/sequence 不覆盖新状态；60 秒和 VAD autoFinish；background/interruption/socketClosed 取消且不自动恢复，电话打断显示 `ASR_INTERRUPTED` 安全状态；agentRestarted 取消；旧 Mac 拒绝 `/ws/asr` 时安全失败且文字输入仍可用；错误映射安全文案；origin session 在 recording/finalizing 时 archive/remove 返回 `SESSION_BUSY`/`WORKSPACE_BUSY`，final 前检测到归档/移除则丢弃 pending 并提示。
 
 - [ ] **Step 3: Run tests to verify they fail**
 
@@ -741,12 +745,12 @@ Expected: FAIL with missing client/controller。
 
 - [ ] **Step 4: Implement client and state machine**
 
-一次 press 生成一个 asrStreamId 和 UI generation；originSessionId/originalDraft 在 press 时捕获；final 经 `VoiceDraftRepository.commitFinal` 写入后用 `VoiceDraftAccess.setDraft` 更新 origin 草稿；partial 只保存在内存和 UI 状态；所有终止路径走同一幂等 `cleanup()`。
+一次 press 生成一个 asrStreamId 和 UI generation；originSessionId/originalDraft 在 press 时捕获；final 经 `VoiceDraftRepository.commitFinal` 写入后用 `VoiceDraftAccess.setDraft` 更新 origin 草稿；用户编辑 combinedDraft 时调用 `updateCombinedDraft`，确保 drafts 与 voice_drafts 同步；partial 只保存在内存和 UI 状态；所有终止路径走同一幂等 `cleanup()`。
 
 - [ ] **Step 5: Run tests and S00 ASR regressions**
 
-Run: `cd apps/mobile && flutter test test/voice`，并运行 Task 0 记录的 S00 ASR-01–08 fake Provider 契约测试路径  
-Expected: PASS，S00 契约不回归，无自动重连/自动 prompt。
+Run: `cd apps/mobile && flutter test test/voice`，并运行 S05 新的 ASR Provider/状态机契约测试（Task 2–5）
+Expected: PASS，新的 ASR 契约不回归；S00 ASR-01–08 只作为历史证据，不作为本阶段回归门禁，无自动重连/自动 prompt。
 
 - [ ] **Step 6: Commit**
 
@@ -791,7 +795,7 @@ class VoiceSendCoordinator {
 
 - [ ] **Step 2: Write failing cancel and composer tests**
 
-“取消本次语音”恢复 originalDraft 并删除 voice_drafts，不创建 prompt；已有草稿追加 final 后普通发送只读当前编辑文本；ASR 错误/未配置时文字 Composer 仍可用；切换 session 后发送只作用于当前 session 的草稿。
+“取消本次语音”恢复 originalDraft 并删除 voice_drafts，不创建 prompt；若 combinedDraft 已被用户编辑，取消前必须提示“会丢弃本次编辑”；已有草稿追加 final 后普通发送只读当前编辑文本，并把 voice_drafts 标记 consumed/删除；ASR 错误/未配置时文字 Composer 仍可用；切换 session 后发送只作用于当前 session 的草稿。
 
 - [ ] **Step 3: Run tests to verify they fail**
 
@@ -828,7 +832,7 @@ git commit -m "feat: send voice drafts through the ordinary composer"
 
 - [ ] **Step 1: Write failing widget tests**
 
-按住开始、松开发 finish、滑入取消区松手取消；connecting/权限阶段松手不启动采集；partial 替换展示而不拼接；计时、音量/静音提示和 60 秒文案正确；final 追加后输入框可编辑；切换 session 显示 origin 草稿横幅；后台/错误遮罩清 partial；权限拒绝显示安全文案；ASR 不可用时麦克风禁用但文字输入可用；按钮文案不把“完成识别”写成“发送”。
+按住开始、松开发 finish、滑入取消区松手取消；connecting/权限阶段松手不启动采集；partial 替换展示而不拼接；计时、音量/静音提示和 60 秒文案正确；final 追加后输入框可编辑；origin session 在 recording/finalizing 时输入框禁用并显示“正在录音，完成后可编辑”，其他 session 不受影响；切换 session 显示 origin 草稿横幅；后台/错误遮罩清 partial；权限拒绝显示安全文案；ASR 不可用时麦克风禁用但文字输入可用；按钮文案不把“完成识别”写成“发送”。
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -837,7 +841,7 @@ Expected: FAIL with missing widgets。
 
 - [ ] **Step 3: Implement the UI and interruption bridge**
 
-Widget 只调用 controller/coordinator 的公开方法，不自行创建命令或持久状态；Swift 用 `AVAudioSession.interruptionNotification` 经 EventChannel 上报，`Info.plist` 只新增 `NSMicrophoneUsageDescription`，不新增 Speech 权限。
+Widget 只调用 controller/coordinator 的公开方法，不自行创建命令或持久状态；Swift 用 `AVAudioSession.interruptionNotification` 经 EventChannel 上报，`Info.plist` 只新增 `NSMicrophoneUsageDescription`，不新增 Speech 权限。录音/识别期间锁定 origin session 的 Composer 编辑；final 后每次编辑经 `updateCombinedDraft` 持久化；取消已编辑草稿前弹出丢弃确认。
 
 - [ ] **Step 4: Run tests and Flutter coverage**
 
@@ -878,7 +882,7 @@ Expected: FAIL with missing gate/scanner。
 - [ ] **Step 4: Execute E2E-01–14 on the physical iPhone**
 
 Run: `S05_LIVE=1 npm run test:s05:live`  
-Expected: 按 spec 逐项真实通过，并记录版本、时间、traceId/streamId 和副作用次数：E2E-01 未配置/错误凭证；E2E-02 拒绝麦克风权限；E2E-03 中文 final 编辑后单次发送；E2E-04 原草稿非空并取消；E2E-05 录音中切换 session；E2E-06 重复点击/网络重试；E2E-07 取消后迟到 final；E2E-08 connecting/权限阶段松手；E2E-09 锁屏/后台/电话打断；E2E-10 finalize 超时/空 final；E2E-11 Provider 过载/主控制高负载；E2E-12 Agent 重启/revoke；E2E-13 60 秒/VAD/背压；E2E-14 final 后 App 被杀再重开。缺设备/凭证时记录 BLOCKED，不能以模拟器或 fake 代替。
+Expected: 按 spec 逐项真实通过，并记录版本、时间、traceId/streamId 和副作用次数：E2E-01 未配置/错误凭证；E2E-02 拒绝麦克风权限；E2E-03 中文 final 编辑后单次发送；E2E-04 原草稿非空、编辑后取消（提示丢弃编辑）；E2E-05 录音中切换 session；E2E-06 重复点击/网络重试；E2E-07 取消后迟到 final；E2E-08 connecting/权限阶段松手；E2E-09 锁屏/后台/电话打断；E2E-10 finalize 超时/空 final；E2E-11 Provider 过载/主控制高负载；E2E-12 Agent 重启/revoke；E2E-13 60 秒/VAD/背压；E2E-14 final 后 App 被杀再重开。缺设备/凭证时记录 BLOCKED，不能以模拟器或 fake 代替。
 
 - [ ] **Step 5: Verify rollback and privacy boundaries**
 

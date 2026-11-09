@@ -25,7 +25,7 @@
 - App 完整加载并核对 chunkCount/byteLength/SHA-256 后才允许 allow_once；正文只存内存，退后台、resolved、revoke 或 agentInstanceId 改变时清除，不写普通磁盘、日志或崩溃上下文。
 - 审批、审计、队列和 Journal 均为当前进程内存；Agent 重启不得恢复 pending、自动 allow/replay 或宣称旧 run 已有确定结果。
 - 核心 TypeScript 与 Dart 业务逻辑覆盖率均不低于 80%；Mock 不替代 PERM-00、真实 SDK、Tailscale 和 iPhone E2E。
-- 当前目录不是 Git 仓库。只有用户明确授权初始化/提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
+- 当前目录已是 Git 仓库（若执行时不是，先记录并与用户确认）。只有用户明确授权提交后才执行 Commit 步骤，否则标记 SKIPPED，不得自行 `git init` 或提交。
 
 ## Review Focus
 
@@ -392,6 +392,7 @@ git commit -m "feat: serve bounded authenticated approval content"
 
 **Files:**
 - Modify: `apps/agent/src/adapter/agent-sdk-adapter.ts`, `apps/agent/src/adapter/managed-run-driver.ts`, `apps/agent/src/events/adapter-events.ts`, `apps/agent/src/events/normalizer.ts`
+- Modify (migration): `apps/agent/test/agent-sdk-adapter-s02.test.ts`（注入 `permissionBroker`，把“无条件 deny”断言改为“default 策略下 deny”）
 - Test: `apps/agent/test/agent-sdk-adapter-s03.test.ts`, `apps/agent/test/normalizer-s03.test.ts`
 
 **Interfaces:**
@@ -428,7 +429,7 @@ Expected: FAIL because adapter still uses unconditional S02 deny and normalizer 
 
 - [ ] **Step 4: Implement the SDK-only mapping and order-neutral normalizer**
 
-Adapter 复制 SDK 回调字段到本地结构并绑定 handle 的 runId，Broker 负责所有支持性/策略判断和安全错误。Normalizer 按 runId+toolUseID 跟踪 started/completed 和近期 denied outcome；只有真实 toolStarted 创建工具卡片，resolved 时不创建空卡片，run close 清理短期状态。
+Adapter 复制 SDK 回调字段到本地结构并绑定 handle 的 runId，Broker 负责所有支持性/策略判断和安全错误。Normalizer 按 runId+toolUseID 跟踪 started/completed 和近期 denied outcome；只有真实 toolStarted 创建工具卡片，resolved 时不创建空卡片，run close 清理短期状态。旧 `agent-sdk-adapter-s02.test.ts` 必须注入 `permissionBroker` 并把“无条件 deny”断言迁移为“default 策略下 deny”，不得删除 deny 断言或放宽为允许。
 
 - [ ] **Step 5: Run adapter and regression tests**
 
@@ -438,7 +439,7 @@ Expected: PASS，S01/S02 工具截断、deny 补卡和 generation 隔离不回�
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/agent/src/adapter apps/agent/src/events apps/agent/test/agent-sdk-adapter-s03.test.ts apps/agent/test/normalizer-s03.test.ts
+git add apps/agent/src/adapter apps/agent/src/events apps/agent/test/agent-sdk-adapter-s03.test.ts apps/agent/test/normalizer-s03.test.ts apps/agent/test/agent-sdk-adapter-s02.test.ts
 git commit -m "feat: connect SDK permissions to mobile broker"
 ```
 
@@ -447,6 +448,7 @@ git commit -m "feat: connect SDK permissions to mobile broker"
 **Files:**
 - Create: `apps/agent/src/approval/run-approval-bridge.ts`
 - Modify: `apps/agent/src/domain/types.ts`, `apps/agent/src/run/run-scheduler.ts`, `apps/agent/src/run/run-controller.ts`, `apps/agent/src/app/runtime.ts`, `apps/agent/src/workspace/workspace-admin.ts`
+- Modify (migration): `apps/agent/test/run-scheduler.test.ts`, `apps/agent/test/run-controller-s02.test.ts` 及构造 `RunRecord`/`ManagedRunStart` 的 fixture，补 `deviceId`、`pendingApprovalCount`、`permissionBroker`
 - Test: `apps/agent/test/run-scheduler-s03.test.ts`, `apps/agent/test/run-controller-s03.test.ts`, `apps/agent/test/approval-lifecycle.test.ts`
 
 **Interfaces:**
@@ -472,7 +474,7 @@ Expected: FAIL with missing waiting_approval/device binding/invalidation wiring�
 
 - [ ] **Step 4: Implement synchronous run approval ports and lifecycle order**
 
-RunRecord 状态与计数不可变更新，waiting_approval 不释放 activeRun/槽。Runtime revoke 同时关闭旧连接和 invalidateDevice；policy admin listener 仅在切到 deny 时 invalidateWorkspace；close 先 invalidateAll 再关闭 Adapter。SDK result/timeout close 路径重复 invalidateRun 作为幂等兜底，全部审批清理和 Adapter close 完成后才 scheduler.complete。
+RunRecord 状态与计数不可变更新，waiting_approval 不释放 activeRun/槽。Runtime revoke 同时关闭旧连接和 invalidateDevice；policy admin listener 仅在切到 deny 时 invalidateWorkspace；close 先 invalidateAll 再关闭 Adapter。SDK result/timeout close 路径重复 invalidateRun 作为幂等兜底，全部审批清理和 Adapter close 完成后才 scheduler.complete。同步迁移 S02 的 `run-scheduler.test.ts`、`run-controller-s02.test.ts` 及构造 `RunRecord`/`ManagedRunStart` 的 fixture，补 `deviceId`、`pendingApprovalCount`、`permissionBroker`；不得为绕过迁移把这些字段改成可选。
 
 - [ ] **Step 5: Run run and lifecycle regressions**
 
@@ -482,7 +484,7 @@ Expected: PASS，FIFO、双槽、queue.remove、10 秒取消和独立 interrupt 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/agent/src/approval/run-approval-bridge.ts apps/agent/src/domain/types.ts apps/agent/src/run apps/agent/src/app/runtime.ts apps/agent/src/workspace/workspace-admin.ts apps/agent/test/run-scheduler-s03.test.ts apps/agent/test/run-controller-s03.test.ts apps/agent/test/approval-lifecycle.test.ts
+git add apps/agent/src/approval/run-approval-bridge.ts apps/agent/src/domain/types.ts apps/agent/src/run apps/agent/src/app/runtime.ts apps/agent/src/workspace/workspace-admin.ts apps/agent/test/run-scheduler-s03.test.ts apps/agent/test/run-controller-s03.test.ts apps/agent/test/approval-lifecycle.test.ts apps/agent/test/run-scheduler.test.ts apps/agent/test/run-controller-s02.test.ts
 git commit -m "feat: integrate approvals with managed run lifecycle"
 ```
 

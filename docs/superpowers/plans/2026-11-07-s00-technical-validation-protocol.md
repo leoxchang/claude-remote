@@ -21,7 +21,7 @@
 - Agent SDK 和 ASR fake 程序是 throwaway；`protocol/v1/`、`scripts/s00/` 和脱敏文档是保留基线。
 - 豆包只写配置占位和 fake 契约，真实联调统一标记 `NOT_RUN / DEFERRED_TO_BEFORE_S05`，不得写成 PASS。
 - 控制消息 `command.result`、`connection.hello/ready`、`desktop.status` 和非时间线错误不占用会话 `seq`；时间线事件从 `1` 开始逐事件加 `1`。
-- 当前目录不是 Git 仓库。只有用户明确授权初始化/提交后才执行各任务的 Commit 步骤；否则将 Commit 标为 SKIPPED，不得自行 `git init` 或提交。
+- 当前目录已是 Git 仓库（若执行时不是，先记录并与用户确认）。只有用户明确授权提交后才执行各任务的 Commit 步骤；否则将 Commit 标为 SKIPPED，不得自行 `git init` 或提交。
 
 ## Review Focus
 
@@ -76,6 +76,7 @@ spikes/s00-asr-contract/
 docs/s00/
   status.json                          # 每个测试 ID 的唯一状态台账
   environment.md                       # 版本与脱敏配置来源
+  agent-sdk-evidence.md                # SDK 测试记录与证据索引
   evidence/                            # 每个测试的脱敏 JSON 证据
   gateway-attribution.md               # 网关请求归因
   session-interoperability.md          # 双向恢复结果与限制
@@ -435,12 +436,14 @@ Commit: `git add protocol/v1 docs/s00 && git commit -m "feat: complete protocol 
 - Modify: `docs/s00/status.json`
 
 **Interfaces:**
-- Produces: `parseAsrConfig(env: NodeJS.ProcessEnv): AsrConfig`。
+- Produces: `parseAsrConfig(env: NodeJS.ProcessEnv): AsrConfig`（字段仅占位，S05 以官方 ASR-00 结论为准）。
 - Produces: `interface AsrStreamHandle { readonly streamId: string }`。
-- Produces: `interface AsrProvider { start(handle:AsrStreamHandle,config:AsrConfig,emit:(event:AsrEvent)=>void):Promise<void>;write(handle:AsrStreamHandle,audio:Uint8Array):Promise<void>;finalize(handle:AsrStreamHandle):Promise<void>;cancel(handle:AsrStreamHandle):Promise<void> }`。
+- Produces: `interface AsrProvider { start(input:{asrStreamId:string;audio:{format:'pcm-s16le';sampleRate:16000;channels:1}}):Promise<AsrProviderHandle>;write(handle:AsrProviderHandle,audio:Uint8Array):void;finalize(handle:AsrProviderHandle):void;cancel(handle:AsrProviderHandle):void }`。
+- Produces: `interface AsrProviderHandle { readonly streamId:string; events:AsyncIterable<AsrProviderEvent> }`。
 - Produces: `interface AsrSnapshot { state:'idle'|'connecting'|'recording'|'finalizing'|'completed'|'cancelled'|'error';streamId?:string;draft:string;finalText?:string;lastSequence:number;error?:{code:string;retryable:boolean;safeMessage:string} }`。
-- Produces: `class AsrController { constructor(provider:AsrProvider,config:AsrConfig,idFactory?:()=>string);start():Promise<void>;write(audio:Uint8Array):Promise<void>;finalize():Promise<void>;cancel():Promise<void>;snapshot():AsrSnapshot }`。
-- Produces: `FakeAsrProvider`，测试可发送 `asr.started/partial/final/error/cancelled/closed`。
+- Produces: `class AsrController { constructor(provider:AsrProvider,idFactory?:()=>string);start():Promise<void>;write(audio:Uint8Array):Promise<void>;finalize():Promise<void>;cancel():Promise<void>;snapshot():AsrSnapshot }`。
+- Produces: `class FakeAsrProvider implements AsrProvider`，构造函数接收 `AsrConfig`，测试可发送 `asr.started/partial/final/error/cancelled/closed`。
+- Note: S00 只验证 Provider 中立状态机；S05 的 `DOUBAO_ASR_API_KEY`/`DOUBAO_ASR_RESOURCE_ID` 和固定 endpoint 取代本任务的占位字段，ASR-01–08 不作为 S05 回归门禁。
 
 - [ ] **Step 1: Write failing ASR-01–08 tests**
 
@@ -453,7 +456,7 @@ Expected: FAIL with missing ASR modules。
 
 - [ ] **Step 3: Implement provider-neutral immutable state transitions**
 
-Controller 通过注入 `idFactory: () => string` 生成 streamId，忽略旧 stream 和不大于当前 sequence 的事件；completed/cancelled/error 为终态。`parseAsrConfig` 只验证候选字段 `ASR_PROVIDER=doubao`、APP_ID、ACCESS_TOKEN、RESOURCE_ID、ENDPOINT，MODEL 可选；所有字段在文档标记 `TO_VERIFY_WITH_OFFICIAL_DOCS`。
+Controller 通过注入 `idFactory: () => string` 生成 streamId，忽略旧 stream 和不大于当前 sequence 的事件；completed/cancelled/error 为终态。`parseAsrConfig` 只验证候选字段 `ASR_PROVIDER=doubao`、APP_ID、ACCESS_TOKEN、RESOURCE_ID、ENDPOINT，MODEL 可选；所有字段在文档标记 `TO_VERIFY_WITH_OFFICIAL_DOCS`。这些字段只是 S00 占位：S05 已按官方 ASR-00 改用 `DOUBAO_ASR_API_KEY`、`DOUBAO_ASR_RESOURCE_ID` 和固定 endpoint（见 `specs/2026-11-08-s05-doubao-voice-input-design.md`），因此 ASR-01–08 只证明 Provider 中立状态机，不是 S05 的回归门禁。
 
 - [ ] **Step 4: Run tests and verify deferred status**
 
@@ -462,13 +465,14 @@ Expected: PASS，ASR-01–08 可标 PASS；`DOUBAO-LIVE` 仍为 NOT_RUN/deferred
 
 - [ ] **Step 5: Document and commit**
 
-`asr-contract.md` 写明 16 kHz/mono/PCM16 基线、密钥只在 Mac、真实豆包产品/API/短期凭证尚未验证，以及 S05 前的六项 live 清单。  
+`asr-contract.md` 写明 16 kHz/mono/PCM16 基线、密钥只在 Mac、真实豆包产品/API/短期凭证尚未验证，以及 S05 前的六项 live 清单；明确标注配置字段为 S00 占位，S05 以 ASR-00 结论为准。
 Commit: `git add spikes/s00-asr-contract docs/s00 && git commit -m "test: add deferred Doubao ASR contract"`。
 
 ### Task 11: 退出门禁、覆盖率与最终报告
 
 **Files:**
 - Create: `scripts/s00/gate.ts`, `scripts/s00/gate-cli.ts`, `scripts/s00/tests/gate.test.ts`
+- Create: `docs/s00/agent-sdk-evidence.md`
 - Modify: `vitest.config.ts`, `docs/s00/exit-report.md`, `docs/s00/status.json`
 
 **Interfaces:**
@@ -495,7 +499,7 @@ Expected: 全部测试 PASS；`scripts/s00/` 与 `protocol/v1/src/` 的 statemen
 
 - [ ] **Step 5: Write the evidence-backed exit report**
 
-`exit-report.md` 逐项链接环境、SDK、网关、双向恢复、协议和 ASR 证据，列出所有 FAIL/BLOCKED/LIMITED；明确写出“可以进入 S01”或“需要调整架构”。不得将本次未执行的豆包联调写成已验证。
+`agent-sdk-evidence.md` 汇总 SDK-01–12、CLI-01–03 的测试记录、证据路径和安全摘要；`exit-report.md` 逐项链接环境、SDK、网关、双向恢复、协议和 ASR 证据，列出所有 FAIL/BLOCKED/LIMITED；明确写出“可以进入 S01”或“需要调整架构”。不得将本次未执行的豆包联调写成已验证。
 
 - [ ] **Step 6: Commit**
 
