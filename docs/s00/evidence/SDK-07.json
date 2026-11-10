@@ -2,7 +2,7 @@
   "id": "SDK-07",
   "status": "PASS",
   "summary": "canUseTool allowed one Bash call and the command output was observed",
-  "observedAt": "2026-11-10T05:15:28.528Z",
+  "observedAt": "2026-11-10T06:26:07.045Z",
   "data": {
     "callback": true,
     "outputMarker": true,

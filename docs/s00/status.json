@@ -2,91 +2,91 @@
   "SDK-01": {
     "status": "PASS",
     "summary": "Version inventory and settings sources recorded",
-    "observedAt": "2026-11-10T05:14:39.489Z",
+    "observedAt": "2026-11-10T06:25:17.967Z",
     "evidence": "docs/s00/evidence/SDK-01.json"
   },
   "SDK-02": {
     "status": "PASS",
     "summary": "user-only sources omit the project CLAUDE.md; default and explicit sources load it without tool use",
-    "observedAt": "2026-11-10T05:14:39.489Z",
+    "observedAt": "2026-11-10T06:25:17.967Z",
     "evidence": "docs/s00/evidence/SDK-02.json"
   },
   "SDK-03": {
     "status": "PASS",
     "summary": "SDK-spawned CLI connected to the configured gateway during the window; runtime log shows the model",
-    "observedAt": "2026-11-10T05:14:39.489Z",
+    "observedAt": "2026-11-10T06:25:17.967Z",
     "evidence": "docs/s00/evidence/SDK-03.json"
   },
   "SDK-04": {
     "status": "PASS",
     "summary": "claude_code preset loads tools and project settings in the baseline run",
-    "observedAt": "2026-11-10T05:14:39.489Z",
+    "observedAt": "2026-11-10T06:25:17.967Z",
     "evidence": "docs/s00/evidence/SDK-04.json"
   },
   "SDK-05": {
     "status": "PASS",
     "summary": "One query accepted two streamed user turns and reused the first turn context",
-    "observedAt": "2026-11-10T05:15:35.260Z",
+    "observedAt": "2026-11-10T06:26:12.989Z",
     "evidence": "docs/s00/evidence/SDK-05.json"
   },
   "SDK-06": {
     "status": "PASS",
     "summary": "Assistant messages and stream_event text deltas were both observed",
-    "observedAt": "2026-11-10T05:15:35.260Z",
+    "observedAt": "2026-11-10T06:26:12.989Z",
     "evidence": "docs/s00/evidence/SDK-06.json"
   },
   "SDK-07": {
     "status": "PASS",
     "summary": "canUseTool allowed one Bash call and the command output was observed",
-    "observedAt": "2026-11-10T05:15:28.528Z",
+    "observedAt": "2026-11-10T06:26:07.045Z",
     "evidence": "docs/s00/evidence/SDK-07.json"
   },
   "SDK-08": {
     "status": "PASS",
     "summary": "canUseTool denied Bash, the command did not run, and the agent kept replying",
-    "observedAt": "2026-11-10T05:15:28.528Z",
+    "observedAt": "2026-11-10T06:26:07.045Z",
     "evidence": "docs/s00/evidence/SDK-08.json"
   },
   "SDK-09": {
     "status": "PASS",
     "summary": "interrupt() stopped a streaming turn and the query closed",
-    "observedAt": "2026-11-10T05:14:19.837Z",
+    "observedAt": "2026-11-10T06:24:57.127Z",
     "evidence": "docs/s00/evidence/SDK-09.json"
   },
   "SDK-10": {
     "status": "PASS",
-    "summary": "A new query with resume read the marker from the finished session",
-    "observedAt": "2026-11-10T05:14:19.837Z",
+    "summary": "A new query with resume read the marker from the same finished session",
+    "observedAt": "2026-11-10T06:24:57.127Z",
     "evidence": "docs/s00/evidence/SDK-10.json"
   },
   "SDK-11": {
     "status": "PASS",
     "summary": "An explicit resume of the interrupted session recovered its context",
-    "observedAt": "2026-11-10T05:14:19.837Z",
+    "observedAt": "2026-11-10T06:24:57.127Z",
     "evidence": "docs/s00/evidence/SDK-11.json"
   },
   "SDK-12": {
     "status": "PASS",
     "summary": "Resuming an unknown session id failed instead of creating a fake session",
-    "observedAt": "2026-11-10T05:14:19.837Z",
+    "observedAt": "2026-11-10T06:24:57.127Z",
     "evidence": "docs/s00/evidence/SDK-12.json"
   },
   "CLI-01": {
     "status": "PASS",
     "summary": "SDK resumed a CLI-created session and read the CLI marker",
-    "observedAt": "2026-11-10T05:14:57.020Z",
+    "observedAt": "2026-11-10T06:25:34.419Z",
     "evidence": "docs/s00/evidence/CLI-01.json"
   },
   "CLI-02": {
     "status": "PASS",
     "summary": "CLI resumed an SDK-created session and read the SDK marker",
-    "observedAt": "2026-11-10T05:15:05.734Z",
+    "observedAt": "2026-11-10T06:25:44.241Z",
     "evidence": "docs/s00/evidence/CLI-02.json"
   },
   "CLI-03": {
     "status": "PASS",
     "summary": "Interoperability limitations recorded for the installed CLI plus SDK runtime",
-    "observedAt": "2026-11-10T05:15:05.734Z",
+    "observedAt": "2026-11-10T06:25:44.241Z",
     "evidence": "docs/s00/evidence/CLI-03.json"
   },
   "PROTO-01": {

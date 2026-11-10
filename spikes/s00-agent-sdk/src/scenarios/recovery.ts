@@ -17,6 +17,7 @@ const RECALL_PROMPT =
 /** 正常恢复、中断恢复和非法恢复的结果。 */
 export interface RecoveryValidationResult {
   normalResumedMarker: boolean;
+  normalSameSession: boolean;
   interrupted: boolean;
   interruptOutcome: InterruptOutcome;
   interruptedResumedMarker: boolean;
@@ -48,6 +49,7 @@ export async function runRecoveryValidation(
     resume: normalFirst.sessionId,
   });
   const normalResumedMarker = normalResume.assistantText.includes(NORMAL_MARKER);
+  const normalSameSession = normalFirst.sessionId === normalResume.sessionId;
 
   const interruptedTurn = await runInterruptedTurn(ctx.fixtureRoot);
   const interruptedResume = await runSingleTurn(ctx.fixtureRoot, RECALL_PROMPT, {
@@ -78,13 +80,13 @@ export async function runRecoveryValidation(
 
   await ctx.writeEvidence({
     id: 'SDK-10',
-    status: normalResumedMarker ? 'PASS' : 'FAIL',
-    summary: 'A new query with resume read the marker from the finished session',
+    status: normalResumedMarker && normalSameSession ? 'PASS' : 'FAIL',
+    summary: 'A new query with resume read the marker from the same finished session',
     observedAt,
     data: {
       normalSessionId: normalFirst.sessionId,
       resumedSessionId: normalResume.sessionId,
-      sameSession: normalFirst.sessionId === normalResume.sessionId,
+      sameSession: normalSameSession,
       markerRecovered: normalResumedMarker,
     },
   });
@@ -112,6 +114,7 @@ export async function runRecoveryValidation(
 
   return {
     normalResumedMarker,
+    normalSameSession,
     interrupted: interruptedTurn.interrupted,
     interruptOutcome: interruptedTurn.interruptOutcome,
     interruptedResumedMarker,

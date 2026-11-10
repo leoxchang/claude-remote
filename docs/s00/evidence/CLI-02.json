@@ -2,10 +2,10 @@
   "id": "CLI-02",
   "status": "PASS",
   "summary": "CLI resumed an SDK-created session and read the SDK marker",
-  "observedAt": "2026-11-10T05:15:05.734Z",
+  "observedAt": "2026-11-10T06:25:44.241Z",
   "data": {
-    "sdkSessionId": "d90b0ff8-76cc-45dd-a6f9-ae9bfd62e582",
-    "cliSessionId": "d90b0ff8-76cc-45dd-a6f9-ae9bfd62e582",
+    "sdkSessionId": "84492640-26df-476c-a2c1-718231e68ee2",
+    "cliSessionId": "84492640-26df-476c-a2c1-718231e68ee2",
     "sameSession": true,
     "markerRecovered": true,
     "cliExitCode": 0,

@@ -72,7 +72,10 @@ export async function runSettingsValidation(
   const baselineRun = await observeGatewayConnections(
     resolveGatewayPort(origin),
     () => runProbe(ctx.fixtureRoot, { debug: true, debugFile: DEBUG_FILE }),
-  );
+  ).catch(async (error: unknown) => {
+    await rm(DEBUG_FILE, { force: true });
+    throw error;
+  });
   const baseline = baselineRun.result;
   const endedAt = new Date().toISOString();
 

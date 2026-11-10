@@ -2,7 +2,7 @@
   "id": "SDK-01",
   "status": "PASS",
   "summary": "Version inventory and settings sources recorded",
-  "observedAt": "2026-11-10T05:14:39.489Z",
+  "observedAt": "2026-11-10T06:25:17.967Z",
   "data": {
     "versions": {
       "node": "v22.23.2",

@@ -2,7 +2,7 @@
   "id": "CLI-03",
   "status": "PASS",
   "summary": "Interoperability limitations recorded for the installed CLI plus SDK runtime",
-  "observedAt": "2026-11-10T05:15:05.734Z",
+  "observedAt": "2026-11-10T06:25:44.241Z",
   "data": {
     "cliVersion": "2.1.311",
     "sdkVersion": "0.3.319",

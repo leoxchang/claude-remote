@@ -45,9 +45,9 @@ describe('protocol timeline events', () => {
         })
         .map((message) => Number(message['seq']));
 
-      const sorted = [...seqs].sort((left, right) => left - right);
-      expect(seqs).toEqual(sorted);
-      expect(new Set(seqs).size).toBe(seqs.length);
+      const expected: number[] = [];
+      for (let index = 1; index <= seqs.length; index += 1) expected.push(index);
+      expect(seqs).toEqual(expected);
     }
   });
 

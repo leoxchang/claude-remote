@@ -30,6 +30,7 @@ export interface S00GateResult {
   asrLive: AsrLiveStatus;
   missingCoreIds: string[];
   limitedCoreIds: string[];
+  notPassedCoreIds: string[];
 }
 
 /** 按固定 ID 集合评估 S00 退出门禁；缺失、NOT_RUN、BLOCKED、LIMITED 都不算通过。 */
@@ -46,6 +47,7 @@ export function evaluateS00Gate(
     asrLive: evaluateAsrLive(byId.get(ASR_LIVE_ID)),
     missingCoreIds: core.missingIds,
     limitedCoreIds: core.limitedIds,
+    notPassedCoreIds: core.notPassedIds,
   };
 }
 
@@ -92,6 +94,7 @@ interface GroupEvaluation {
   status: GateStatus;
   missingIds: string[];
   limitedIds: string[];
+  notPassedIds: string[];
 }
 
 function evaluateGroup(
@@ -100,8 +103,8 @@ function evaluateGroup(
 ): GroupEvaluation {
   const missingIds: string[] = [];
   const limitedIds: string[] = [];
+  const notPassedIds: string[] = [];
   let failed = false;
-  let notPassed = false;
 
   for (const id of ids) {
     const record = byId.get(id);
@@ -111,12 +114,16 @@ function evaluateGroup(
     }
     if (record.status === 'FAIL') failed = true;
     if (record.status === 'LIMITED') limitedIds.push(id);
-    if (record.status !== 'PASS') notPassed = true;
+    if (record.status !== 'PASS') notPassedIds.push(id);
   }
 
   const status: GateStatus =
-    failed ? 'FAIL' : missingIds.length > 0 || notPassed ? 'BLOCKED' : 'PASS';
-  return { status, missingIds, limitedIds };
+    failed
+      ? 'FAIL'
+      : missingIds.length > 0 || notPassedIds.length > 0
+        ? 'BLOCKED'
+        : 'PASS';
+  return { status, missingIds, limitedIds, notPassedIds };
 }
 
 function evaluateAsrLive(record: EvidenceRecord | undefined): AsrLiveStatus {

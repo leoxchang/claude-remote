@@ -57,6 +57,7 @@ describe('evaluateS00Gate', () => {
 
     expect(result.core).toBe('BLOCKED');
     expect(result.limitedCoreIds).toContain('SDK-03');
+    expect(result.notPassedCoreIds).toContain('SDK-03');
   });
 
   it('blocks Core when a Core record is NOT_RUN', () => {
@@ -81,6 +82,7 @@ describe('evaluateS00Gate', () => {
       asrLive: 'DEFERRED',
       missingCoreIds: [],
       limitedCoreIds: [],
+      notPassedCoreIds: [],
     });
   });
 

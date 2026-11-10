@@ -2,7 +2,7 @@
   "id": "SDK-02",
   "status": "PASS",
   "summary": "user-only sources omit the project CLAUDE.md; default and explicit sources load it without tool use",
-  "observedAt": "2026-11-10T05:14:39.489Z",
+  "observedAt": "2026-11-10T06:25:17.967Z",
   "data": {
     "userOnlyMarker": false,
     "defaultMarker": true,

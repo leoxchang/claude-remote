@@ -76,7 +76,7 @@ ASR Live: DEFERRED
 
 | 命令 | 结果 |
 |---|---|
-| `npm test` | 9 个文件、82 个测试全部通过 |
+| `npm test` | 9 个文件、83 个测试全部通过 |
 | `npm run test:coverage` | statements 94.14%、branches 88.39%、functions 100%、lines 96.34%（阈值 80%） |
 | `S00_LIVE=1 npm run test:live` | 5 个文件、6 个 live 测试全部通过（串行，约 93s） |
 | `npm run s00:gate` | Core PASS / ASR Contract PASS / ASR Live DEFERRED（退出码 0） |

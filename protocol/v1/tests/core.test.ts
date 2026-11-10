@@ -104,6 +104,22 @@ describe('validateProtocolMessage', () => {
     expect(JSON.stringify(example.message)).toBe(before);
   });
 
+  it('allows unknown optional fields on a known message type', () => {
+    const example = validExamples.find((entry) => entry.name === 'prompt.send');
+    expect(example).toBeDefined();
+    if (example === undefined) return;
+    const extended = {
+      ...(example.message as Record<string, unknown>),
+      futureOptionalField: { nested: true },
+      payload: {
+        ...(example.message as { payload: Record<string, unknown> }).payload,
+        s02Extension: 'ignored',
+      },
+    };
+
+    expect(validateProtocolMessage(extended).valid).toBe(true);
+  });
+
   it('records PROTO-01–06 and PROTO-08 evidence', async () => {
     const observedAt = new Date().toISOString();
     const rejects = (name: string): boolean => {
@@ -113,6 +129,15 @@ describe('validateProtocolMessage', () => {
     const allValid = validExamples.every(
       (example) => validateProtocolMessage(example.message).valid,
     );
+    const extensionExample = validExamples.find(
+      (example) => example.name === 'prompt.send',
+    );
+    const acceptsExtension =
+      extensionExample !== undefined &&
+      validateProtocolMessage({
+        ...(extensionExample.message as Record<string, unknown>),
+        extraOptional: true,
+      }).valid;
 
     const records = [
       {
@@ -141,7 +166,9 @@ describe('validateProtocolMessage', () => {
       },
       {
         id: 'PROTO-05',
-        ok: rejects('unknown message type with secret'),
+        ok:
+          rejects('unknown message type with secret') &&
+          acceptsExtension,
         summary: 'Unknown message types get UNKNOWN_MESSAGE_TYPE and unknown optional fields are allowed',
         data: { unknownTypeCode: 'UNKNOWN_MESSAGE_TYPE' },
       },

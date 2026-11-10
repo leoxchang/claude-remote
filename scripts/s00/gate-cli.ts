@@ -29,6 +29,9 @@ function main(): void {
   if (result.limitedCoreIds.length > 0) {
     lines.push(`Limited Core: ${result.limitedCoreIds.join(', ')}`);
   }
+  if (result.notPassedCoreIds.length > 0) {
+    lines.push(`Not passed Core: ${result.notPassedCoreIds.join(', ')}`);
+  }
   if (problems.length > 0) {
     lines.push(`Evidence problems: ${problems.join('; ')}`);
   }
