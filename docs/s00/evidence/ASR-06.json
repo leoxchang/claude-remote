@@ -2,7 +2,7 @@
   "id": "ASR-06",
   "status": "PASS",
   "summary": "Only one final transcript is kept and nothing is auto-sent",
-  "observedAt": "2026-11-10T04:56:24.521Z",
+  "observedAt": "2026-11-10T04:59:53.993Z",
   "data": {
     "checkedBy": "ASR-06 test"
   }

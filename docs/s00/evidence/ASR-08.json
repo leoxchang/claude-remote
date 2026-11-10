@@ -2,7 +2,7 @@
   "id": "ASR-08",
   "status": "PASS",
   "summary": "ASR events stay in the asr.* namespace and never become prompt.send",
-  "observedAt": "2026-11-10T04:56:24.517Z",
+  "observedAt": "2026-11-10T04:59:53.989Z",
   "data": {
     "asrEventTypes": [
       "asr.started",

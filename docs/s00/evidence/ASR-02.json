@@ -2,7 +2,7 @@
   "id": "ASR-02",
   "status": "PASS",
   "summary": "Cancel is terminal and late results are ignored",
-  "observedAt": "2026-11-10T04:56:24.519Z",
+  "observedAt": "2026-11-10T04:59:53.992Z",
   "data": {
     "checkedBy": "ASR-02 test"
   }

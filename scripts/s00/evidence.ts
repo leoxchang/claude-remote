@@ -14,6 +14,7 @@ export interface EvidenceRecord {
   observedAt: string | null;
   data?: unknown;
   deferredTo?: 'S05';
+  evidence?: string;
 }
 
 const REDACTED_PLACEHOLDER = '[REDACTED]';

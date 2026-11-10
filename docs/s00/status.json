@@ -2,205 +2,205 @@
   "SDK-01": {
     "status": "PASS",
     "summary": "Version inventory and settings sources recorded",
-    "observedAt": "2026-11-10T04:36:18.926Z",
+    "observedAt": "2026-11-10T05:00:19.720Z",
     "evidence": "docs/s00/evidence/SDK-01.json"
   },
   "SDK-02": {
     "status": "PASS",
     "summary": "user-only sources omit the project CLAUDE.md; default and explicit sources load it",
-    "observedAt": "2026-11-10T04:36:18.926Z",
+    "observedAt": "2026-11-10T05:00:19.720Z",
     "evidence": "docs/s00/evidence/SDK-02.json"
   },
   "SDK-03": {
     "status": "PASS",
     "summary": "SDK-spawned CLI connected to the configured gateway during the window; runtime log shows the model",
-    "observedAt": "2026-11-10T04:36:18.926Z",
+    "observedAt": "2026-11-10T05:00:19.720Z",
     "evidence": "docs/s00/evidence/SDK-03.json"
   },
   "SDK-04": {
     "status": "PASS",
     "summary": "claude_code preset loads tools and project settings in the baseline run",
-    "observedAt": "2026-11-10T04:36:18.926Z",
+    "observedAt": "2026-11-10T05:00:19.720Z",
     "evidence": "docs/s00/evidence/SDK-04.json"
   },
   "SDK-05": {
     "status": "PASS",
     "summary": "One query accepted two streamed user turns and reused the first turn context",
-    "observedAt": "2026-11-10T04:37:42.365Z",
+    "observedAt": "2026-11-10T05:01:03.120Z",
     "evidence": "docs/s00/evidence/SDK-05.json"
   },
   "SDK-06": {
     "status": "PASS",
     "summary": "Assistant messages and stream_event text deltas were both observed",
-    "observedAt": "2026-11-10T04:37:42.365Z",
+    "observedAt": "2026-11-10T05:01:03.120Z",
     "evidence": "docs/s00/evidence/SDK-06.json"
   },
   "SDK-07": {
     "status": "PASS",
     "summary": "canUseTool allowed one Bash call and the command output was observed",
-    "observedAt": "2026-11-10T04:39:00.148Z",
+    "observedAt": "2026-11-10T05:01:17.648Z",
     "evidence": "docs/s00/evidence/SDK-07.json"
   },
   "SDK-08": {
     "status": "PASS",
     "summary": "canUseTool denied Bash, the command did not run, and the agent kept replying",
-    "observedAt": "2026-11-10T04:39:00.148Z",
+    "observedAt": "2026-11-10T05:01:17.648Z",
     "evidence": "docs/s00/evidence/SDK-08.json"
   },
   "SDK-09": {
     "status": "PASS",
     "summary": "interrupt() stopped a streaming turn and the process closed cleanly",
-    "observedAt": "2026-11-10T04:40:06.593Z",
+    "observedAt": "2026-11-10T04:59:54.367Z",
     "evidence": "docs/s00/evidence/SDK-09.json"
   },
   "SDK-10": {
     "status": "PASS",
     "summary": "A new query with resume read the marker from the finished session",
-    "observedAt": "2026-11-10T04:40:06.593Z",
+    "observedAt": "2026-11-10T04:59:54.367Z",
     "evidence": "docs/s00/evidence/SDK-10.json"
   },
   "SDK-11": {
     "status": "PASS",
     "summary": "An explicit resume of the interrupted session recovered its context",
-    "observedAt": "2026-11-10T04:40:06.593Z",
+    "observedAt": "2026-11-10T04:59:54.367Z",
     "evidence": "docs/s00/evidence/SDK-11.json"
   },
   "SDK-12": {
     "status": "PASS",
     "summary": "Resuming an unknown session id failed instead of creating a fake session",
-    "observedAt": "2026-11-10T04:40:06.593Z",
+    "observedAt": "2026-11-10T04:59:54.367Z",
     "evidence": "docs/s00/evidence/SDK-12.json"
   },
   "CLI-01": {
     "status": "PASS",
     "summary": "SDK resumed a CLI-created session and read the CLI marker",
-    "observedAt": "2026-11-10T04:47:38.119Z",
+    "observedAt": "2026-11-10T05:00:37.120Z",
     "evidence": "docs/s00/evidence/CLI-01.json"
   },
   "CLI-02": {
     "status": "PASS",
     "summary": "CLI resumed an SDK-created session and read the SDK marker",
-    "observedAt": "2026-11-10T04:47:54.225Z",
+    "observedAt": "2026-11-10T05:00:45.427Z",
     "evidence": "docs/s00/evidence/CLI-02.json"
   },
   "CLI-03": {
     "status": "PASS",
     "summary": "Interoperability limitations recorded for the installed CLI plus SDK runtime",
-    "observedAt": "2026-11-10T04:47:54.225Z",
+    "observedAt": "2026-11-10T05:00:45.427Z",
     "evidence": "docs/s00/evidence/CLI-03.json"
   },
   "PROTO-01": {
     "status": "PASS",
     "summary": "All valid command, result and event examples pass the schema",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-01.json"
   },
   "PROTO-02": {
     "status": "PASS",
     "summary": "Every message missing a required envelope field is rejected",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-02.json"
   },
   "PROTO-03": {
     "status": "PASS",
     "summary": "Commands without their target object id are rejected",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-03.json"
   },
   "PROTO-04": {
     "status": "PASS",
     "summary": "Invalid seq and timestamp formats are rejected",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-04.json"
   },
   "PROTO-05": {
     "status": "PASS",
     "summary": "Unknown message types get UNKNOWN_MESSAGE_TYPE and unknown optional fields are allowed",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-05.json"
   },
   "PROTO-06": {
     "status": "PASS",
     "summary": "Duplicate command.result keeps commandId/traceId and flips duplicate to true",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-06.json"
   },
   "PROTO-07": {
     "status": "PASS",
     "summary": "Timeline dedupes by eventId, sorts by sessionId+seq, and rejects conflicting retransmits",
-    "observedAt": "2026-11-10T04:54:45.492Z",
+    "observedAt": "2026-11-10T04:59:53.854Z",
     "evidence": "docs/s00/evidence/PROTO-07.json"
   },
   "PROTO-08": {
     "status": "PASS",
     "summary": "Validation errors never echo payload values or secrets",
-    "observedAt": "2026-11-10T04:54:45.588Z",
+    "observedAt": "2026-11-10T04:59:53.961Z",
     "evidence": "docs/s00/evidence/PROTO-08.json"
   },
   "PROTO-09": {
     "status": "PASS",
     "summary": "The schema expresses session start, two prompts, a tool, cancel and errors",
-    "observedAt": "2026-11-10T04:54:45.591Z",
+    "observedAt": "2026-11-10T04:59:53.959Z",
     "evidence": "docs/s00/evidence/PROTO-09.json"
   },
   "PROTO-10": {
     "status": "PASS",
     "summary": "S02–S05 reserved types do not collide with S01 types and are safely rejected until implemented",
-    "observedAt": "2026-11-10T04:54:45.593Z",
+    "observedAt": "2026-11-10T04:59:53.962Z",
     "evidence": "docs/s00/evidence/PROTO-10.json"
   },
   "PROTO-11": {
     "status": "PASS",
     "summary": "hello/ready agree on protocol version 1, and an incompatible client gets VERSION_INCOMPATIBLE",
-    "observedAt": "2026-11-10T04:54:45.579Z",
+    "observedAt": "2026-11-10T04:59:53.954Z",
     "evidence": "docs/s00/evidence/PROTO-11.json"
   },
   "ASR-01": {
     "status": "PASS",
     "summary": "Ordered partials and exactly one final move the controller to completed",
-    "observedAt": "2026-11-10T04:56:24.519Z",
+    "observedAt": "2026-11-10T04:59:53.991Z",
     "evidence": "docs/s00/evidence/ASR-01.json"
   },
   "ASR-02": {
     "status": "PASS",
     "summary": "Cancel is terminal and late results are ignored",
-    "observedAt": "2026-11-10T04:56:24.519Z",
+    "observedAt": "2026-11-10T04:59:53.992Z",
     "evidence": "docs/s00/evidence/ASR-02.json"
   },
   "ASR-03": {
     "status": "PASS",
     "summary": "Provider errors are surfaced with a safe code and never echo the token",
-    "observedAt": "2026-11-10T04:56:24.520Z",
+    "observedAt": "2026-11-10T04:59:53.992Z",
     "evidence": "docs/s00/evidence/ASR-03.json"
   },
   "ASR-04": {
     "status": "PASS",
     "summary": "A finalize without final text ends in ASR_NO_FINAL and never creates a prompt",
-    "observedAt": "2026-11-10T04:56:24.520Z",
+    "observedAt": "2026-11-10T04:59:53.992Z",
     "evidence": "docs/s00/evidence/ASR-04.json"
   },
   "ASR-05": {
     "status": "PASS",
     "summary": "Stale sequences and events from an old stream never overwrite newer state",
-    "observedAt": "2026-11-10T04:56:24.520Z",
+    "observedAt": "2026-11-10T04:59:53.992Z",
     "evidence": "docs/s00/evidence/ASR-05.json"
   },
   "ASR-06": {
     "status": "PASS",
     "summary": "Only one final transcript is kept and nothing is auto-sent",
-    "observedAt": "2026-11-10T04:56:24.521Z",
+    "observedAt": "2026-11-10T04:59:53.993Z",
     "evidence": "docs/s00/evidence/ASR-06.json"
   },
   "ASR-07": {
     "status": "PASS",
     "summary": "Missing ASR configuration fails fast with field names only",
-    "observedAt": "2026-11-10T04:56:24.418Z",
+    "observedAt": "2026-11-10T04:59:53.853Z",
     "evidence": "docs/s00/evidence/ASR-07.json"
   },
   "ASR-08": {
     "status": "PASS",
     "summary": "ASR events stay in the asr.* namespace and never become prompt.send",
-    "observedAt": "2026-11-10T04:56:24.517Z",
+    "observedAt": "2026-11-10T04:59:53.989Z",
     "evidence": "docs/s00/evidence/ASR-08.json"
   },
   "DOUBAO-LIVE": {

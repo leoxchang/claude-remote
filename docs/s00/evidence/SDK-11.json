@@ -2,10 +2,10 @@
   "id": "SDK-11",
   "status": "PASS",
   "summary": "An explicit resume of the interrupted session recovered its context",
-  "observedAt": "2026-11-10T04:40:47.221Z",
+  "observedAt": "2026-11-10T04:59:54.367Z",
   "data": {
-    "interruptedSessionId": "f8bf9702-1b4b-42f0-b9ea-a93edb7de50d",
-    "resumedSessionId": "f8bf9702-1b4b-42f0-b9ea-a93edb7de50d",
+    "interruptedSessionId": "7934668c-58d7-4d92-a205-c60d0c5db12e",
+    "resumedSessionId": "7934668c-58d7-4d92-a205-c60d0c5db12e",
     "markerRecovered": true,
     "resultSubtypes": [
       "success"

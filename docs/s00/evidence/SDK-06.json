@@ -2,12 +2,13 @@
   "id": "SDK-06",
   "status": "PASS",
   "summary": "Assistant messages and stream_event text deltas were both observed",
-  "observedAt": "2026-11-10T04:38:08.015Z",
+  "observedAt": "2026-11-10T05:01:03.120Z",
   "data": {
     "messageTypeCounts": {
-      "system": 86,
-      "stream_event": 89,
-      "assistant": 3,
+      "system": 76,
+      "stream_event": 96,
+      "assistant": 4,
+      "user": 1,
       "result": 2
     },
     "deltaCount": 4,

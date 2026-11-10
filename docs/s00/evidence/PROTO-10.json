@@ -2,7 +2,7 @@
   "id": "PROTO-10",
   "status": "PASS",
   "summary": "S02–S05 reserved types do not collide with S01 types and are safely rejected until implemented",
-  "observedAt": "2026-11-10T04:55:10.580Z",
+  "observedAt": "2026-11-10T04:59:53.962Z",
   "data": {
     "reservedTypes": [
       "workspace.list",

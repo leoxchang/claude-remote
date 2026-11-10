@@ -2,7 +2,7 @@
   "id": "ASR-05",
   "status": "PASS",
   "summary": "Stale sequences and events from an old stream never overwrite newer state",
-  "observedAt": "2026-11-10T04:56:24.520Z",
+  "observedAt": "2026-11-10T04:59:53.992Z",
   "data": {
     "checkedBy": "ASR-05 test"
   }
