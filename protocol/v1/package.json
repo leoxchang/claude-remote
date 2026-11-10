@@ -1,0 +1,13 @@
+{
+  "name": "@claude-remote/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./errors": "./src/errors.ts",
+    "./handshake": "./src/handshake.ts",
+    "./timeline": "./src/timeline.ts",
+    "./types": "./src/types.ts",
+    "./validator": "./src/validator.ts"
+  }
+}

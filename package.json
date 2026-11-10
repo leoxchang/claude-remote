@@ -6,10 +6,16 @@
   "engines": {
     "node": ">=22"
   },
+  "workspaces": [
+    "apps/agent",
+    "protocol/v1"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:live": "vitest run --config vitest.live.config.ts",
+    "test:agent": "vitest run --root apps/agent",
+    "coverage:agent": "vitest run --root apps/agent --coverage",
     "s00:gate": "tsx scripts/s00/gate-cli.ts"
   },
   "dependencies": {
