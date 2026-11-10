@@ -1,0 +1,12 @@
+{
+  "id": "SDK-07",
+  "status": "PASS",
+  "summary": "canUseTool allowed one Bash call and the command output was observed",
+  "observedAt": "2026-11-10T04:39:00.148Z",
+  "data": {
+    "callback": true,
+    "outputMarker": true,
+    "requestId": true,
+    "toolUseID": true
+  }
+}

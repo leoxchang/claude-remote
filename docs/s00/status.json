@@ -36,16 +36,16 @@
     "evidence": "docs/s00/evidence/SDK-06.json"
   },
   "SDK-07": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "canUseTool allowed one Bash call and the command output was observed",
+    "observedAt": "2026-11-10T04:39:00.148Z",
+    "evidence": "docs/s00/evidence/SDK-07.json"
   },
   "SDK-08": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "canUseTool denied Bash, the command did not run, and the agent kept replying",
+    "observedAt": "2026-11-10T04:39:00.148Z",
+    "evidence": "docs/s00/evidence/SDK-08.json"
   },
   "SDK-09": {
     "status": "NOT_RUN",

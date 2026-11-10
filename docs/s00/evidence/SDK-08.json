@@ -1,0 +1,18 @@
+{
+  "id": "SDK-08",
+  "status": "PASS",
+  "summary": "canUseTool denied Bash, the command did not run, and the agent kept replying",
+  "observedAt": "2026-11-10T04:39:00.148Z",
+  "data": {
+    "callback": true,
+    "outputMarker": false,
+    "denialObserved": true,
+    "allowCaseResultSubtypes": [
+      "success"
+    ],
+    "denyCaseResultSubtypes": [
+      "success"
+    ],
+    "persistentSettingsWritten": false
+  }
+}
