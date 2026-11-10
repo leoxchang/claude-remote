@@ -163,7 +163,9 @@
               "required": ["toolUseId", "status"],
               "properties": {
                 "toolUseId": { "type": "string", "minLength": 1 },
-                "status": { "enum": ["succeeded", "failed"] }
+                "status": { "enum": ["succeeded", "failed", "denied", "cancelled"] },
+                "isError": { "type": "boolean" },
+                "summary": { "type": "string" }
               }
             }
           }
