@@ -1,0 +1,213 @@
+{
+  "SDK-01": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-02": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-03": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-04": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-05": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-06": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-07": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-08": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-09": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-10": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-11": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "SDK-12": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "CLI-01": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "CLI-02": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "CLI-03": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-01": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-02": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-03": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-04": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-05": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-06": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-07": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-08": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-09": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-10": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "PROTO-11": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-01": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-02": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-03": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-04": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-05": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-06": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-07": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "ASR-08": {
+    "status": "NOT_RUN",
+    "summary": "",
+    "observedAt": null,
+    "evidence": null
+  },
+  "DOUBAO-LIVE": {
+    "status": "NOT_RUN",
+    "summary": "Doubao live integration deferred to before S05",
+    "observedAt": null,
+    "evidence": null,
+    "deferredTo": "S05"
+  }
+}
