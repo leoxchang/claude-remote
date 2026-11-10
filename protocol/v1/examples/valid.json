@@ -1,0 +1,138 @@
+[
+  {
+    "name": "session.start",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0001",
+      "commandId": "cmd_0001",
+      "traceId": "trace_0001",
+      "sourceDeviceId": "device_phone_01",
+      "timestamp": 1762432800001,
+      "type": "session.start",
+      "payload": {
+        "clientCapabilities": ["text", "message.delta"],
+        "projectRef": "fixture"
+      }
+    }
+  },
+  {
+    "name": "prompt.send",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0002",
+      "commandId": "cmd_0002",
+      "traceId": "trace_0002",
+      "sourceDeviceId": "device_phone_01",
+      "sessionId": "session_01",
+      "timestamp": 1762432800002,
+      "type": "prompt.send",
+      "payload": {
+        "text": "检查这个测试项目"
+      }
+    }
+  },
+  {
+    "name": "run.cancel",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0003",
+      "commandId": "cmd_0003",
+      "traceId": "trace_0003",
+      "sourceDeviceId": "device_phone_01",
+      "sessionId": "session_01",
+      "runId": "run_01",
+      "timestamp": 1762432800003,
+      "type": "run.cancel",
+      "payload": {
+        "reason": "user_requested"
+      }
+    }
+  },
+  {
+    "name": "session.snapshot.command",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0004",
+      "commandId": "cmd_0004",
+      "traceId": "trace_0004",
+      "sourceDeviceId": "device_phone_01",
+      "sessionId": "session_01",
+      "timestamp": 1762432800004,
+      "type": "session.snapshot",
+      "payload": {}
+    }
+  },
+  {
+    "name": "command.result.ok",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0005",
+      "commandId": "cmd_0002",
+      "traceId": "trace_0002",
+      "desktopId": "desktop_mac_01",
+      "timestamp": 1762432800005,
+      "type": "command.result",
+      "payload": {
+        "status": "ok",
+        "duplicate": false,
+        "data": {
+          "accepted": true,
+          "sessionId": "session_01",
+          "runId": "run_01"
+        }
+      }
+    }
+  },
+  {
+    "name": "command.result.duplicate",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0006",
+      "commandId": "cmd_0002",
+      "traceId": "trace_0002",
+      "desktopId": "desktop_mac_01",
+      "timestamp": 1762432800006,
+      "type": "command.result",
+      "payload": {
+        "status": "ok",
+        "duplicate": true,
+        "data": {
+          "accepted": true,
+          "sessionId": "session_01",
+          "runId": "run_01"
+        }
+      }
+    }
+  },
+  {
+    "name": "session.status",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0007",
+      "eventId": "event_0001",
+      "sessionId": "session_01",
+      "seq": 1,
+      "desktopId": "desktop_mac_01",
+      "timestamp": 1762432800007,
+      "type": "session.status",
+      "payload": {
+        "state": "running"
+      }
+    }
+  },
+  {
+    "name": "error",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_0008",
+      "desktopId": "desktop_mac_01",
+      "timestamp": 1762432800008,
+      "type": "error",
+      "payload": {
+        "code": "SESSION_BUSY",
+        "message": "当前会话已有任务执行",
+        "retryable": true
+      }
+    }
+  }
+]

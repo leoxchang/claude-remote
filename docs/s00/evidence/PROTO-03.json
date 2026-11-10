@@ -1,0 +1,12 @@
+{
+  "id": "PROTO-03",
+  "status": "PASS",
+  "summary": "Commands without their target object id are rejected",
+  "observedAt": "2026-11-10T04:52:43.664Z",
+  "data": {
+    "cases": [
+      "prompt.send/sessionId",
+      "run.cancel/runId"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "PROTO-04",
+  "status": "PASS",
+  "summary": "Invalid seq and timestamp formats are rejected",
+  "observedAt": "2026-11-10T04:52:43.664Z",
+  "data": {
+    "cases": [
+      "seq minimum 1",
+      "timestamp integer epoch ms"
+    ]
+  }
+}

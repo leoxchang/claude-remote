@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://s00.local/commands.schema.json",
+  "$defs": {
+    "session.start": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "session.start" },
+            "payload": {
+              "type": "object",
+              "required": ["clientCapabilities"],
+              "properties": {
+                "clientCapabilities": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                },
+                "projectRef": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "prompt.send": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId", "sessionId"],
+          "properties": {
+            "type": { "const": "prompt.send" },
+            "payload": {
+              "type": "object",
+              "required": ["text"],
+              "properties": {
+                "text": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "run.cancel": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId", "sessionId", "runId"],
+          "properties": {
+            "type": { "const": "run.cancel" },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "reason": { "type": "string" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.snapshot": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId", "sessionId"],
+          "properties": {
+            "type": { "const": "session.snapshot" },
+            "payload": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "command.result": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "command.result" },
+            "payload": {
+              "type": "object",
+              "required": ["status", "duplicate"],
+              "properties": {
+                "status": { "enum": ["ok", "error"] },
+                "duplicate": { "type": "boolean" },
+                "data": { "type": "object" },
+                "error": {
+                  "type": "object",
+                  "required": ["code", "message", "retryable"],
+                  "properties": {
+                    "code": { "type": "string", "minLength": 1 },
+                    "message": { "type": "string" },
+                    "retryable": { "type": "boolean" },
+                    "details": { "type": "object" }
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": { "status": { "const": "ok" } },
+                    "required": ["status"]
+                  },
+                  "then": {
+                    "required": ["data"],
+                    "properties": { "data": true },
+                    "not": {
+                      "required": ["error"],
+                      "properties": { "error": true }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": { "status": { "const": "error" } },
+                    "required": ["status"]
+                  },
+                  "then": {
+                    "required": ["error"],
+                    "properties": { "error": true },
+                    "not": {
+                      "required": ["data"],
+                      "properties": { "data": true }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

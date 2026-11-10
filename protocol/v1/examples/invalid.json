@@ -1,0 +1,166 @@
+[
+  {
+    "name": "missing protocolVersion",
+    "reason": "protocolVersion is required on every message",
+    "expectedKeyword": "required",
+    "message": {
+      "messageId": "msg_bad_01",
+      "timestamp": 1762432800001,
+      "type": "session.start",
+      "commandId": "cmd_bad_01",
+      "traceId": "trace_bad_01",
+      "payload": { "clientCapabilities": ["text"] }
+    }
+  },
+  {
+    "name": "missing messageId",
+    "reason": "messageId is required on every message",
+    "expectedKeyword": "required",
+    "message": {
+      "protocolVersion": 1,
+      "timestamp": 1762432800002,
+      "type": "session.start",
+      "commandId": "cmd_bad_02",
+      "traceId": "trace_bad_02",
+      "payload": { "clientCapabilities": ["text"] }
+    }
+  },
+  {
+    "name": "missing type",
+    "reason": "type is required to dispatch the message",
+    "expectedKeyword": "required",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_03",
+      "timestamp": 1762432800003,
+      "commandId": "cmd_bad_03",
+      "traceId": "trace_bad_03",
+      "payload": {}
+    }
+  },
+  {
+    "name": "missing payload",
+    "reason": "payload is required, use an empty object when there is no data",
+    "expectedKeyword": "required",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_04",
+      "timestamp": 1762432800004,
+      "type": "session.snapshot",
+      "commandId": "cmd_bad_04",
+      "traceId": "trace_bad_04",
+      "sessionId": "session_01"
+    }
+  },
+  {
+    "name": "prompt.send without sessionId",
+    "reason": "prompt.send must target an existing session",
+    "expectedKeyword": "required",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_05",
+      "timestamp": 1762432800005,
+      "type": "prompt.send",
+      "commandId": "cmd_bad_05",
+      "traceId": "trace_bad_05",
+      "payload": { "text": "hello" }
+    }
+  },
+  {
+    "name": "run.cancel without runId",
+    "reason": "run.cancel must name the run it cancels",
+    "expectedKeyword": "required",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_06",
+      "timestamp": 1762432800006,
+      "type": "run.cancel",
+      "commandId": "cmd_bad_06",
+      "traceId": "trace_bad_06",
+      "sessionId": "session_01",
+      "payload": {}
+    }
+  },
+  {
+    "name": "negative seq",
+    "reason": "timeline seq starts at 1 and must be a positive integer",
+    "expectedKeyword": "minimum",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_07",
+      "eventId": "event_bad_07",
+      "sessionId": "session_01",
+      "seq": -1,
+      "timestamp": 1762432800007,
+      "type": "session.status",
+      "payload": { "state": "running" }
+    }
+  },
+  {
+    "name": "string timestamp",
+    "reason": "timestamp must be Unix epoch milliseconds as an integer",
+    "expectedKeyword": "type",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_08",
+      "timestamp": "2026-11-10T00:00:00Z",
+      "type": "prompt.send",
+      "commandId": "cmd_bad_08",
+      "traceId": "trace_bad_08",
+      "sessionId": "session_01",
+      "payload": { "text": "hello" }
+    }
+  },
+  {
+    "name": "unknown message type with secret",
+    "reason": "unknown types must be rejected without echoing payload values",
+    "expectedKeyword": "type",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_09",
+      "timestamp": 1762432800009,
+      "type": "prompt.explode",
+      "payload": { "text": "DO_NOT_LEAK_99" }
+    }
+  },
+  {
+    "name": "ok result carrying an error",
+    "reason": "a successful command.result must not contain an error object",
+    "expectedKeyword": "not",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_10",
+      "commandId": "cmd_bad_10",
+      "traceId": "trace_bad_10",
+      "timestamp": 1762432800010,
+      "type": "command.result",
+      "payload": {
+        "status": "ok",
+        "duplicate": false,
+        "data": { "accepted": true },
+        "error": {
+          "code": "SESSION_BUSY",
+          "message": "DO_NOT_LEAK_99",
+          "retryable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "error result without error object",
+    "reason": "an error command.result must describe the failure",
+    "expectedKeyword": "required",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_bad_11",
+      "commandId": "cmd_bad_11",
+      "traceId": "trace_bad_11",
+      "timestamp": 1762432800011,
+      "type": "command.result",
+      "payload": {
+        "status": "error",
+        "duplicate": false
+      }
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "id": "PROTO-05",
+  "status": "PASS",
+  "summary": "Unknown message types get UNKNOWN_MESSAGE_TYPE and unknown optional fields are allowed",
+  "observedAt": "2026-11-10T04:52:43.664Z",
+  "data": {
+    "unknownTypeCode": "UNKNOWN_MESSAGE_TYPE"
+  }
+}

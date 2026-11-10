@@ -1,0 +1,14 @@
+{
+  "id": "PROTO-02",
+  "status": "PASS",
+  "summary": "Every message missing a required envelope field is rejected",
+  "observedAt": "2026-11-10T04:52:43.664Z",
+  "data": {
+    "cases": [
+      "protocolVersion",
+      "messageId",
+      "type",
+      "payload"
+    ]
+  }
+}

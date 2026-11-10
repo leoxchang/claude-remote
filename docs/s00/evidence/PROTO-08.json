@@ -1,0 +1,9 @@
+{
+  "id": "PROTO-08",
+  "status": "PASS",
+  "summary": "Validation errors never echo payload values or secrets",
+  "observedAt": "2026-11-10T04:52:43.664Z",
+  "data": {
+    "leakMarkerObserved": false
+  }
+}

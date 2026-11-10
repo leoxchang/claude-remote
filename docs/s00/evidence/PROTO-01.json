@@ -1,0 +1,9 @@
+{
+  "id": "PROTO-01",
+  "status": "PASS",
+  "summary": "All valid command, result and event examples pass the schema",
+  "observedAt": "2026-11-10T04:52:43.664Z",
+  "data": {
+    "exampleCount": 8
+  }
+}
