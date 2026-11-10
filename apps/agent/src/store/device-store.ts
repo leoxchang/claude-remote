@@ -77,6 +77,11 @@ export class DeviceStore {
     return found === undefined ? null : { ...found };
   }
 
+  /** 全部设备记录的副本，按创建顺序。 */
+  list(): DeviceRecord[] {
+    return this.records.map((entry) => ({ ...entry }));
+  }
+
   private async persist(): Promise<void> {
     const file: DevicesFile = { version: 1, devices: this.records };
     await writeFileAtomic(
