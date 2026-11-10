@@ -14,7 +14,9 @@ const RECALL_PROMPT =
   'What exact marker did I ask you to remember? Reply with just the marker.';
 
 const REMEMBER_PROMPT = (marker: string): string =>
-  `Remember this exact marker: ${marker}. Reply with OK only.`;
+  `Remember this exact marker: ${marker}. Reply with OK only. Do not use any tools.`;
+
+const MAX_CLI_ATTEMPTS = 3;
 
 /** CLI → SDK 恢复结果。 */
 export interface CliToSdkResult {
@@ -68,7 +70,7 @@ async function createCliSession(
   let run = await runCli(args, fixtureRoot);
   let json = parseCliJson(run.stdout);
   attempts.push(toAttempt(run, json));
-  if (run.exitCode !== 0) {
+  while (run.exitCode !== 0 && attempts.length < MAX_CLI_ATTEMPTS) {
     run = await runCli(args, fixtureRoot);
     json = parseCliJson(run.stdout);
     attempts.push(toAttempt(run, json));

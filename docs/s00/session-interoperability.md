@@ -28,7 +28,7 @@
 ## 已观察到的差异与限制（CLI-03）
 
 1. **版本组合不同**：CLI 侧是被安装的 2.1.311，SDK 侧是自带的 2.1.319 Runtime。跨版本恢复可以工作，但结论只覆盖这一组合。
-2. **`--max-turns 1` 偶发 `error_max_turns`**：CLI 创建会话时，模型偶尔会把唯一一轮用在工具调用上，CLI 以 `subtype: error_max_turns`、`isError: true`、退出码 1 结束（此时用户消息已持久化，SDK 仍能恢复标记）。spike 对该调用保留**一次显式重试**，并把每次尝试的 `exitCode/subtype/isError` 写入 `evidence/CLI-01.json` 的 `cliAttempts`。
+2. **`--max-turns 1` 偶发 `error_max_turns`**：CLI 创建会话时，模型偶尔会把唯一一轮用在工具调用上，CLI 以 `subtype: error_max_turns`、`isError: true`、退出码 1 结束（此时用户消息已持久化，SDK 仍能恢复标记）。当前的创建提示显式要求「不要使用任何工具」，并把重试上限设为 3 次；每次尝试的 `exitCode/subtype/isError` 都记录在 `evidence/CLI-01.json` 的 `cliAttempts`。改为该提示后连续 3 次运行均为单次成功。
 3. **只比较了文本上下文**：标记恢复证明会话上下文可跨入口读取；工具调用历史、消息顺序和权限记录的逐项对照未做（不影响受管会话方案，但属于未验证范围）。
 4. **stderr 只有固定告警**：`ANTHROPIC_API_KEY... takes precedence` 之类的 CLI 告警，与互操作无关；证据中只保留长度和脱敏预览。
 5. **没有依赖官方未声明的路径**：未复制会话数据库、未并行写入、未修改内部文件。若后续版本变更导致任一方向失败，应按计划回到架构层决策，而不是修补会话文件。
