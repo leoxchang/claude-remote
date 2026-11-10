@@ -1,0 +1,14 @@
+{
+  "id": "PROTO-07",
+  "status": "PASS",
+  "summary": "Timeline dedupes by eventId, sorts by sessionId+seq, and rejects conflicting retransmits",
+  "observedAt": "2026-11-10T04:54:45.492Z",
+  "data": {
+    "conflictingInputsRejected": [
+      "same eventId different content",
+      "same seq different eventId",
+      "mixed sessionId"
+    ],
+    "sortedBy": "sessionId+seq"
+  }
+}

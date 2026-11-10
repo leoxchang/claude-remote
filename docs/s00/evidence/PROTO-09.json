@@ -1,0 +1,12 @@
+{
+  "id": "PROTO-09",
+  "status": "PASS",
+  "summary": "The schema expresses session start, two prompts, a tool, cancel and errors",
+  "observedAt": "2026-11-10T04:54:45.591Z",
+  "data": {
+    "flows": [
+      "s01-direct-text",
+      "connection-handshake"
+    ]
+  }
+}

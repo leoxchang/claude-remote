@@ -92,68 +92,68 @@
   "PROTO-01": {
     "status": "PASS",
     "summary": "All valid command, result and event examples pass the schema",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-01.json"
   },
   "PROTO-02": {
     "status": "PASS",
     "summary": "Every message missing a required envelope field is rejected",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-02.json"
   },
   "PROTO-03": {
     "status": "PASS",
     "summary": "Commands without their target object id are rejected",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-03.json"
   },
   "PROTO-04": {
     "status": "PASS",
     "summary": "Invalid seq and timestamp formats are rejected",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-04.json"
   },
   "PROTO-05": {
     "status": "PASS",
     "summary": "Unknown message types get UNKNOWN_MESSAGE_TYPE and unknown optional fields are allowed",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-05.json"
   },
   "PROTO-06": {
     "status": "PASS",
     "summary": "Duplicate command.result keeps commandId/traceId and flips duplicate to true",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-06.json"
   },
   "PROTO-07": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Timeline dedupes by eventId, sorts by sessionId+seq, and rejects conflicting retransmits",
+    "observedAt": "2026-11-10T04:54:45.492Z",
+    "evidence": "docs/s00/evidence/PROTO-07.json"
   },
   "PROTO-08": {
     "status": "PASS",
     "summary": "Validation errors never echo payload values or secrets",
-    "observedAt": "2026-11-10T04:52:43.664Z",
+    "observedAt": "2026-11-10T04:54:45.588Z",
     "evidence": "docs/s00/evidence/PROTO-08.json"
   },
   "PROTO-09": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "The schema expresses session start, two prompts, a tool, cancel and errors",
+    "observedAt": "2026-11-10T04:54:45.591Z",
+    "evidence": "docs/s00/evidence/PROTO-09.json"
   },
   "PROTO-10": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "S02–S05 reserved types do not collide with S01 types and are safely rejected until implemented",
+    "observedAt": "2026-11-10T04:54:45.593Z",
+    "evidence": "docs/s00/evidence/PROTO-10.json"
   },
   "PROTO-11": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "hello/ready agree on protocol version 1, and an incompatible client gets VERSION_INCOMPATIBLE",
+    "observedAt": "2026-11-10T04:54:45.579Z",
+    "evidence": "docs/s00/evidence/PROTO-11.json"
   },
   "ASR-01": {
     "status": "NOT_RUN",

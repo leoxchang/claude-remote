@@ -50,6 +50,46 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
     ref: 'https://s00.local/events.schema.json#/$defs/session.status',
   },
   {
+    type: 'session.snapshot',
+    ref: 'https://s00.local/events.schema.json#/$defs/session.snapshot',
+  },
+  {
+    type: 'message.delta',
+    ref: 'https://s00.local/events.schema.json#/$defs/message.delta',
+  },
+  {
+    type: 'message.completed',
+    ref: 'https://s00.local/events.schema.json#/$defs/message.completed',
+  },
+  {
+    type: 'tool.started',
+    ref: 'https://s00.local/events.schema.json#/$defs/tool.started',
+  },
+  {
+    type: 'tool.output',
+    ref: 'https://s00.local/events.schema.json#/$defs/tool.output',
+  },
+  {
+    type: 'tool.completed',
+    ref: 'https://s00.local/events.schema.json#/$defs/tool.completed',
+  },
+  {
+    type: 'run.completed',
+    ref: 'https://s00.local/events.schema.json#/$defs/run.completed',
+  },
+  {
+    type: 'desktop.status',
+    ref: 'https://s00.local/events.schema.json#/$defs/desktop.status',
+  },
+  {
+    type: 'connection.hello',
+    ref: 'https://s00.local/events.schema.json#/$defs/connection.hello',
+  },
+  {
+    type: 'connection.ready',
+    ref: 'https://s00.local/events.schema.json#/$defs/connection.ready',
+  },
+  {
     type: 'error',
     ref: 'https://s00.local/events.schema.json#/$defs/error',
   },

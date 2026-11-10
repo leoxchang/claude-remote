@@ -1,0 +1,252 @@
+[
+  {
+    "name": "s01-direct-text",
+    "sessionId": "session_01",
+    "messages": [
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2001",
+        "commandId": "cmd_2001",
+        "traceId": "trace_2001",
+        "sourceDeviceId": "device_phone_01",
+        "timestamp": 1762432801001,
+        "type": "session.start",
+        "payload": { "clientCapabilities": ["text", "message.delta"], "projectRef": "fixture" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2002",
+        "commandId": "cmd_2001",
+        "traceId": "trace_2001",
+        "desktopId": "desktop_mac_01",
+        "timestamp": 1762432801002,
+        "type": "command.result",
+        "payload": { "status": "ok", "duplicate": false, "data": { "sessionId": "session_01" } }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2003",
+        "eventId": "event_2001",
+        "sessionId": "session_01",
+        "seq": 1,
+        "timestamp": 1762432801003,
+        "type": "session.status",
+        "payload": { "state": "running" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2004",
+        "commandId": "cmd_2002",
+        "traceId": "trace_2002",
+        "sourceDeviceId": "device_phone_01",
+        "sessionId": "session_01",
+        "timestamp": 1762432801004,
+        "type": "prompt.send",
+        "payload": { "text": "检查这个测试项目" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2005",
+        "commandId": "cmd_2002",
+        "traceId": "trace_2002",
+        "desktopId": "desktop_mac_01",
+        "timestamp": 1762432801005,
+        "type": "command.result",
+        "payload": { "status": "ok", "duplicate": false, "data": { "accepted": true, "runId": "run_01" } }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2006",
+        "eventId": "event_2002",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 2,
+        "timestamp": 1762432801006,
+        "type": "message.delta",
+        "payload": { "assistantMessageId": "assistant_msg_01", "text": "检查" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2007",
+        "eventId": "event_2003",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 3,
+        "timestamp": 1762432801007,
+        "type": "message.delta",
+        "payload": { "assistantMessageId": "assistant_msg_01", "text": "完成" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2008",
+        "eventId": "event_2004",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 4,
+        "timestamp": 1762432801008,
+        "type": "message.completed",
+        "payload": { "assistantMessageId": "assistant_msg_01", "text": "检查完成" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2009",
+        "eventId": "event_2005",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 5,
+        "timestamp": 1762432801009,
+        "type": "tool.started",
+        "payload": { "toolUseId": "toolu_01", "toolName": "Bash", "input": { "command": "pwd" } }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2010",
+        "eventId": "event_2006",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 6,
+        "timestamp": 1762432801010,
+        "type": "tool.output",
+        "payload": { "toolUseId": "toolu_01", "chunk": "/tmp/fixture", "truncated": false }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2011",
+        "eventId": "event_2007",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 7,
+        "timestamp": 1762432801011,
+        "type": "tool.completed",
+        "payload": { "toolUseId": "toolu_01", "status": "succeeded" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2012",
+        "eventId": "event_2008",
+        "sessionId": "session_01",
+        "runId": "run_01",
+        "seq": 8,
+        "timestamp": 1762432801012,
+        "type": "run.completed",
+        "payload": { "status": "succeeded" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2013",
+        "commandId": "cmd_2003",
+        "traceId": "trace_2003",
+        "sourceDeviceId": "device_phone_01",
+        "sessionId": "session_01",
+        "timestamp": 1762432801013,
+        "type": "prompt.send",
+        "payload": { "text": "再总结一下" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2014",
+        "commandId": "cmd_2003",
+        "traceId": "trace_2003",
+        "desktopId": "desktop_mac_01",
+        "timestamp": 1762432801014,
+        "type": "command.result",
+        "payload": { "status": "ok", "duplicate": false, "data": { "accepted": true, "runId": "run_02" } }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2015",
+        "commandId": "cmd_2004",
+        "traceId": "trace_2004",
+        "sourceDeviceId": "device_phone_01",
+        "sessionId": "session_01",
+        "runId": "run_02",
+        "timestamp": 1762432801015,
+        "type": "run.cancel",
+        "payload": { "reason": "user_requested" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2016",
+        "commandId": "cmd_2004",
+        "traceId": "trace_2004",
+        "desktopId": "desktop_mac_01",
+        "timestamp": 1762432801016,
+        "type": "command.result",
+        "payload": { "status": "ok", "duplicate": false, "data": {} }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2017",
+        "eventId": "event_2009",
+        "sessionId": "session_01",
+        "seq": 9,
+        "timestamp": 1762432801017,
+        "type": "session.status",
+        "payload": { "state": "idle" }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2018",
+        "eventId": "event_2010",
+        "sessionId": "session_01",
+        "seq": 10,
+        "timestamp": 1762432801018,
+        "type": "session.snapshot",
+        "payload": { "lastSeq": 9, "recentEvents": [] }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_2019",
+        "desktopId": "desktop_mac_01",
+        "timestamp": 1762432801019,
+        "type": "error",
+        "payload": { "code": "SESSION_BUSY", "message": "当前会话已有任务执行", "retryable": true }
+      }
+    ]
+  },
+  {
+    "name": "connection-handshake",
+    "sessionId": "none",
+    "messages": [
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_3001",
+        "timestamp": 1762432803001,
+        "type": "connection.hello",
+        "payload": {
+          "supportedProtocolVersions": [1],
+          "appVersion": "0.0.1",
+          "deviceId": "device_phone_01",
+          "capabilities": ["text"]
+        }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_3002",
+        "timestamp": 1762432803002,
+        "type": "connection.ready",
+        "payload": {
+          "protocolVersion": 1,
+          "desktopId": "desktop_mac_01",
+          "agentVersion": "0.0.1",
+          "sdkVersion": "0.3.319",
+          "runtimeVersion": "2.1.319",
+          "capabilities": ["text", "message.delta"]
+        }
+      },
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_3003",
+        "timestamp": 1762432803003,
+        "type": "desktop.status",
+        "payload": {
+          "desktopId": "desktop_mac_01",
+          "online": true,
+          "agentVersion": "0.0.1",
+          "sdkVersion": "0.3.319",
+          "runtimeVersion": "2.1.319"
+        }
+      }
+    ]
+  }
+]

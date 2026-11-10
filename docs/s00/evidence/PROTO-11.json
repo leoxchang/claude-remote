@@ -1,0 +1,13 @@
+{
+  "id": "PROTO-11",
+  "status": "PASS",
+  "summary": "hello/ready agree on protocol version 1, and an incompatible client gets VERSION_INCOMPATIBLE",
+  "observedAt": "2026-11-10T04:54:45.579Z",
+  "data": {
+    "supportedProtocolVersions": [
+      1
+    ],
+    "incompatibleCode": "VERSION_INCOMPATIBLE",
+    "handshakeCarriesSeq": false
+  }
+}
