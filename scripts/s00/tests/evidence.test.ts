@@ -81,6 +81,38 @@ describe('redactEvidence', () => {
 
     expect(result).toEqual({ path: '~/workspace/fixture' });
   });
+
+  it('redacts non-HTTP URLs such as the Doubao WebSocket endpoint', () => {
+    const result = redactEvidence(
+      'wss://asr.example.test/v1/realtime?token=abc123&resource=res01',
+    );
+
+    expect(result).toBe('wss://asr.example.test/');
+  });
+
+  it('redacts credentials embedded in free-form header strings', () => {
+    const result = redactEvidence({
+      output: 'Authorization: Bearer sk-live-abcdef123456',
+      error: 'failed with access_token=abcd1234efgh',
+    });
+    const serialized = JSON.stringify(result);
+
+    expect(serialized).not.toContain('sk-live-abcdef123456');
+    expect(serialized).not.toContain('abcd1234efgh');
+    expect(serialized).toContain('[REDACTED]');
+  });
+
+  it('treats oauth and authentication keys as sensitive', () => {
+    const result = redactEvidence({
+      oauth: { clientSecret: 'oauth-secret-123' },
+      authentication: 'authentication-value-456',
+    });
+
+    expect(result).toEqual({
+      oauth: REDACTED_PLACEHOLDER,
+      authentication: REDACTED_PLACEHOLDER,
+    });
+  });
 });
 
 describe('writeEvidence', () => {
@@ -123,5 +155,23 @@ describe('writeEvidence', () => {
     expect(content).not.toContain('query-secret');
     expect(content).toContain('https://example.test/');
     expect(JSON.stringify(record)).toBe(before);
+  });
+
+  it('accepts caller-supplied secrets when writing evidence', async () => {
+    const root = mkdtempSync(join(tmpdir(), 's00-evidence-'));
+    const callerSecret = 'caller-supplied-secret-77';
+
+    const written = await writeEvidence(
+      {
+        id: 'SDK-02',
+        status: 'PASS',
+        summary: `failed with ${callerSecret}`,
+        observedAt: null,
+      },
+      root,
+      [callerSecret],
+    );
+
+    expect(readFileSync(written, 'utf8')).not.toContain(callerSecret);
   });
 });

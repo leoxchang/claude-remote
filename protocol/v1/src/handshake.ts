@@ -7,6 +7,8 @@ export interface ConnectionHelloPayload {
   appVersion: string;
   deviceId: string;
   capabilities: string[];
+  /** 随机握手 ID，只用于关联日志；ready 必须原样回显。 */
+  handshakeId: string;
 }
 
 /** 握手结果：不兼容时不返回版本号，调用方无法继续创建 run。 */

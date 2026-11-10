@@ -2,7 +2,7 @@
   "id": "SDK-12",
   "status": "PASS",
   "summary": "Resuming an unknown session id failed instead of creating a fake session",
-  "observedAt": "2026-11-10T04:59:54.367Z",
+  "observedAt": "2026-11-10T05:14:19.837Z",
   "data": {
     "threw": true,
     "errorName": "Error"

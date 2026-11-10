@@ -2,9 +2,9 @@
   "id": "SDK-05",
   "status": "PASS",
   "summary": "One query accepted two streamed user turns and reused the first turn context",
-  "observedAt": "2026-11-10T05:01:03.120Z",
+  "observedAt": "2026-11-10T05:15:35.260Z",
   "data": {
-    "sessionId": "56376b35-b1ee-4cdd-8c69-e978db466774",
+    "sessionId": "f9eaf1ba-7246-4fa6-bf00-cd246ee0021d",
     "turnResults": 2,
     "markerRecovered": true
   }

@@ -19,7 +19,12 @@ export interface EvidenceRecord {
 
 const REDACTED_PLACEHOLDER = '[REDACTED]';
 const EVIDENCE_ID_PATTERN = /^(SDK|CLI|PROTO|ASR)-\d{2}$/;
-const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
+const BEARER_PATTERN = /\bbearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const HEADER_ASSIGNMENT_PATTERN =
+  /\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key)\s*[:=]\s*[^,;\n"']+/gi;
+const CREDENTIAL_PARAM_PATTERN =
+  /\b(token|secret|password|passwd|api[_-]?key|access[_-]?token|refresh[_-]?token)=[^&\s"']+/gi;
 const MAX_DEPTH = 20;
 const MIN_SECRET_LENGTH = 8;
 
@@ -34,6 +39,8 @@ const SENSITIVE_KEY_EXACT_NAMES = new Set([
   'setcookie',
   'headers',
   'auth',
+  'oauth',
+  'authentication',
   'credential',
   'credentials',
 ]);
@@ -61,18 +68,38 @@ export function redactEvidence(
 export async function writeEvidence(
   record: EvidenceRecord,
   root: string = DEFAULT_EVIDENCE_ROOT,
+  secrets: readonly string[] = [],
 ): Promise<string> {
   assertEvidenceId(record.id);
 
-  const secrets = collectSensitiveEnvValues(process.env);
-  const redacted = redactEvidence(record, secrets);
+  const sensitive = [
+    ...collectSensitiveEnvValues(process.env),
+    ...sanitizeSecrets(secrets),
+  ];
+  const redacted = redactEvidence(record, sensitive);
   const serialized = `${JSON.stringify(redacted, null, 2)}\n`;
-  assertNoLeakedSecret(serialized, secrets);
+  assertNoLeakedSecret(serialized, sensitive);
 
   await mkdir(root, { recursive: true });
   const target = join(root, `${record.id}.json`);
   await writeFile(target, serialized, { encoding: 'utf8', mode: 0o600 });
   return target;
+}
+
+/** 只有显式开启时才写证据，避免 `npm test` 修改已提交的证据文件。 */
+export function isEvidenceWritingEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env['S00_EVIDENCE'] === '1';
+}
+
+/** 测试用：默认跳过证据写盘，`S00_EVIDENCE=1` 时写出。 */
+export async function recordEvidenceIfEnabled(
+  record: EvidenceRecord,
+  root?: string,
+): Promise<string | null> {
+  if (!isEvidenceWritingEnabled()) return null;
+  return writeEvidence(record, root);
 }
 
 /** 只允许形如 SDK-01 / PROTO-11 的测试 ID，防止路径穿越。 */
@@ -136,7 +163,11 @@ function redactString(value: string, secrets: readonly string[]): string {
   for (const secret of secrets) {
     result = result.split(secret).join(REDACTED_PLACEHOLDER);
   }
-  result = result.replace(URL_PATTERN, redactUrl);
+  result = result
+    .replace(BEARER_PATTERN, 'Bearer [REDACTED]')
+    .replace(HEADER_ASSIGNMENT_PATTERN, '$1: [REDACTED]')
+    .replace(CREDENTIAL_PARAM_PATTERN, '$1=[REDACTED]')
+    .replace(URL_PATTERN, redactUrl);
   const home = homedir();
   if (home.length > 0) result = result.split(home).join('~');
   return result;
@@ -144,7 +175,8 @@ function redactString(value: string, secrets: readonly string[]): string {
 
 function redactUrl(rawUrl: string): string {
   try {
-    return `${new URL(rawUrl).origin}/`;
+    const url = new URL(rawUrl);
+    return `${url.protocol}//${url.host}/`;
   } catch {
     return REDACTED_PLACEHOLDER;
   }

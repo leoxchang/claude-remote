@@ -28,15 +28,15 @@ ASR Live: DEFERRED
 | 本机 Claude Code CLI | **2.1.311**（计划固定 2.1.319，经用户确认按实测版本执行） |
 | 网关 | 用户 settings 中的 `ANTHROPIC_BASE_URL` → `http://127.0.0.1:15721/` |
 
-证据：`environment.md`、`evidence/SDK-01.json`。
+证据：`environment.md`、`agent-sdk-evidence.md`、`evidence/SDK-01.json`。
 
 ## 3. SDK 验证（SDK-01–12）
 
 | ID | 结论 | 证据 |
 |---|---|---|
 | SDK-01 | 版本与配置来源可复现，无敏感值 | `evidence/SDK-01.json` |
-| SDK-02 | `settingSources: ['user']` 不加载项目 CLAUDE.md；省略与显式完整来源一致 | `evidence/SDK-02.json` |
-| SDK-03 | 请求归因到配置网关与模型（OS 连接记录 + Runtime 日志） | `evidence/SDK-03.json`、`gateway-attribution.md` |
+| SDK-02 | `settingSources: ['user']` 不加载项目 CLAUDE.md；省略与显式完整来源一致；三个对照 probe 均无工具调用 | `evidence/SDK-02.json` |
+| SDK-03 | 请求归因到配置网关与模型（OS 连接记录 + Runtime 日志，且无 direct-Anthropic 回落） | `evidence/SDK-03.json`、`gateway-attribution.md` |
 | SDK-04 | `claude_code` preset 加载工具与项目设置 | `evidence/SDK-04.json` |
 | SDK-05 | 同一 query 两轮流式输入，第二轮复用上下文 | `evidence/SDK-05.json` |
 | SDK-06 | 完整 assistant 消息与 text_delta 增量均可观察 | `evidence/SDK-06.json` |
@@ -76,8 +76,8 @@ ASR Live: DEFERRED
 
 | 命令 | 结果 |
 |---|---|
-| `npm test` | 9 个文件、73 个测试全部通过 |
-| `npm run test:coverage` | statements 94.64%、branches 89.21%、functions 100%、lines 96.57%（阈值 80%） |
+| `npm test` | 9 个文件、82 个测试全部通过 |
+| `npm run test:coverage` | statements 94.14%、branches 88.39%、functions 100%、lines 96.34%（阈值 80%） |
 | `S00_LIVE=1 npm run test:live` | 5 个文件、6 个 live 测试全部通过（串行，约 93s） |
 | `npm run s00:gate` | Core PASS / ASR Contract PASS / ASR Live DEFERRED（退出码 0） |
 

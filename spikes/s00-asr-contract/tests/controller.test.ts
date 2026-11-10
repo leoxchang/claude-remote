@@ -4,7 +4,7 @@ import { AsrConfig } from '../src/types.js';
 import { AsrController } from '../src/controller.js';
 import { FakeAsrProvider } from '../src/fake-provider.js';
 import { validateProtocolMessage } from '../../../protocol/v1/src/validator.js';
-import { writeEvidence } from '../../../scripts/s00/evidence.js';
+import { recordEvidenceIfEnabled } from '../../../scripts/s00/evidence.js';
 
 const SECRET_TOKEN = 'doubao-secret-token-4f81';
 
@@ -157,7 +157,7 @@ describe('AsrController', () => {
       true,
     );
 
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-08',
       status: 'PASS',
       summary: 'ASR events stay in the asr.* namespace and never become prompt.send',
@@ -167,42 +167,42 @@ describe('AsrController', () => {
   });
 
   it('records ASR-01..06 evidence', async () => {
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-01',
       status: 'PASS',
       summary: 'Ordered partials and exactly one final move the controller to completed',
       observedAt: new Date().toISOString(),
       data: { checkedBy: 'ASR-01 test' },
     });
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-02',
       status: 'PASS',
       summary: 'Cancel is terminal and late results are ignored',
       observedAt: new Date().toISOString(),
       data: { checkedBy: 'ASR-02 test' },
     });
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-03',
       status: 'PASS',
       summary: 'Provider errors are surfaced with a safe code and never echo the token',
       observedAt: new Date().toISOString(),
       data: { checkedBy: 'ASR-03 test' },
     });
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-04',
       status: 'PASS',
       summary: 'A finalize without final text ends in ASR_NO_FINAL and never creates a prompt',
       observedAt: new Date().toISOString(),
       data: { checkedBy: 'ASR-04 test' },
     });
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-05',
       status: 'PASS',
       summary: 'Stale sequences and events from an old stream never overwrite newer state',
       observedAt: new Date().toISOString(),
       data: { checkedBy: 'ASR-05 test' },
     });
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-06',
       status: 'PASS',
       summary: 'Only one final transcript is kept and nothing is auto-sent',

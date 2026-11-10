@@ -2,7 +2,7 @@
   "id": "PROTO-11",
   "status": "PASS",
   "summary": "hello/ready agree on protocol version 1, and an incompatible client gets VERSION_INCOMPATIBLE",
-  "observedAt": "2026-11-10T04:59:53.954Z",
+  "observedAt": "2026-11-10T05:01:33.635Z",
   "data": {
     "supportedProtocolVersions": [
       1

@@ -2,7 +2,7 @@
   "id": "PROTO-04",
   "status": "PASS",
   "summary": "Invalid seq and timestamp formats are rejected",
-  "observedAt": "2026-11-10T04:59:53.961Z",
+  "observedAt": "2026-11-10T05:01:33.634Z",
   "data": {
     "cases": [
       "seq minimum 1",

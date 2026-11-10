@@ -2,7 +2,7 @@
   "id": "PROTO-09",
   "status": "PASS",
   "summary": "The schema expresses session start, two prompts, a tool, cancel and errors",
-  "observedAt": "2026-11-10T04:59:53.959Z",
+  "observedAt": "2026-11-10T05:01:33.630Z",
   "data": {
     "flows": [
       "s01-direct-text",

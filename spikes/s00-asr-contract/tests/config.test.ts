@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseAsrConfig } from '../src/config.js';
-import { writeEvidence } from '../../../scripts/s00/evidence.js';
+import { recordEvidenceIfEnabled } from '../../../scripts/s00/evidence.js';
 
 const SECRET_TOKEN = 'doubao-secret-token-4f81';
 
@@ -60,7 +60,7 @@ describe('parseAsrConfig', () => {
     } catch (error: unknown) {
       missingFieldsError = error instanceof Error ? error.message : '';
     }
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'ASR-07',
       status:
         missingFieldsError.includes('DOUBAO_ASR_ACCESS_TOKEN') &&

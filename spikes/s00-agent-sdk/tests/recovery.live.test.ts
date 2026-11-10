@@ -12,6 +12,7 @@ describe('SDK interruption and resume (live)', () => {
     expect(result.normalSessionId.length).toBeGreaterThan(0);
     expect(result.normalResumedMarker).toBe(true);
     expect(result.interrupted).toBe(true);
+    expect(result.interruptOutcome).not.toBe('timeout');
     expect(result.interruptedSessionId.length).toBeGreaterThan(0);
     expect(result.interruptedResumedMarker).toBe(true);
     expect(result.invalidResumeRejected).toBe(true);

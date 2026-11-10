@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { validateProtocolMessage } from '../src/validator.js';
-import { writeEvidence } from '../../../scripts/s00/evidence.js';
+import { recordEvidenceIfEnabled } from '../../../scripts/s00/evidence.js';
 
 interface ValidExample {
   name: string;
@@ -165,7 +165,7 @@ describe('validateProtocolMessage', () => {
     }>;
 
     for (const record of records) {
-      await writeEvidence({
+      await recordEvidenceIfEnabled({
         id: record.id,
         status: record.ok ? 'PASS' : 'FAIL',
         summary: record.summary,

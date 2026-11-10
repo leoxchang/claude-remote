@@ -2,7 +2,7 @@
   "id": "PROTO-03",
   "status": "PASS",
   "summary": "Commands without their target object id are rejected",
-  "observedAt": "2026-11-10T04:59:53.961Z",
+  "observedAt": "2026-11-10T05:01:33.634Z",
   "data": {
     "cases": [
       "prompt.send/sessionId",

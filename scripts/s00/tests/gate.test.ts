@@ -5,6 +5,7 @@ import {
   ASR_CONTRACT_IDS,
   CORE_IDS,
   evaluateS00Gate,
+  findEvidenceProblems,
   recordsFromStatus,
 } from '../gate.js';
 
@@ -115,6 +116,48 @@ describe('evaluateS00Gate', () => {
     ];
 
     expect(evaluateS00Gate(records).asrContract).toBe('BLOCKED');
+  });
+
+  it('does not treat an absent ASR live record as a compliant deferral', () => {
+    const result = evaluateS00Gate([...coreRecords(), ...asrRecords()]);
+
+    expect(result.asrLive).toBe('FAIL');
+  });
+});
+
+describe('findEvidenceProblems', () => {
+  const recordWithEvidence = (id: string): EvidenceRecord => ({
+    ...pass(id),
+    evidence: `docs/s00/evidence/${id}.json`,
+  });
+
+  it('accepts matching evidence files', () => {
+    const records = [recordWithEvidence('SDK-01')];
+
+    const problems = findEvidenceProblems(records, () => pass('SDK-01'));
+
+    expect(problems).toEqual([]);
+  });
+
+  it('reports a missing evidence file', () => {
+    const problems = findEvidenceProblems([recordWithEvidence('SDK-01')], () => {
+      return undefined;
+    });
+
+    expect(problems).toEqual([
+      'SDK-01: evidence file missing (docs/s00/evidence/SDK-01.json)',
+    ]);
+  });
+
+  it('reports a ledger status that disagrees with the evidence file', () => {
+    const problems = findEvidenceProblems(
+      [recordWithEvidence('SDK-01')],
+      () => ({ ...pass('SDK-01'), status: 'FAIL' }),
+    );
+
+    expect(problems).toEqual([
+      'SDK-01: ledger status PASS does not match evidence FAIL',
+    ]);
   });
 });
 

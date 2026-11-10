@@ -1,11 +1,12 @@
 {
   "id": "SDK-09",
   "status": "PASS",
-  "summary": "interrupt() stopped a streaming turn and the process closed cleanly",
-  "observedAt": "2026-11-10T04:59:54.367Z",
+  "summary": "interrupt() stopped a streaming turn and the query closed",
+  "observedAt": "2026-11-10T05:14:19.837Z",
   "data": {
     "interrupted": true,
+    "interruptOutcome": "receipt",
     "closed": true,
-    "sessionId": "7934668c-58d7-4d92-a205-c60d0c5db12e"
+    "sessionId": "64fb32a1-ea45-43f2-811b-17d7e3f17f61"
   }
 }

@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { validateProtocolMessage } from '../src/validator.js';
 import { RESERVED_MESSAGE_TYPES } from '../src/types.js';
-import { writeEvidence } from '../../../scripts/s00/evidence.js';
+import { ERROR_CODES } from '../src/errors.js';
+import { recordEvidenceIfEnabled } from '../../../scripts/s00/evidence.js';
 
 interface Flow {
   name: string;
@@ -67,7 +68,7 @@ describe('protocol timeline events', () => {
 
   it('accepts only full S01 flow and handshake evidence', async () => {
     const observedAt = new Date().toISOString();
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'PROTO-09',
       status: flows.every((flow) => flow.messages.every((m) => validateProtocolMessage(m).valid))
         ? 'PASS'
@@ -76,6 +77,28 @@ describe('protocol timeline events', () => {
       observedAt,
       data: { flows: flows.map((flow) => flow.name) },
     });
+  });
+
+  it('registers the spec error-code baseline without duplicates', () => {
+    const required = [
+      'UNAUTHENTICATED',
+      'FORBIDDEN',
+      'RATE_LIMITED',
+      'INVALID_MESSAGE',
+      'UNKNOWN_MESSAGE_TYPE',
+      'INTERNAL_ERROR',
+      'WORKSPACE_NOT_ALLOWED',
+      'SESSION_BUSY',
+      'RUN_NOT_ACTIVE',
+      'RESYNC_REQUIRED',
+      'VERSION_INCOMPATIBLE',
+      'APPROVAL_EXPIRED',
+      'APPROVAL_ALREADY_RESOLVED',
+      'ASR_PROVIDER_ERROR',
+    ];
+
+    expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
+    for (const code of required) expect(ERROR_CODES).toContain(code);
   });
 
   it('keeps S02–S05 reserved type names disjoint from S01 types', async () => {
@@ -117,7 +140,7 @@ describe('protocol timeline events', () => {
     expect(overlap).toEqual([]);
     expect(reservedAreSafelyRejected).toBe(true);
 
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'PROTO-10',
       status: overlap.length === 0 && reservedAreSafelyRejected ? 'PASS' : 'FAIL',
       summary:

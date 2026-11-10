@@ -120,13 +120,38 @@ function evaluateGroup(
 }
 
 function evaluateAsrLive(record: EvidenceRecord | undefined): AsrLiveStatus {
-  if (record === undefined) return 'DEFERRED';
+  if (record === undefined) return 'FAIL';
   if (record.status === 'PASS') return 'PASS';
   if (record.status === 'FAIL') return 'FAIL';
   if (record.status === 'NOT_RUN' && record.deferredTo === 'S05') {
     return 'DEFERRED';
   }
   return 'FAIL';
+}
+
+/**
+ * 交叉检查 ledger 引用的证据文件：必须存在，且文件内 status 与 ledger 一致。
+ * `load` 由调用方注入，便于测试。
+ */
+export function findEvidenceProblems(
+  records: readonly EvidenceRecord[],
+  load: (path: string) => EvidenceRecord | undefined,
+): string[] {
+  const problems: string[] = [];
+  for (const record of records) {
+    if (record.evidence === undefined) continue;
+    const stored = load(record.evidence);
+    if (stored === undefined) {
+      problems.push(`${record.id}: evidence file missing (${record.evidence})`);
+      continue;
+    }
+    if (stored.status !== record.status) {
+      problems.push(
+        `${record.id}: ledger status ${record.status} does not match evidence ${stored.status}`,
+      );
+    }
+  }
+  return problems;
 }
 
 function sequence(prefix: string, count: number): string[] {

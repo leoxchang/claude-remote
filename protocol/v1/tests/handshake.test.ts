@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { negotiateProtocolVersion } from '../src/handshake.js';
 import { validateProtocolMessage } from '../src/validator.js';
-import { writeEvidence } from '../../../scripts/s00/evidence.js';
+import { recordEvidenceIfEnabled } from '../../../scripts/s00/evidence.js';
 
 const hello = {
   protocolVersion: 1,
@@ -14,6 +14,7 @@ const hello = {
     appVersion: '0.0.1',
     deviceId: 'device_phone_01',
     capabilities: ['text'],
+    handshakeId: 'handshake_01',
   },
 };
 
@@ -29,6 +30,7 @@ const ready = {
     sdkVersion: '0.3.319',
     runtimeVersion: '2.1.319',
     capabilities: ['text', 'message.delta'],
+    handshakeId: 'handshake_01',
   },
 };
 
@@ -38,6 +40,7 @@ describe('connection handshake', () => {
     expect(validateProtocolMessage(ready).valid).toBe(true);
     expect(hello).not.toHaveProperty('seq');
     expect(ready).not.toHaveProperty('seq');
+    expect(ready.payload.handshakeId).toBe(hello.payload.handshakeId);
   });
 
   it('selects protocol version 1 when the client supports it', () => {
@@ -62,7 +65,7 @@ describe('connection handshake', () => {
       ...hello.payload,
       supportedProtocolVersions: [2],
     });
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'PROTO-11',
       status:
         validateProtocolMessage(hello).valid &&

@@ -18,6 +18,7 @@ describe('SDK settings validation (live)', () => {
     expect(result.versions.runtime).toBeTruthy();
     expect(result.baselineMarker).toBe(true);
     expect(result.baselineToolNames.length).toBeGreaterThan(0);
+    expect(result.probeToolUseCounts).toEqual([0, 0, 0]);
     expect(result.gatewayWindow.sessionIds.length).toBe(4);
     expect(Date.parse(result.gatewayWindow.endedAt)).toBeGreaterThanOrEqual(
       Date.parse(result.gatewayWindow.startedAt),

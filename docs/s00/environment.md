@@ -35,6 +35,7 @@
 | `npm test` | 默认单元测试（排除 `*.live.test.ts`） |
 | `npm run test:coverage` | 覆盖率测试 |
 | `S00_LIVE=1 npm run test:live` | 串行 live SDK 测试 |
+| `S00_EVIDENCE=1 npm test` | 重新生成 `docs/s00/evidence/*.json`（默认单元测试不写盘） |
 | `npm run s00:gate` | S00 退出门禁 |
 
 ## 证据索引

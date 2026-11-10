@@ -93,6 +93,7 @@ export async function runTwoTurnConversation(
       observedAt,
       data: {
         messageTypeCounts: countByType(collected.messageTypes),
+        messageTypeSequence: collected.messageTypes,
         deltaCount: collected.textDeltas.length,
         sawAssistant,
         resultSubtypes: collected.resultSubtypes,

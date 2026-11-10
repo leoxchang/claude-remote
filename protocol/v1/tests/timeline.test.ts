@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { normalizeTimeline, ProtocolConflictError } from '../src/timeline.js';
-import { writeEvidence } from '../../../scripts/s00/evidence.js';
+import { recordEvidenceIfEnabled } from '../../../scripts/s00/evidence.js';
 
 interface TimelineEvent {
   eventId: string;
@@ -88,7 +88,7 @@ describe('normalizeTimeline', () => {
   });
 
   it('records PROTO-07 evidence', async () => {
-    await writeEvidence({
+    await recordEvidenceIfEnabled({
       id: 'PROTO-07',
       status: 'PASS',
       summary:

@@ -17,9 +17,22 @@
 2. **run 的最终状态只由 `run.completed` 表达**：`succeeded / failed / cancelled / interrupted`。
 3. **未知可选字段可以忽略**：payload 不禁止额外字段，同大版本内只允许向后兼容的扩展。
 4. **未知类型必须安全拒绝**：返回 `UNKNOWN_MESSAGE_TYPE`，不能把它当成其他类型处理；校验错误只暴露 `instancePath` 与 `keyword`，绝不回显输入值或密钥。
-5. **握手不协商权限或 cwd**：`connection.hello/ready` 只交换协议版本、设备标识、版本信息和展示能力，不能通过握手获得更高工具权限或任意工作目录。
+5. **握手不协商权限或 cwd**：`connection.hello/ready` 只交换协议版本、设备标识、版本信息和展示能力，不能通过握手获得更高工具权限或任意工作目录。两个方向都必须携带同一个随机 `handshakeId`，`connection.ready` 原样回显 `connection.hello` 的值，仅用于日志关联，不作为认证凭证。
 6. **重传与去重**：同一 `eventId` 只保留一份；同 `eventId` 不同内容、同 `seq` 不同 `eventId`、混入不同 `sessionId` 均视为 `PROTOCOL_CONFLICT`（见 `src/timeline.ts`）。
 7. **重复命令**：重传使用相同 `commandId/traceId`、不同 `messageId`，第二次 `command.result.duplicate = true`，不得执行第二次业务操作。
+
+## 错误码基线
+
+S00 注册以下稳定错误码（`src/errors.ts` 的 `ERROR_CODES`），客户端逻辑只依赖 `code`，不解析 `message`：
+
+| 分组 | 错误码 |
+|---|---|
+| 通用 | `UNAUTHENTICATED`、`FORBIDDEN`、`RATE_LIMITED`、`INVALID_MESSAGE`、`UNKNOWN_MESSAGE_TYPE`、`INTERNAL_ERROR` |
+| 项目/会话 | `WORKSPACE_NOT_ALLOWED`、`SESSION_BUSY`、`RUN_NOT_ACTIVE` |
+| 同步 | `RESYNC_REQUIRED` |
+| 版本 | `VERSION_INCOMPATIBLE` |
+| 审批（S03） | `APPROVAL_EXPIRED`、`APPROVAL_ALREADY_RESOLVED` |
+| 语音（S05） | `ASR_PROVIDER_ERROR` |
 
 ## 版本
 

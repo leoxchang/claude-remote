@@ -2,7 +2,7 @@
   "id": "ASR-04",
   "status": "PASS",
   "summary": "A finalize without final text ends in ASR_NO_FINAL and never creates a prompt",
-  "observedAt": "2026-11-10T04:59:53.992Z",
+  "observedAt": "2026-11-10T05:01:33.643Z",
   "data": {
     "checkedBy": "ASR-04 test"
   }

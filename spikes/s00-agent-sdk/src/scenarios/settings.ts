@@ -31,6 +31,7 @@ export interface SettingsValidationResult {
   explicitMarker: boolean;
   baselineMarker: boolean;
   baselineToolNames: string[];
+  probeToolUseCounts: number[];
   versions: Record<string, string>;
   gatewayWindow: {
     startedAt: string;
@@ -51,6 +52,7 @@ interface ProbeResult {
   model?: string;
   claudeCodeVersion?: string;
   toolNames: string[];
+  toolUseCount: number;
 }
 
 /** 跑三种 settingSources 变体加一次完整基线，并写入 SDK-01–04 证据。 */
@@ -89,9 +91,15 @@ export async function runSettingsValidation(
   const debug = await scanDebugLog(DEBUG_FILE, origin, baseline.model ?? null);
   const attributionStatus =
     debug.mentionsModel &&
+    !debug.mentionsDirectAnthropic &&
     (debug.mentionsGateway || baselineRun.clientNames.length > 0)
       ? 'PASS'
       : 'LIMITED';
+  const probeToolUseCounts = [
+    userOnly.toolUseCount,
+    defaultSources.toolUseCount,
+    explicitSources.toolUseCount,
+  ];
 
   await ctx.writeEvidence({
     id: 'SDK-01',
@@ -108,14 +116,21 @@ export async function runSettingsValidation(
 
   await ctx.writeEvidence({
     id: 'SDK-02',
-    status: 'PASS',
+    status:
+      !userOnly.text.includes(PROJECT_MARKER) &&
+      defaultSources.text.includes(PROJECT_MARKER) &&
+      explicitSources.text.includes(PROJECT_MARKER) &&
+      probeToolUseCounts.every((count) => count === 0)
+        ? 'PASS'
+        : 'FAIL',
     summary:
-      'user-only sources omit the project CLAUDE.md; default and explicit sources load it',
+      'user-only sources omit the project CLAUDE.md; default and explicit sources load it without tool use',
     observedAt,
     data: {
       userOnlyMarker: userOnly.text.includes(PROJECT_MARKER),
       defaultMarker: defaultSources.text.includes(PROJECT_MARKER),
       explicitMarker: explicitSources.text.includes(PROJECT_MARKER),
+      probeToolUseCounts,
     },
   });
 
@@ -159,6 +174,7 @@ export async function runSettingsValidation(
     explicitMarker: explicitSources.text.includes(PROJECT_MARKER),
     baselineMarker: baseline.text.includes(PROJECT_MARKER),
     baselineToolNames: baseline.toolNames,
+    probeToolUseCounts,
     versions,
     gatewayWindow: { startedAt, endedAt, sessionIds },
     gatewayAttribution: {
@@ -173,6 +189,7 @@ export async function runSettingsValidation(
 function withoutSettingSources(fixtureRoot: string): Options {
   const options = createBaseOptions(fixtureRoot);
   delete options.settingSources;
+  options.tools = [];
   return options;
 }
 
@@ -189,11 +206,17 @@ async function runProbe(
     let model: string | undefined;
     let claudeCodeVersion: string | undefined;
     let toolNames: string[] = [];
+    let toolUseCount = 0;
     for (const message of collected.messages) {
       if (message.type === 'system' && message.subtype === 'init') {
         model = message.model;
         claudeCodeVersion = message.claude_code_version;
         toolNames = message.tools;
+      }
+      if (message.type === 'assistant') {
+        toolUseCount += message.message.content.filter(
+          (block) => block.type === 'tool_use',
+        ).length;
       }
     }
     return {
@@ -202,6 +225,7 @@ async function runProbe(
       model,
       claudeCodeVersion,
       toolNames,
+      toolUseCount,
     };
   } finally {
     q.close();

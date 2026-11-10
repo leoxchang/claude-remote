@@ -11,7 +11,13 @@
         "sourceDeviceId": "device_phone_01",
         "timestamp": 1762432801001,
         "type": "session.start",
-        "payload": { "clientCapabilities": ["text", "message.delta"], "projectRef": "fixture" }
+        "payload": {
+          "clientCapabilities": [
+            "text",
+            "message.delta"
+          ],
+          "projectRef": "fixture"
+        }
       },
       {
         "protocolVersion": 1,
@@ -21,7 +27,13 @@
         "desktopId": "desktop_mac_01",
         "timestamp": 1762432801002,
         "type": "command.result",
-        "payload": { "status": "ok", "duplicate": false, "data": { "sessionId": "session_01" } }
+        "payload": {
+          "status": "ok",
+          "duplicate": false,
+          "data": {
+            "sessionId": "session_01"
+          }
+        }
       },
       {
         "protocolVersion": 1,
@@ -31,7 +43,9 @@
         "seq": 1,
         "timestamp": 1762432801003,
         "type": "session.status",
-        "payload": { "state": "running" }
+        "payload": {
+          "state": "running"
+        }
       },
       {
         "protocolVersion": 1,
@@ -42,7 +56,9 @@
         "sessionId": "session_01",
         "timestamp": 1762432801004,
         "type": "prompt.send",
-        "payload": { "text": "检查这个测试项目" }
+        "payload": {
+          "text": "检查这个测试项目"
+        }
       },
       {
         "protocolVersion": 1,
@@ -52,7 +68,14 @@
         "desktopId": "desktop_mac_01",
         "timestamp": 1762432801005,
         "type": "command.result",
-        "payload": { "status": "ok", "duplicate": false, "data": { "accepted": true, "runId": "run_01" } }
+        "payload": {
+          "status": "ok",
+          "duplicate": false,
+          "data": {
+            "accepted": true,
+            "runId": "run_01"
+          }
+        }
       },
       {
         "protocolVersion": 1,
@@ -63,7 +86,10 @@
         "seq": 2,
         "timestamp": 1762432801006,
         "type": "message.delta",
-        "payload": { "assistantMessageId": "assistant_msg_01", "text": "检查" }
+        "payload": {
+          "assistantMessageId": "assistant_msg_01",
+          "text": "检查"
+        }
       },
       {
         "protocolVersion": 1,
@@ -74,7 +100,10 @@
         "seq": 3,
         "timestamp": 1762432801007,
         "type": "message.delta",
-        "payload": { "assistantMessageId": "assistant_msg_01", "text": "完成" }
+        "payload": {
+          "assistantMessageId": "assistant_msg_01",
+          "text": "完成"
+        }
       },
       {
         "protocolVersion": 1,
@@ -85,7 +114,10 @@
         "seq": 4,
         "timestamp": 1762432801008,
         "type": "message.completed",
-        "payload": { "assistantMessageId": "assistant_msg_01", "text": "检查完成" }
+        "payload": {
+          "assistantMessageId": "assistant_msg_01",
+          "text": "检查完成"
+        }
       },
       {
         "protocolVersion": 1,
@@ -96,7 +128,13 @@
         "seq": 5,
         "timestamp": 1762432801009,
         "type": "tool.started",
-        "payload": { "toolUseId": "toolu_01", "toolName": "Bash", "input": { "command": "pwd" } }
+        "payload": {
+          "toolUseId": "toolu_01",
+          "toolName": "Bash",
+          "input": {
+            "command": "pwd"
+          }
+        }
       },
       {
         "protocolVersion": 1,
@@ -107,7 +145,11 @@
         "seq": 6,
         "timestamp": 1762432801010,
         "type": "tool.output",
-        "payload": { "toolUseId": "toolu_01", "chunk": "/tmp/fixture", "truncated": false }
+        "payload": {
+          "toolUseId": "toolu_01",
+          "chunk": "/tmp/fixture",
+          "truncated": false
+        }
       },
       {
         "protocolVersion": 1,
@@ -118,7 +160,10 @@
         "seq": 7,
         "timestamp": 1762432801011,
         "type": "tool.completed",
-        "payload": { "toolUseId": "toolu_01", "status": "succeeded" }
+        "payload": {
+          "toolUseId": "toolu_01",
+          "status": "succeeded"
+        }
       },
       {
         "protocolVersion": 1,
@@ -129,7 +174,9 @@
         "seq": 8,
         "timestamp": 1762432801012,
         "type": "run.completed",
-        "payload": { "status": "succeeded" }
+        "payload": {
+          "status": "succeeded"
+        }
       },
       {
         "protocolVersion": 1,
@@ -140,7 +187,9 @@
         "sessionId": "session_01",
         "timestamp": 1762432801013,
         "type": "prompt.send",
-        "payload": { "text": "再总结一下" }
+        "payload": {
+          "text": "再总结一下"
+        }
       },
       {
         "protocolVersion": 1,
@@ -150,7 +199,14 @@
         "desktopId": "desktop_mac_01",
         "timestamp": 1762432801014,
         "type": "command.result",
-        "payload": { "status": "ok", "duplicate": false, "data": { "accepted": true, "runId": "run_02" } }
+        "payload": {
+          "status": "ok",
+          "duplicate": false,
+          "data": {
+            "accepted": true,
+            "runId": "run_02"
+          }
+        }
       },
       {
         "protocolVersion": 1,
@@ -162,7 +218,9 @@
         "runId": "run_02",
         "timestamp": 1762432801015,
         "type": "run.cancel",
-        "payload": { "reason": "user_requested" }
+        "payload": {
+          "reason": "user_requested"
+        }
       },
       {
         "protocolVersion": 1,
@@ -172,7 +230,11 @@
         "desktopId": "desktop_mac_01",
         "timestamp": 1762432801016,
         "type": "command.result",
-        "payload": { "status": "ok", "duplicate": false, "data": {} }
+        "payload": {
+          "status": "ok",
+          "duplicate": false,
+          "data": {}
+        }
       },
       {
         "protocolVersion": 1,
@@ -182,7 +244,9 @@
         "seq": 9,
         "timestamp": 1762432801017,
         "type": "session.status",
-        "payload": { "state": "idle" }
+        "payload": {
+          "state": "idle"
+        }
       },
       {
         "protocolVersion": 1,
@@ -192,7 +256,10 @@
         "seq": 10,
         "timestamp": 1762432801018,
         "type": "session.snapshot",
-        "payload": { "lastSeq": 9, "recentEvents": [] }
+        "payload": {
+          "lastSeq": 9,
+          "recentEvents": []
+        }
       },
       {
         "protocolVersion": 1,
@@ -200,7 +267,11 @@
         "desktopId": "desktop_mac_01",
         "timestamp": 1762432801019,
         "type": "error",
-        "payload": { "code": "SESSION_BUSY", "message": "当前会话已有任务执行", "retryable": true }
+        "payload": {
+          "code": "SESSION_BUSY",
+          "message": "当前会话已有任务执行",
+          "retryable": true
+        }
       }
     ]
   },
@@ -214,10 +285,15 @@
         "timestamp": 1762432803001,
         "type": "connection.hello",
         "payload": {
-          "supportedProtocolVersions": [1],
+          "supportedProtocolVersions": [
+            1
+          ],
           "appVersion": "0.0.1",
           "deviceId": "device_phone_01",
-          "capabilities": ["text"]
+          "capabilities": [
+            "text"
+          ],
+          "handshakeId": "handshake_flow_01"
         }
       },
       {
@@ -231,7 +307,11 @@
           "agentVersion": "0.0.1",
           "sdkVersion": "0.3.319",
           "runtimeVersion": "2.1.319",
-          "capabilities": ["text", "message.delta"]
+          "capabilities": [
+            "text",
+            "message.delta"
+          ],
+          "handshakeId": "handshake_flow_01"
         }
       },
       {

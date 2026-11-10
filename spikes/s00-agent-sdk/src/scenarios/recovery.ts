@@ -1,4 +1,5 @@
 import { Options, SDKMessage, SDKUserMessage, query } from '@anthropic-ai/claude-agent-sdk';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { collectQuery } from '../collector.js';
 import { createUserMessage } from './conversation.js';
@@ -8,6 +9,7 @@ import { createBaseOptions } from '../options.js';
 const NORMAL_MARKER = 'S00_NORMAL_RESUME_51A0';
 const INTERRUPT_MARKER = 'S00_INTERRUPT_MARKER_62BD';
 const NONEXISTENT_SESSION_ID = '00000000-0000-0000-0000-000000000000';
+const INTERRUPT_TIMEOUT_MS = 30_000;
 
 const RECALL_PROMPT =
   'What exact marker did I ask you to remember? Reply with just the marker.';
@@ -16,6 +18,7 @@ const RECALL_PROMPT =
 export interface RecoveryValidationResult {
   normalResumedMarker: boolean;
   interrupted: boolean;
+  interruptOutcome: InterruptOutcome;
   interruptedResumedMarker: boolean;
   invalidResumeRejected: boolean;
   closed: boolean;
@@ -59,11 +62,15 @@ export async function runRecoveryValidation(
 
   await ctx.writeEvidence({
     id: 'SDK-09',
-    status: interruptedTurn.interrupted ? 'PASS' : 'FAIL',
-    summary: 'interrupt() stopped a streaming turn and the process closed cleanly',
+    status:
+      interruptedTurn.interrupted && interruptedTurn.interruptOutcome !== 'timeout'
+        ? 'PASS'
+        : 'FAIL',
+    summary: 'interrupt() stopped a streaming turn and the query closed',
     observedAt,
     data: {
       interrupted: interruptedTurn.interrupted,
+      interruptOutcome: interruptedTurn.interruptOutcome,
       closed: interruptedTurn.closed,
       sessionId: interruptedTurn.sessionId,
     },
@@ -106,6 +113,7 @@ export async function runRecoveryValidation(
   return {
     normalResumedMarker,
     interrupted: interruptedTurn.interrupted,
+    interruptOutcome: interruptedTurn.interruptOutcome,
     interruptedResumedMarker,
     invalidResumeRejected: invalidResume.rejected,
     closed,
@@ -137,9 +145,12 @@ async function runSingleTurn(
   }
 }
 
+type InterruptOutcome = 'receipt' | 'no_receipt' | 'timeout';
+
 interface InterruptedTurnResult {
   sessionId: string;
   interrupted: boolean;
+  interruptOutcome: InterruptOutcome;
   closed: boolean;
 }
 
@@ -148,6 +159,7 @@ async function runInterruptedTurn(
 ): Promise<InterruptedTurnResult> {
   let sessionId = '';
   let interrupted = false;
+  let interruptOutcome: InterruptOutcome = 'timeout';
   let closed = false;
 
   async function* openInput(): AsyncGenerator<SDKUserMessage> {
@@ -169,8 +181,16 @@ async function runInterruptedTurn(
         sessionId = message.session_id;
       }
       if (isTextDelta(message) && !interrupted) {
-        interrupted = true;
-        await q.interrupt();
+        const outcome = await Promise.race([
+          q
+            .interrupt()
+            .then((response): InterruptOutcome =>
+              response === undefined ? 'no_receipt' : 'receipt',
+            ),
+          delay(INTERRUPT_TIMEOUT_MS).then((): InterruptOutcome => 'timeout'),
+        ]);
+        interruptOutcome = outcome;
+        interrupted = outcome !== 'timeout';
         break;
       }
     }
@@ -179,7 +199,7 @@ async function runInterruptedTurn(
     closed = true;
   }
 
-  return { sessionId, interrupted, closed };
+  return { sessionId, interrupted, interruptOutcome, closed };
 }
 
 function isTextDelta(message: SDKMessage): boolean {

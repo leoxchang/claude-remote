@@ -2,7 +2,7 @@
   "id": "PROTO-06",
   "status": "PASS",
   "summary": "Duplicate command.result keeps commandId/traceId and flips duplicate to true",
-  "observedAt": "2026-11-10T04:59:53.961Z",
+  "observedAt": "2026-11-10T05:01:33.634Z",
   "data": {
     "examples": [
       "command.result.ok",
