@@ -1,0 +1,12 @@
+{
+  "id": "ASR-07",
+  "status": "PASS",
+  "summary": "Missing ASR configuration fails fast with field names only",
+  "observedAt": "2026-11-10T04:56:24.418Z",
+  "data": {
+    "missingFields": [
+      "DOUBAO_ASR_ACCESS_TOKEN"
+    ],
+    "secretLeaked": false
+  }
+}

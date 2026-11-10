@@ -1,0 +1,9 @@
+{
+  "id": "ASR-01",
+  "status": "PASS",
+  "summary": "Ordered partials and exactly one final move the controller to completed",
+  "observedAt": "2026-11-10T04:56:24.519Z",
+  "data": {
+    "checkedBy": "ASR-01 test"
+  }
+}

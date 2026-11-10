@@ -156,52 +156,52 @@
     "evidence": "docs/s00/evidence/PROTO-11.json"
   },
   "ASR-01": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Ordered partials and exactly one final move the controller to completed",
+    "observedAt": "2026-11-10T04:56:24.519Z",
+    "evidence": "docs/s00/evidence/ASR-01.json"
   },
   "ASR-02": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Cancel is terminal and late results are ignored",
+    "observedAt": "2026-11-10T04:56:24.519Z",
+    "evidence": "docs/s00/evidence/ASR-02.json"
   },
   "ASR-03": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Provider errors are surfaced with a safe code and never echo the token",
+    "observedAt": "2026-11-10T04:56:24.520Z",
+    "evidence": "docs/s00/evidence/ASR-03.json"
   },
   "ASR-04": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "A finalize without final text ends in ASR_NO_FINAL and never creates a prompt",
+    "observedAt": "2026-11-10T04:56:24.520Z",
+    "evidence": "docs/s00/evidence/ASR-04.json"
   },
   "ASR-05": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Stale sequences and events from an old stream never overwrite newer state",
+    "observedAt": "2026-11-10T04:56:24.520Z",
+    "evidence": "docs/s00/evidence/ASR-05.json"
   },
   "ASR-06": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Only one final transcript is kept and nothing is auto-sent",
+    "observedAt": "2026-11-10T04:56:24.521Z",
+    "evidence": "docs/s00/evidence/ASR-06.json"
   },
   "ASR-07": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Missing ASR configuration fails fast with field names only",
+    "observedAt": "2026-11-10T04:56:24.418Z",
+    "evidence": "docs/s00/evidence/ASR-07.json"
   },
   "ASR-08": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "ASR events stay in the asr.* namespace and never become prompt.send",
+    "observedAt": "2026-11-10T04:56:24.517Z",
+    "evidence": "docs/s00/evidence/ASR-08.json"
   },
   "DOUBAO-LIVE": {
     "status": "NOT_RUN",

@@ -1,0 +1,9 @@
+{
+  "id": "ASR-03",
+  "status": "PASS",
+  "summary": "Provider errors are surfaced with a safe code and never echo the token",
+  "observedAt": "2026-11-10T04:56:24.520Z",
+  "data": {
+    "checkedBy": "ASR-03 test"
+  }
+}
