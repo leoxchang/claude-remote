@@ -33,4 +33,4 @@
 ## CLI 与 SDK 请求路径对照
 
 - SDK 路径：如上，SDK 自带 Runtime 2.1.319 的子进程经 `127.0.0.1:15721` 访问模型。
-- CLI 路径：CLI-01–03（Task 7）在相同 fixture、相同用户设置下调用本机 `claude` 2.1.311，其请求同样必须经过该网关；对照结论在 Task 7 完成后补充到本节。
+- CLI 路径：CLI-01/02 在相同 fixture、相同用户设置下调用本机 `claude` 2.1.311，两个方向的会话创建与恢复均成功（见 `session-interoperability.md`）。CLI 子进程同样读取用户 settings 中的 `ANTHROPIC_BASE_URL`，因此与 SDK 走同一网关；本次没有单独对 CLI 进程做 lsof 采样，该结论来自配置来源一致性 + 双向恢复成功。

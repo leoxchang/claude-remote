@@ -1,0 +1,17 @@
+{
+  "id": "CLI-03",
+  "status": "PASS",
+  "summary": "Interoperability limitations recorded for the installed CLI plus SDK runtime",
+  "observedAt": "2026-11-10T04:47:54.225Z",
+  "data": {
+    "cliVersion": "2.1.311",
+    "sdkVersion": "0.3.319",
+    "sdkRuntimeVersion": "2.1.319",
+    "sameSessionBothDirections": true,
+    "notes": [
+      "CLI runs use the installed 2.1.311 binary, SDK runs use the bundled 2.1.319 runtime",
+      "Only text context was compared; tool history and message ordering are not part of the marker check",
+      "Transcript files were never copied or edited by the spike"
+    ]
+  }
+}

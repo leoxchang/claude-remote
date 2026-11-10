@@ -1,0 +1,29 @@
+{
+  "id": "CLI-01",
+  "status": "PASS",
+  "summary": "SDK resumed a CLI-created session and read the CLI marker",
+  "observedAt": "2026-11-10T04:47:38.119Z",
+  "data": {
+    "cliSessionId": "9fa35b1f-7d8d-4008-a1ef-0b49173ed102",
+    "sdkSessionId": "9fa35b1f-7d8d-4008-a1ef-0b49173ed102",
+    "sameSession": true,
+    "markerRecovered": true,
+    "cliExitCode": 0,
+    "cliAttempts": [
+      {
+        "exitCode": 1,
+        "subtype": "error_max_turns",
+        "isError": true
+      },
+      {
+        "exitCode": 0,
+        "subtype": "success",
+        "isError": false
+      }
+    ],
+    "cliSubtype": "success",
+    "cliIsError": false,
+    "cliResult": "OK",
+    "stderrLength": 189
+  }
+}

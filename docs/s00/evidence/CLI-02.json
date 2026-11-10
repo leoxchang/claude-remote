@@ -1,0 +1,23 @@
+{
+  "id": "CLI-02",
+  "status": "PASS",
+  "summary": "CLI resumed an SDK-created session and read the SDK marker",
+  "observedAt": "2026-11-10T04:47:54.225Z",
+  "data": {
+    "sdkSessionId": "943501d2-b98d-4f71-9ef6-a6c97ae3d7a8",
+    "cliSessionId": "943501d2-b98d-4f71-9ef6-a6c97ae3d7a8",
+    "sameSession": true,
+    "markerRecovered": true,
+    "cliExitCode": 0,
+    "cliAttempts": [
+      {
+        "exitCode": 0,
+        "subtype": "success",
+        "isError": false
+      }
+    ],
+    "cliResult": "S00_SDK_TO_CLI_7B20",
+    "stderrLength": 189,
+    "stderrPreview": "⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY or another auth source is set and takes precedence over your claude.ai login · Unset it to load your organization's connectors\n"
+  }
+}

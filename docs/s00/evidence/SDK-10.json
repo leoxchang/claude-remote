@@ -2,10 +2,10 @@
   "id": "SDK-10",
   "status": "PASS",
   "summary": "A new query with resume read the marker from the finished session",
-  "observedAt": "2026-11-10T04:40:06.593Z",
+  "observedAt": "2026-11-10T04:40:47.221Z",
   "data": {
-    "normalSessionId": "43618ddc-631d-40a9-8d5b-d6d1a337ea94",
-    "resumedSessionId": "43618ddc-631d-40a9-8d5b-d6d1a337ea94",
+    "normalSessionId": "5d9510af-fdd2-476a-920c-e89d7911bc22",
+    "resumedSessionId": "5d9510af-fdd2-476a-920c-e89d7911bc22",
     "sameSession": true,
     "markerRecovered": true
   }
