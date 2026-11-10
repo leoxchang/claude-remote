@@ -1,0 +1,22 @@
+{
+  "id": "SDK-01",
+  "status": "PASS",
+  "summary": "Version inventory and settings sources recorded",
+  "observedAt": "2026-11-10T04:36:18.926Z",
+  "data": {
+    "versions": {
+      "node": "v22.23.2",
+      "sdk": "0.3.319",
+      "cli": "2.1.311",
+      "runtime": "2.1.319",
+      "platform": "darwin 27.2.0"
+    },
+    "settingSources": [
+      "user",
+      "project",
+      "local"
+    ],
+    "settingsFile": "~/.claude/settings.json",
+    "cwd": "~/Documents/workspace/claude-remote/spikes/s00-agent-sdk/fixture/"
+  }
+}

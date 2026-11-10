@@ -1,27 +1,27 @@
 {
   "SDK-01": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Version inventory and settings sources recorded",
+    "observedAt": "2026-11-10T04:36:18.926Z",
+    "evidence": "docs/s00/evidence/SDK-01.json"
   },
   "SDK-02": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "user-only sources omit the project CLAUDE.md; default and explicit sources load it",
+    "observedAt": "2026-11-10T04:36:18.926Z",
+    "evidence": "docs/s00/evidence/SDK-02.json"
   },
   "SDK-03": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "SDK-spawned CLI connected to the configured gateway during the window; runtime log shows the model",
+    "observedAt": "2026-11-10T04:36:18.926Z",
+    "evidence": "docs/s00/evidence/SDK-03.json"
   },
   "SDK-04": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "claude_code preset loads tools and project settings in the baseline run",
+    "observedAt": "2026-11-10T04:36:18.926Z",
+    "evidence": "docs/s00/evidence/SDK-04.json"
   },
   "SDK-05": {
     "status": "NOT_RUN",
