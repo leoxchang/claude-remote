@@ -1,7 +1,7 @@
 import { MessageEnvelope } from '@claude-remote/protocol/types';
 
 import { AgentError } from '../command/errors.js';
-import { SessionRecord } from '../domain/types.js';
+import { SessionRecord, SessionStatus } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
 
 const SESSION_ID_BYTES = 12;
@@ -65,5 +65,15 @@ export class SessionController {
       throw new AgentError('SESSION_NOT_FOUND');
     }
     return { ...session };
+  }
+
+  /** 更新会话的 claudeSessionId 或状态；返回新副本。 */
+  update(
+    sessionId: string,
+    changes: { claudeSessionId?: string | null; status?: SessionStatus },
+  ): SessionRecord {
+    const current = this.get(sessionId);
+    this.session = { ...current, ...changes };
+    return { ...this.session };
   }
 }
