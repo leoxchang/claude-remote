@@ -1,0 +1,11 @@
+{
+  "id": "SDK-09",
+  "status": "PASS",
+  "summary": "interrupt() stopped a streaming turn and the process closed cleanly",
+  "observedAt": "2026-11-10T04:40:06.593Z",
+  "data": {
+    "interrupted": true,
+    "closed": true,
+    "sessionId": "cd5b3cc6-f004-40c6-8a36-baec887f0703"
+  }
+}

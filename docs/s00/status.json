@@ -48,28 +48,28 @@
     "evidence": "docs/s00/evidence/SDK-08.json"
   },
   "SDK-09": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "interrupt() stopped a streaming turn and the process closed cleanly",
+    "observedAt": "2026-11-10T04:40:06.593Z",
+    "evidence": "docs/s00/evidence/SDK-09.json"
   },
   "SDK-10": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "A new query with resume read the marker from the finished session",
+    "observedAt": "2026-11-10T04:40:06.593Z",
+    "evidence": "docs/s00/evidence/SDK-10.json"
   },
   "SDK-11": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "An explicit resume of the interrupted session recovered its context",
+    "observedAt": "2026-11-10T04:40:06.593Z",
+    "evidence": "docs/s00/evidence/SDK-11.json"
   },
   "SDK-12": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Resuming an unknown session id failed instead of creating a fake session",
+    "observedAt": "2026-11-10T04:40:06.593Z",
+    "evidence": "docs/s00/evidence/SDK-12.json"
   },
   "CLI-01": {
     "status": "NOT_RUN",
