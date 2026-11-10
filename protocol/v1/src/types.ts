@@ -27,6 +27,8 @@ export interface CommandMessage extends MessageEnvelope {
   sessionId?: string;
   workspaceId?: string;
   runId?: string;
+  /** 发送命令的设备 ID；schema 要求必填，这里保留可选以兼容只读场景。 */
+  sourceDeviceId?: string;
 }
 
 /** 命令结果：与命令共享 commandId/traceId，不占用会话 seq。 */
