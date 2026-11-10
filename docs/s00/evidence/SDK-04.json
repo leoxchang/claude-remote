@@ -2,7 +2,7 @@
   "id": "SDK-04",
   "status": "PASS",
   "summary": "claude_code preset loads tools and project settings in the baseline run",
-  "observedAt": "2026-11-10T04:36:18.926Z",
+  "observedAt": "2026-11-10T04:36:47.816Z",
   "data": {
     "markerPresent": true,
     "toolNames": [

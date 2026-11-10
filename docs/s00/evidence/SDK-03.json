@@ -2,7 +2,7 @@
   "id": "SDK-03",
   "status": "PASS",
   "summary": "SDK-spawned CLI connected to the configured gateway during the window; runtime log shows the model",
-  "observedAt": "2026-11-10T04:36:18.926Z",
+  "observedAt": "2026-11-10T04:36:47.816Z",
   "data": {
     "gatewayOrigin": "http://127.0.0.1:15721/",
     "observedClientNames": [
@@ -12,14 +12,14 @@
     "runtimeDebugMentionsModel": true,
     "runtimeDebugMentionsDirectAnthropic": false,
     "sessionIds": [
-      "493f75f5-46d9-49b6-b689-5105c8e2174c",
-      "366ab5cf-3128-4360-bd3c-a9f2b834e83c",
-      "7bc3c3b4-580e-4113-acad-91d2e8cd1b84",
-      "f5afd454-abcc-4985-a5a6-27ea58b48ca7"
+      "f90e4630-9907-49bf-8b19-6c4718448769",
+      "9ef88681-459c-484b-b877-7e138e84c5ea",
+      "933c1cbb-4228-4209-93ab-484c4bd5b67f",
+      "86a4549c-fe2b-48cc-aadc-97bced792121"
     ],
     "window": {
-      "startedAt": "2026-11-10T04:36:18.926Z",
-      "endedAt": "2026-11-10T04:36:36.907Z"
+      "startedAt": "2026-11-10T04:36:47.816Z",
+      "endedAt": "2026-11-10T04:37:05.441Z"
     }
   }
 }

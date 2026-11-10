@@ -24,16 +24,16 @@
     "evidence": "docs/s00/evidence/SDK-04.json"
   },
   "SDK-05": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "One query accepted two streamed user turns and reused the first turn context",
+    "observedAt": "2026-11-10T04:37:42.365Z",
+    "evidence": "docs/s00/evidence/SDK-05.json"
   },
   "SDK-06": {
-    "status": "NOT_RUN",
-    "summary": "",
-    "observedAt": null,
-    "evidence": null
+    "status": "PASS",
+    "summary": "Assistant messages and stream_event text deltas were both observed",
+    "observedAt": "2026-11-10T04:37:42.365Z",
+    "evidence": "docs/s00/evidence/SDK-06.json"
   },
   "SDK-07": {
     "status": "NOT_RUN",
