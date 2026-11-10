@@ -212,3 +212,87 @@ describe('AgentSdkAdapter interruption', () => {
     expect(query.close).toHaveBeenCalled();
   });
 });
+describe('AgentSdkAdapter edge mapping', () => {
+  it('reports a failed run when the query throws without interruption', async () => {
+    const query = {
+      close: vi.fn(),
+      interrupt: vi.fn(),
+      async *[Symbol.asyncIterator]() {
+        throw new Error('boom');
+      },
+    };
+    const adapter = new AgentSdkAdapter({
+      queryFactory: () => query as unknown as Query,
+    });
+    const events: AdapterEvent[] = [];
+
+    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    await vi.waitFor(() => {
+      expect(events.some((event) => event.kind === 'runResult')).toBe(true);
+    });
+    expect(events.at(-1)).toMatchObject({
+      status: 'failed',
+      errorSummary: 'sdk reported an error',
+    });
+  });
+
+  it('maps a user string content and a text-only assistant message', async () => {
+    const { adapter, calls } = adapterWith([
+      { type: 'user', session_id: 'claude_01', message: { content: 'plain' } },
+      {
+        type: 'assistant',
+        session_id: 'claude_01',
+        message: { id: 'msg_2', content: [{ type: 'text', text: 'done' }] },
+      },
+      { type: 'result', subtype: 'error_max_turns', session_id: 'claude_01' },
+    ]);
+    const events: AdapterEvent[] = [];
+
+    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    await vi.waitFor(() => {
+      expect(events.some((event) => event.kind === 'runResult')).toBe(true);
+    });
+
+    expect(events.map((event) => event.kind)).toEqual([
+      'assistantCompleted',
+      'runResult',
+    ]);
+    expect(events.at(-1)).toMatchObject({ status: 'failed' });
+    expect(calls[0]?.options.resume).toBeUndefined();
+  });
+
+  it('joins tool result text blocks and marks failed results', async () => {
+    const { adapter } = adapterWith([
+      {
+        type: 'user',
+        session_id: 'claude_01',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_9',
+              content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }],
+              is_error: true,
+            },
+          ],
+        },
+      },
+      { type: 'result', subtype: 'success', session_id: 'claude_01' },
+    ]);
+    const events: AdapterEvent[] = [];
+
+    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    await vi.waitFor(() => {
+      expect(events.some((event) => event.kind === 'runResult')).toBe(true);
+    });
+
+    const completed = events.find((event) => event.kind === 'toolCompleted');
+    expect(completed).toMatchObject({
+      toolUseId: 'toolu_9',
+      status: 'failed',
+      isError: true,
+    });
+    const output = events.find((event) => event.kind === 'toolOutput');
+    expect(output).toMatchObject({ text: 'ab' });
+  });
+});

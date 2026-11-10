@@ -195,3 +195,13 @@ describe('SnapshotFactory', () => {
     });
   });
 });
+describe('SnapshotFactory empty state', () => {
+  it('reports no last run status without an active run', () => {
+    const journal = new EventJournal();
+
+    const snapshot = create(journal, null);
+
+    expect(snapshot.lastRunStatus).toBeNull();
+    expect(snapshot.snapshotTruncated).toBe(false);
+  });
+});

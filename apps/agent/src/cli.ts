@@ -1,7 +1,11 @@
 import { Command } from 'commander';
 
+import { AgentSdkAdapter } from './adapter/agent-sdk-adapter.js';
 import { AdminClient } from './admin/client.js';
+import { createAgentRuntime } from './app/runtime.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from './config/paths.js';
+import { initializeConfig } from './config/initialize.js';
+import { loadConfig } from './config/load.js';
 import { renderPairingQr } from './pairing/qr.js';
 
 /** 构造 Agent CLI；运行中管理操作统一走本机 Unix socket。 */
@@ -13,6 +17,45 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
 
   const adminClient = (): AdminClient =>
     new AdminClient(resolveAgentPaths(configDir).socketPath);
+
+  program
+    .command('init')
+    .description('initialize the local configuration')
+    .requiredOption('--workspace <path>', 'absolute path of the managed project')
+    .requiredOption('--name <displayName>', 'display name shown on the phone')
+    .requiredOption('--base-url <url>', 'https tailscale serve base url')
+    .action(
+      async (options: {
+        workspace: string;
+        name: string;
+        baseUrl: string;
+      }) => {
+        const config = await initializeConfig({
+          configDir,
+          workspacePath: options.workspace,
+          displayName: options.name,
+          tailscaleBaseUrl: options.baseUrl,
+        });
+        process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+      },
+    );
+
+  program
+    .command('start')
+    .description('start the agent in the foreground')
+    .action(async () => {
+      const config = await loadConfig(configDir);
+      const runtime = await createAgentRuntime(config, new AgentSdkAdapter(), {
+        configDir,
+      });
+      await runtime.start();
+      process.stdout.write('agent started\n');
+      await new Promise<void>((resolve) => {
+        process.once('SIGINT', resolve);
+        process.once('SIGTERM', resolve);
+      });
+      await runtime.close();
+    });
 
   program
     .command('status')

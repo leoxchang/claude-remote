@@ -49,7 +49,8 @@ describe('SnapshotCoordinator', () => {
     const result = await coordinator.captureAndSend(SESSION.sessionId, 1);
 
     expect(sent).toHaveLength(1);
-    expect(result).toEqual({ lastSeq: 1 });
+    expect(result.lastSeq).toBe(1);
+    expect(result.snapshot.type).toBe('session.snapshot');
     expect(sent[0]?.payload['lastSeq']).toBe(1);
   });
 

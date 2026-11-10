@@ -20,17 +20,17 @@ export class SnapshotCoordinator {
 
   constructor(private readonly deps: SnapshotCoordinatorDependencies) {}
 
-  /** 捕获当前状态并发送；返回快照覆盖到的 lastSeq。 */
+  /** 捕获当前状态并发送；返回快照与它覆盖到的 lastSeq。 */
   async captureAndSend(
     sessionId: string,
     connectionEpoch: number,
-  ): Promise<{ lastSeq: number }> {
+  ): Promise<{ snapshot: SessionSnapshotEvent; lastSeq: number }> {
     const snapshot = this.factory.create({
       session: this.deps.getSession(sessionId),
       activeRun: this.deps.getActiveRun(sessionId),
       journal: this.deps.journal,
     });
     this.deps.send(snapshot, connectionEpoch);
-    return { lastSeq: snapshot.payload['lastSeq'] as number };
+    return { snapshot, lastSeq: snapshot.payload['lastSeq'] as number };
   }
 }

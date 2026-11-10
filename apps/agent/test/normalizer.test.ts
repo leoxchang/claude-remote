@@ -244,3 +244,40 @@ describe('EventNormalizer lifecycle', () => {
     expect(completions[0]).toMatchObject({ toolUseId: 'toolu_1', status: 'denied' });
   });
 });
+describe('EventNormalizer extra branches', () => {
+  it('numbers tool output chunks per tool', () => {
+    const { journal, normalizer } = setup();
+    const output = (text: string): AdapterEvent => ({
+      kind: 'toolOutput',
+      sessionId: SESSION,
+      runId: RUN,
+      toolUseId: 'toolu_1',
+      text,
+    });
+
+    normalizer.consume(output('a'));
+    normalizer.consume(output('b'));
+
+    expect(
+      payloadOf(journal, 'tool.output').map((payload) => payload['chunkSeq']),
+    ).toEqual([1, 2]);
+  });
+
+  it('includes an error summary when a run fails', () => {
+    const { journal, normalizer } = setup();
+
+    normalizer.consume({
+      kind: 'runResult',
+      sessionId: SESSION,
+      runId: RUN,
+      status: 'failed',
+      errorSummary: 'sdk reported an error',
+    });
+
+    const [run] = payloadOf(journal, 'run.completed');
+    expect(run).toMatchObject({
+      status: 'failed',
+      errorSummary: 'sdk reported an error',
+    });
+  });
+});

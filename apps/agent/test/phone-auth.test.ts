@@ -240,3 +240,36 @@ function connect(
     socket.on('error', () => resolve({ opened: false }));
   });
 }
+describe('POST /v1/pairings validation', () => {
+  it('rejects an incomplete body', async () => {
+    const { app } = await harness();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/pairings',
+      payload: { pairingId: 'pair_1' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: { code: 'INVALID_MESSAGE' },
+    });
+  });
+
+  it('rejects a pairing while a device is bound', async () => {
+    const { app, pairingService, store } = await harness();
+    const payload = pairingService.begin();
+    await store.create('device_other', 'iPad', 'hash');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/pairings',
+      payload: pairBody(payload),
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: { code: 'DEVICE_ALREADY_PAIRED' },
+    });
+  });
+});

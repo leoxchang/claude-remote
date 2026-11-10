@@ -141,3 +141,42 @@ describe('loadConfig', () => {
     await expect(loadConfig(value.configDir)).rejects.toThrow(/127\.0\.0\.1|listen/i);
   });
 });
+describe('loadConfig validation', () => {
+  it('rejects malformed json', async () => {
+    const value = await setup();
+    await initializeConfig(validInput(value));
+    await writeFile(join(value.configDir, 'agent.json'), '{not json');
+
+    await expect(loadConfig(value.configDir)).rejects.toThrow(/not valid JSON/);
+  });
+
+  it('rejects an unsupported version', async () => {
+    const value = await setup();
+    await initializeConfig(validInput(value));
+    const stored = JSON.parse(
+      await readFile(join(value.configDir, 'agent.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    await writeFile(
+      join(value.configDir, 'agent.json'),
+      JSON.stringify({ ...stored, version: 2 }),
+    );
+
+    await expect(loadConfig(value.configDir)).rejects.toThrow(/version/);
+  });
+});
+
+describe('loadConfig structure', () => {
+  it('rejects a configuration without a workspace object', async () => {
+    const value = await setup();
+    await initializeConfig(validInput(value));
+    const stored = JSON.parse(
+      await readFile(join(value.configDir, 'agent.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    await writeFile(
+      join(value.configDir, 'agent.json'),
+      JSON.stringify({ ...stored, workspace: 'nope' }),
+    );
+
+    await expect(loadConfig(value.configDir)).rejects.toThrow(/workspace/);
+  });
+});

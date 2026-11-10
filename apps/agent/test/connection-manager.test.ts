@@ -227,3 +227,46 @@ describe('ConnectionManager heartbeat', () => {
     expect(socket.terminated).toBe(false);
   });
 });
+describe('ConnectionManager edge cases', () => {
+  it('closes when the hello is not valid json', async () => {
+    const instance = manager();
+    const socket = await connect(instance);
+
+    socket.emit('message', 'not json');
+
+    expect(socket.closeCalls).toHaveLength(1);
+  });
+
+  it('accepts a buffer hello', async () => {
+    const instance = manager();
+    const socket = await connect(instance);
+
+    socket.emit('message', Buffer.from(JSON.stringify(hello())));
+
+    expect(JSON.parse(socket.sent[0] ?? '{}')).toMatchObject({
+      type: 'connection.ready',
+    });
+  });
+
+  it('closes once when the socket errors and is revoked', async () => {
+    const instance = manager();
+    const socket = await connect(instance);
+
+    socket.emit('error', new Error('boom'));
+    instance.revoke(DEVICE.deviceId);
+
+    expect(socket.closeCalls).toHaveLength(1);
+  });
+});
+
+describe('ConnectionManager hello validation', () => {
+  it('closes when hello capabilities are invalid', async () => {
+    const instance = manager();
+    const socket = await connect(instance);
+
+    socket.receive(hello({ capabilities: 'text' }));
+
+    expect(socket.closeCalls).toHaveLength(1);
+    expect(socket.sent).toHaveLength(0);
+  });
+});
