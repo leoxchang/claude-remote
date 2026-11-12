@@ -127,6 +127,10 @@ export interface ApprovalRecord {
   toolUseID: string;
   toolName: string;
   agentID: string | null;
+  /** 安全摘要用的布尔标记；不包含原因正文。 */
+  defaultToNo: boolean;
+  hasDecisionReason: boolean;
+  hasBlockedPath: boolean;
   status: ApprovalStatus;
   createdAt: number;
   expiresAt: number;

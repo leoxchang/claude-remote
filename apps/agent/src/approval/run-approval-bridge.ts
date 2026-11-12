@@ -78,9 +78,9 @@ export class RunApprovalBridge
     this.options.journal.append({
       sessionId: summary.sessionId,
       runId: summary.runId,
+      approvalId: summary.approvalId,
       type: 'permission.requested',
       payload: {
-        approvalId: summary.approvalId,
         workspaceId: summary.workspaceId,
         toolUseID: summary.toolUseID,
         toolName: summary.toolName,
@@ -104,9 +104,9 @@ export class RunApprovalBridge
     this.options.journal.append({
       sessionId: notice.sessionId,
       runId: notice.runId,
+      approvalId: notice.approvalId,
       type: 'permission.resolved',
       payload: {
-        approvalId: notice.approvalId,
         status: notice.status,
         resolvedAt: notice.resolvedAt,
         resolutionReason: notice.resolutionReason,
@@ -128,10 +128,8 @@ export class RunApprovalBridge
       runId: error.runId,
       type: 'error',
       payload: {
-        error: {
-          code: error.code,
-          message: error.message,
-        },
+        code: error.code,
+        message: error.message,
       },
     });
   }

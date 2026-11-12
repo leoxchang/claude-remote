@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_example",
+  "timestamp": 1762432800000,
+  "type": "error",
+  "eventId": "event_03",
+  "sessionId": "session_01",
+  "seq": 44,
+  "runId": "run_01",
+  "payload": {
+    "code": "UNSUPPORTED_USER_INTERACTION",
+    "message": "User interaction is not supported in S03"
+  }
+}

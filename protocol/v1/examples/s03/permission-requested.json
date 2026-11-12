@@ -1,0 +1,28 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_example",
+  "timestamp": 1762432800000,
+  "type": "permission.requested",
+  "eventId": "event_01",
+  "sessionId": "session_01",
+  "seq": 42,
+  "runId": "run_01",
+  "approvalId": "approval_01",
+  "payload": {
+    "workspaceId": "ws_01",
+    "toolUseID": "toolu_01",
+    "toolName": "Edit",
+    "agentID": null,
+    "createdAt": 1762432800000,
+    "expiresAt": 1762432920000,
+    "defaultToNo": false,
+    "hasDecisionReason": true,
+    "hasBlockedPath": false,
+    "content": {
+      "encoding": "json-utf8",
+      "byteLength": 18342,
+      "sha256": "c2NyZWVu",
+      "chunkCount": 1
+    }
+  }
+}

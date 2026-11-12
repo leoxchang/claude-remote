@@ -30,6 +30,7 @@ const COMMAND_TYPES: readonly string[] = [
   'session.rename',
   'session.archive',
   'queue.remove',
+  'permission.respond',
 ];
 
 /** 命令路由依赖；幂等表可注入以便测试。 */
@@ -191,6 +192,30 @@ export class CommandRouter {
           const snapshot = await this.operations.snapshot(sessionId);
           return ok({ snapshot });
         }
+        case 'permission.respond': {
+          const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
+          const runId = requireString(command.runId, 'RUN_NOT_ACTIVE');
+          const workspaceId = requireString(
+            command.workspaceId,
+            'WORKSPACE_NOT_FOUND',
+          );
+          const approvalId = requireString(
+            command.approvalId,
+            'APPROVAL_NOT_FOUND',
+          );
+          const decision = requireDecision(command.payload);
+          return ok(
+            this.operations.respondPermission({
+              approvalId,
+              workspaceId,
+              sessionId,
+              runId,
+              deviceId: device.deviceId,
+              commandId: command.commandId,
+              decision,
+            }),
+          );
+        }
         default:
           return errorPayload('UNKNOWN_MESSAGE_TYPE');
       }
@@ -297,12 +322,26 @@ function optionalPayloadString(
 
 function requireString(
   value: unknown,
-  code: 'SESSION_NOT_FOUND' | 'RUN_NOT_ACTIVE' | 'RUN_NOT_FOUND',
+  code:
+    | 'SESSION_NOT_FOUND'
+    | 'RUN_NOT_ACTIVE'
+    | 'RUN_NOT_FOUND'
+    | 'WORKSPACE_NOT_FOUND'
+    | 'APPROVAL_NOT_FOUND',
 ): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new AgentError(code);
   }
   return value;
+}
+
+/** 只接受 allow_once 或 deny；其他 payload 字段已被 schema 拒绝。 */
+function requireDecision(value: unknown): 'allow_once' | 'deny' {
+  const decision = asRecord(value)['decision'];
+  if (decision !== 'allow_once' && decision !== 'deny') {
+    throw new AgentError('INVALID_MESSAGE');
+  }
+  return decision;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -328,6 +367,9 @@ function toIdentity(command: CommandMessage): CommandIdentity {
       ? {}
       : { sessionId: command.sessionId }),
     ...(command.runId === undefined ? {} : { runId: command.runId }),
+    ...(command.approvalId === undefined
+      ? {}
+      : { approvalId: command.approvalId }),
     payload: toJsonObject(command.payload),
   };
 }

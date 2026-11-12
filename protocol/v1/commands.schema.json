@@ -4,21 +4,36 @@
   "$defs": {
     "session.start": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "session.start" },
+            "type": {
+              "const": "session.start"
+            },
             "payload": {
               "type": "object",
-              "required": ["clientCapabilities"],
+              "required": [
+                "clientCapabilities"
+              ],
               "properties": {
                 "clientCapabilities": {
                   "type": "array",
-                  "items": { "type": "string", "minLength": 1 }
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 },
-                "projectRef": { "type": "string", "minLength": 1 }
+                "projectRef": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -27,17 +42,30 @@
     },
     "prompt.send": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId", "sessionId"],
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId"
+          ],
           "properties": {
-            "type": { "const": "prompt.send" },
+            "type": {
+              "const": "prompt.send"
+            },
             "payload": {
               "type": "object",
-              "required": ["text"],
+              "required": [
+                "text"
+              ],
               "properties": {
-                "text": { "type": "string", "minLength": 1 }
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -46,16 +74,27 @@
     },
     "run.cancel": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId", "sessionId", "runId"],
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId",
+            "runId"
+          ],
           "properties": {
-            "type": { "const": "run.cancel" },
+            "type": {
+              "const": "run.cancel"
+            },
             "payload": {
               "type": "object",
               "properties": {
-                "reason": { "type": "string" }
+                "reason": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -64,44 +103,78 @@
     },
     "session.snapshot": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId", "sessionId"],
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId"
+          ],
           "properties": {
-            "type": { "const": "session.snapshot" },
-            "payload": { "type": "object" }
+            "type": {
+              "const": "session.snapshot"
+            },
+            "payload": {
+              "type": "object"
+            }
           }
         }
       ]
     },
     "workspace.list": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "workspace.list" },
-            "payload": { "type": "object" }
+            "type": {
+              "const": "workspace.list"
+            },
+            "payload": {
+              "type": "object"
+            }
           }
         }
       ]
     },
     "session.create": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "session.create" },
+            "type": {
+              "const": "session.create"
+            },
             "payload": {
               "type": "object",
-              "required": ["workspaceId"],
+              "required": [
+                "workspaceId"
+              ],
               "properties": {
-                "workspaceId": { "type": "string", "minLength": 1 },
-                "title": { "type": "string", "minLength": 1 }
+                "workspaceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -110,20 +183,41 @@
     },
     "session.list": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "session.list" },
+            "type": {
+              "const": "session.list"
+            },
             "payload": {
               "type": "object",
-              "required": ["workspaceId"],
+              "required": [
+                "workspaceId"
+              ],
               "properties": {
-                "workspaceId": { "type": "string", "minLength": 1 },
-                "includeArchived": { "type": "boolean" },
-                "limit": { "type": "integer", "minimum": 1, "maximum": 50 },
-                "cursor": { "type": "string", "minLength": 1 }
+                "workspaceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "includeArchived": {
+                  "type": "boolean"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 50
+                },
+                "cursor": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -132,17 +226,29 @@
     },
     "session.resume": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "session.resume" },
+            "type": {
+              "const": "session.resume"
+            },
             "payload": {
               "type": "object",
-              "required": ["sessionId"],
+              "required": [
+                "sessionId"
+              ],
               "properties": {
-                "sessionId": { "type": "string", "minLength": 1 }
+                "sessionId": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -151,18 +257,34 @@
     },
     "session.rename": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "session.rename" },
+            "type": {
+              "const": "session.rename"
+            },
             "payload": {
               "type": "object",
-              "required": ["sessionId", "title"],
+              "required": [
+                "sessionId",
+                "title"
+              ],
               "properties": {
-                "sessionId": { "type": "string", "minLength": 1 },
-                "title": { "type": "string", "minLength": 1 }
+                "sessionId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -171,17 +293,29 @@
     },
     "session.archive": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "session.archive" },
+            "type": {
+              "const": "session.archive"
+            },
             "payload": {
               "type": "object",
-              "required": ["sessionId"],
+              "required": [
+                "sessionId"
+              ],
               "properties": {
-                "sessionId": { "type": "string", "minLength": 1 }
+                "sessionId": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -190,73 +324,182 @@
     },
     "queue.remove": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId", "sessionId", "runId"],
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId",
+            "runId"
+          ],
           "properties": {
-            "type": { "const": "queue.remove" },
-            "payload": { "type": "object" }
+            "type": {
+              "const": "queue.remove"
+            },
+            "payload": {
+              "type": "object"
+            }
           }
         }
       ]
     },
     "command.result": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
-          "required": ["commandId", "traceId"],
+          "required": [
+            "commandId",
+            "traceId"
+          ],
           "properties": {
-            "type": { "const": "command.result" },
+            "type": {
+              "const": "command.result"
+            },
             "payload": {
               "type": "object",
-              "required": ["status", "duplicate"],
+              "required": [
+                "status",
+                "duplicate"
+              ],
               "properties": {
-                "status": { "enum": ["ok", "error"] },
-                "duplicate": { "type": "boolean" },
-                "data": { "type": "object" },
+                "status": {
+                  "enum": [
+                    "ok",
+                    "error"
+                  ]
+                },
+                "duplicate": {
+                  "type": "boolean"
+                },
+                "data": {
+                  "type": "object"
+                },
                 "error": {
                   "type": "object",
-                  "required": ["code", "message", "retryable"],
+                  "required": [
+                    "code",
+                    "message",
+                    "retryable"
+                  ],
                   "properties": {
-                    "code": { "type": "string", "minLength": 1 },
-                    "message": { "type": "string" },
-                    "retryable": { "type": "boolean" },
-                    "details": { "type": "object" }
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    },
+                    "details": {
+                      "type": "object"
+                    }
                   }
                 }
               },
               "allOf": [
                 {
                   "if": {
-                    "properties": { "status": { "const": "ok" } },
-                    "required": ["status"]
+                    "properties": {
+                      "status": {
+                        "const": "ok"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
                   },
                   "then": {
-                    "required": ["data"],
-                    "properties": { "data": true },
+                    "required": [
+                      "data"
+                    ],
+                    "properties": {
+                      "data": true
+                    },
                     "not": {
-                      "required": ["error"],
-                      "properties": { "error": true }
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": true
+                      }
                     }
                   }
                 },
                 {
                   "if": {
-                    "properties": { "status": { "const": "error" } },
-                    "required": ["status"]
+                    "properties": {
+                      "status": {
+                        "const": "error"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
                   },
                   "then": {
-                    "required": ["error"],
-                    "properties": { "error": true },
+                    "required": [
+                      "error"
+                    ],
+                    "properties": {
+                      "error": true
+                    },
                     "not": {
-                      "required": ["data"],
-                      "properties": { "data": true }
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": true
+                      }
                     }
                   }
                 }
               ]
+            }
+          }
+        }
+      ]
+    },
+    "permission.respond": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "type": "object",
+          "required": [
+            "commandId",
+            "traceId",
+            "workspaceId",
+            "sessionId",
+            "runId",
+            "approvalId"
+          ],
+          "properties": {
+            "type": {
+              "const": "permission.respond"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "decision"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "allow_once",
+                    "deny"
+                  ]
+                }
+              }
             }
           }
         }

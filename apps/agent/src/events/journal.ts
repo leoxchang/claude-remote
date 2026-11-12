@@ -13,6 +13,7 @@ export interface JournalAppendInput {
   payload: JsonObject;
   eventId?: string;
   runId?: string;
+  approvalId?: string;
 }
 
 /** 内存事件日志：先分配 eventId/seq，再通知订阅者。 */
@@ -52,6 +53,7 @@ export class EventJournal {
       sessionId: input.sessionId,
       seq,
       ...(input.runId === undefined ? {} : { runId: input.runId }),
+      ...(input.approvalId === undefined ? {} : { approvalId: input.approvalId }),
     };
     this.eventsBySession.set(input.sessionId, [...events, event]);
     this.eventsById.set(eventId, event);

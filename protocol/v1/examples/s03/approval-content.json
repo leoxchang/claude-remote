@@ -1,0 +1,9 @@
+{
+  "approvalId": "approval_01",
+  "chunkIndex": 0,
+  "chunkCount": 1,
+  "encoding": "json-utf8",
+  "byteLength": 18342,
+  "sha256": "c2NyZWVu",
+  "text": "{\"toolName\":\"Edit\",\"workingDirectory\":\"/fixture/alpha\",\"input\":{\"file_path\":\"/fixture/alpha/example.ts\",\"old_string\":\"before\",\"new_string\":\"after\"},\"context\":{\"agentID\":null,\"decisionReason\":\"Edit requires approval\",\"defaultToNo\":false,\"blockedPath\":null,\"mcpServer\":null}}"
+}

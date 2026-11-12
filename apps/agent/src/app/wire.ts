@@ -5,6 +5,7 @@ import { createAdminServer } from '../admin/server.js';
 import { ApprovalContentController } from '../approval/approval-content-controller.js';
 import { ApprovalStore } from '../approval/approval-store.js';
 import { PermissionBroker } from '../approval/permission-broker.js';
+import { pendingApprovalSummaries } from '../approval/approval-summary.js';
 import { RunApprovalBridge } from '../approval/run-approval-bridge.js';
 import { CommandRouter } from '../command/router.js';
 import { resolveAgentPaths } from '../config/paths.js';
@@ -129,6 +130,8 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
     getSession: (sessionId) => sessions.get(sessionId),
     getActiveRun: (sessionId) => sessions.get(sessionId).activeRun,
     getQueuedRuns: (sessionId) => scheduler.queuedRuns(sessionId),
+    getPendingApprovals: (sessionId) =>
+      pendingApprovalSummaries(approvalStore, sessionId),
     getGlobalCapacity: () => ({
       activeRunCount: scheduler.activeCount(),
       maxActiveRuns: MAX_ACTIVE_RUNS,
@@ -141,6 +144,8 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
     scheduler,
     runs,
     snapshots: coordinator,
+    approvalBroker: permissionBroker,
+    approvalStore,
     currentEpoch: () => {
       const active = deviceStore.active();
       return active === null ? 0 : connections.currentEpoch(active.deviceId);

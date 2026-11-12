@@ -1,0 +1,50 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_example",
+  "timestamp": 1762432800000,
+  "type": "session.snapshot",
+  "eventId": "event_04",
+  "sessionId": "session_01",
+  "seq": 45,
+  "payload": {
+    "lastSeq": 42,
+    "oldestIncludedSeq": 1,
+    "snapshotTruncated": false,
+    "session": {
+      "sessionId": "session_01",
+      "claudeSessionId": "claude_01",
+      "workspaceId": "ws_01",
+      "title": "Fixture Alpha",
+      "status": "waiting_approval"
+    },
+    "activeRun": {
+      "runId": "run_01",
+      "status": "waiting_approval",
+      "commandId": "cmd_01",
+      "pendingApprovalCount": 1
+    },
+    "pendingApprovals": [
+      {
+        "approvalId": "approval_01",
+        "toolUseID": "toolu_01",
+        "toolName": "Edit",
+        "agentID": null,
+        "createdAt": 1762432800000,
+        "expiresAt": 1762432920000,
+        "defaultToNo": false,
+        "content": {
+          "encoding": "json-utf8",
+          "byteLength": 18342,
+          "sha256": "c2NyZWVu",
+          "chunkCount": 1
+        }
+      }
+    ],
+    "queuedRuns": [],
+    "globalCapacity": {
+      "activeRunCount": 1,
+      "maxActiveRuns": 2
+    },
+    "recentEvents": []
+  }
+}

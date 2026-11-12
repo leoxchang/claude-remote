@@ -4,51 +4,120 @@
   "$defs": {
     "timelineEvent": {
       "type": "object",
-      "required": ["eventId", "sessionId", "seq"],
+      "required": [
+        "eventId",
+        "sessionId",
+        "seq"
+      ],
       "properties": {
-        "eventId": { "type": "string", "minLength": 1 },
-        "sessionId": { "type": "string", "minLength": 1 },
-        "seq": { "type": "integer", "minimum": 1 }
+        "eventId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "runTimelineEvent": {
       "type": "object",
-      "required": ["eventId", "sessionId", "seq", "runId"],
+      "required": [
+        "eventId",
+        "sessionId",
+        "seq",
+        "runId"
+      ],
       "properties": {
-        "eventId": { "type": "string", "minLength": 1 },
-        "sessionId": { "type": "string", "minLength": 1 },
-        "seq": { "type": "integer", "minimum": 1 },
-        "runId": { "type": "string", "minLength": 1 }
+        "eventId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "session.snapshot": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/timelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/timelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "session.snapshot" },
+            "type": {
+              "const": "session.snapshot"
+            },
             "payload": {
               "type": "object",
-              "required": ["lastSeq"],
+              "required": [
+                "lastSeq"
+              ],
               "properties": {
-                "lastSeq": { "type": "integer", "minimum": 0 },
-                "currentRunId": { "type": "string", "minLength": 1 },
+                "lastSeq": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "currentRunId": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "oldestIncludedSeq": {
-                  "type": ["integer", "null"],
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
-                "snapshotTruncated": { "type": "boolean" },
+                "snapshotTruncated": {
+                  "type": "boolean"
+                },
                 "session": {
                   "type": "object",
                   "properties": {
-                    "sessionId": { "type": "string", "minLength": 1 },
-                    "claudeSessionId": { "type": ["string", "null"] },
-                    "workspaceId": { "type": "string", "minLength": 1 },
-                    "title": { "type": "string", "minLength": 1 },
+                    "sessionId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "claudeSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "status": {
-                      "enum": ["idle", "queued", "running", "archived"]
+                      "enum": [
+                        "idle",
+                        "queued",
+                        "running",
+                        "waiting_approval",
+                        "archived"
+                      ]
                     }
                   }
                 },
@@ -57,26 +126,158 @@
                   "maxItems": 20,
                   "items": {
                     "type": "object",
-                    "required": ["runId", "commandId", "status", "enqueuedAt"],
+                    "required": [
+                      "runId",
+                      "commandId",
+                      "status",
+                      "enqueuedAt"
+                    ],
                     "properties": {
-                      "runId": { "type": "string", "minLength": 1 },
-                      "commandId": { "type": "string", "minLength": 1 },
-                      "status": { "const": "queued" },
-                      "enqueuedAt": { "type": "integer", "minimum": 0 }
+                      "runId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "commandId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "status": {
+                        "const": "queued"
+                      },
+                      "enqueuedAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
                     }
                   }
                 },
                 "globalCapacity": {
                   "type": "object",
-                  "required": ["activeRunCount", "maxActiveRuns"],
+                  "required": [
+                    "activeRunCount",
+                    "maxActiveRuns"
+                  ],
                   "properties": {
-                    "activeRunCount": { "type": "integer", "minimum": 0 },
-                    "maxActiveRuns": { "const": 2 }
+                    "activeRunCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "maxActiveRuns": {
+                      "const": 2
+                    }
                   }
                 },
                 "recentEvents": {
                   "type": "array",
-                  "items": { "type": "object" }
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "activeRun": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "runId",
+                    "status",
+                    "pendingApprovalCount"
+                  ],
+                  "properties": {
+                    "runId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "enum": [
+                        "starting",
+                        "running",
+                        "waiting_approval",
+                        "cancelling"
+                      ]
+                    },
+                    "commandId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "pendingApprovalCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "pendingApprovals": {
+                  "type": "array",
+                  "maxItems": 8,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "approvalId",
+                      "toolUseID",
+                      "toolName",
+                      "createdAt",
+                      "expiresAt",
+                      "defaultToNo",
+                      "content"
+                    ],
+                    "properties": {
+                      "approvalId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "toolUseID": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "toolName": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "agentID": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "defaultToNo": {
+                        "type": "boolean"
+                      },
+                      "content": {
+                        "type": "object",
+                        "required": [
+                          "encoding",
+                          "byteLength",
+                          "sha256",
+                          "chunkCount"
+                        ],
+                        "properties": {
+                          "encoding": {
+                            "const": "json-utf8"
+                          },
+                          "byteLength": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "chunkCount": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -86,18 +287,32 @@
     },
     "session.status": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/timelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/timelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "session.status" },
+            "type": {
+              "const": "session.status"
+            },
             "payload": {
               "type": "object",
-              "required": ["state"],
+              "required": [
+                "state"
+              ],
               "properties": {
                 "state": {
-                  "enum": ["idle", "running", "awaiting_approval", "closed"]
+                  "enum": [
+                    "idle",
+                    "running",
+                    "waiting_approval",
+                    "awaiting_approval",
+                    "closed"
+                  ]
                 }
               }
             }
@@ -107,19 +322,36 @@
     },
     "message.delta": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "message.delta" },
+            "type": {
+              "const": "message.delta"
+            },
             "payload": {
               "type": "object",
-              "required": ["assistantMessageId", "text"],
+              "required": [
+                "assistantMessageId",
+                "text"
+              ],
               "properties": {
-                "assistantMessageId": { "type": "string", "minLength": 1 },
-                "text": { "type": "string" },
-                "index": { "type": "integer", "minimum": 0 }
+                "assistantMessageId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                }
               }
             }
           }
@@ -128,19 +360,35 @@
     },
     "message.completed": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "message.completed" },
+            "type": {
+              "const": "message.completed"
+            },
             "payload": {
               "type": "object",
-              "required": ["assistantMessageId", "text"],
+              "required": [
+                "assistantMessageId",
+                "text"
+              ],
               "properties": {
-                "assistantMessageId": { "type": "string", "minLength": 1 },
-                "text": { "type": "string" },
-                "stopReason": { "type": "string" }
+                "assistantMessageId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                },
+                "stopReason": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -149,19 +397,37 @@
     },
     "tool.started": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "tool.started" },
+            "type": {
+              "const": "tool.started"
+            },
             "payload": {
               "type": "object",
-              "required": ["toolUseId", "toolName", "input"],
+              "required": [
+                "toolUseId",
+                "toolName",
+                "input"
+              ],
               "properties": {
-                "toolUseId": { "type": "string", "minLength": 1 },
-                "toolName": { "type": "string", "minLength": 1 },
-                "input": { "type": "object" }
+                "toolUseId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "toolName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "input": {
+                  "type": "object"
+                }
               }
             }
           }
@@ -170,19 +436,35 @@
     },
     "tool.output": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "tool.output" },
+            "type": {
+              "const": "tool.output"
+            },
             "payload": {
               "type": "object",
-              "required": ["toolUseId", "chunk"],
+              "required": [
+                "toolUseId",
+                "chunk"
+              ],
               "properties": {
-                "toolUseId": { "type": "string", "minLength": 1 },
-                "chunk": { "type": "string" },
-                "truncated": { "type": "boolean" }
+                "toolUseId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "chunk": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
               }
             }
           }
@@ -191,20 +473,43 @@
     },
     "tool.completed": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "tool.completed" },
+            "type": {
+              "const": "tool.completed"
+            },
             "payload": {
               "type": "object",
-              "required": ["toolUseId", "status"],
+              "required": [
+                "toolUseId",
+                "status"
+              ],
               "properties": {
-                "toolUseId": { "type": "string", "minLength": 1 },
-                "status": { "enum": ["succeeded", "failed", "denied", "cancelled"] },
-                "isError": { "type": "boolean" },
-                "summary": { "type": "string" }
+                "toolUseId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "enum": [
+                    "succeeded",
+                    "failed",
+                    "denied",
+                    "cancelled"
+                  ]
+                },
+                "isError": {
+                  "type": "boolean"
+                },
+                "summary": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -213,26 +518,51 @@
     },
     "run.completed": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "run.completed" },
+            "type": {
+              "const": "run.completed"
+            },
             "payload": {
               "type": "object",
-              "required": ["status"],
+              "required": [
+                "status"
+              ],
               "properties": {
                 "status": {
-                  "enum": ["succeeded", "failed", "cancelled", "interrupted"]
+                  "enum": [
+                    "succeeded",
+                    "failed",
+                    "cancelled",
+                    "interrupted"
+                  ]
                 },
-                "reason": { "enum": ["queue_removed"] },
+                "reason": {
+                  "enum": [
+                    "queue_removed"
+                  ]
+                },
                 "error": {
                   "type": "object",
-                  "required": ["code", "message"],
+                  "required": [
+                    "code",
+                    "message"
+                  ],
                   "properties": {
-                    "code": { "type": "string", "minLength": 1 },
-                    "message": { "type": "string" }
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -243,19 +573,33 @@
     },
     "run.queued": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "run.queued" },
+            "type": {
+              "const": "run.queued"
+            },
             "payload": {
               "type": "object",
-              "required": ["enqueuedAt"],
+              "required": [
+                "enqueuedAt"
+              ],
               "properties": {
-                "enqueuedAt": { "type": "integer", "minimum": 0 },
+                "enqueuedAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
                 "waitReason": {
-                  "enum": ["SESSION_BUSY", "GLOBAL_CAPACITY"]
+                  "enum": [
+                    "SESSION_BUSY",
+                    "GLOBAL_CAPACITY"
+                  ]
                 }
               }
             }
@@ -265,18 +609,32 @@
     },
     "run.started": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
-        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "run.started" },
+            "type": {
+              "const": "run.started"
+            },
             "payload": {
               "type": "object",
-              "required": ["startedAt", "status"],
+              "required": [
+                "startedAt",
+                "status"
+              ],
               "properties": {
-                "startedAt": { "type": "integer", "minimum": 0 },
-                "status": { "const": "starting" }
+                "startedAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "status": {
+                  "const": "starting"
+                }
               }
             }
           }
@@ -285,20 +643,38 @@
     },
     "desktop.status": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "desktop.status" },
+            "type": {
+              "const": "desktop.status"
+            },
             "payload": {
               "type": "object",
-              "required": ["desktopId", "online"],
+              "required": [
+                "desktopId",
+                "online"
+              ],
               "properties": {
-                "desktopId": { "type": "string", "minLength": 1 },
-                "online": { "type": "boolean" },
-                "agentVersion": { "type": "string" },
-                "sdkVersion": { "type": "string" },
-                "runtimeVersion": { "type": "string" }
+                "desktopId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "online": {
+                  "type": "boolean"
+                },
+                "agentVersion": {
+                  "type": "string"
+                },
+                "sdkVersion": {
+                  "type": "string"
+                },
+                "runtimeVersion": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -307,11 +683,15 @@
     },
     "connection.hello": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "connection.hello" },
+            "type": {
+              "const": "connection.hello"
+            },
             "payload": {
               "type": "object",
               "required": [
@@ -322,17 +702,32 @@
                 "handshakeId"
               ],
               "properties": {
-                "handshakeId": { "type": "string", "minLength": 1 },
+                "handshakeId": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "supportedProtocolVersions": {
                   "type": "array",
                   "minItems": 1,
-                  "items": { "type": "integer", "minimum": 1 }
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
                 },
-                "appVersion": { "type": "string", "minLength": 1 },
-                "deviceId": { "type": "string", "minLength": 1 },
+                "appVersion": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "deviceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "capabilities": {
                   "type": "array",
-                  "items": { "type": "string", "minLength": 1 }
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -342,11 +737,15 @@
     },
     "connection.ready": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "connection.ready" },
+            "type": {
+              "const": "connection.ready"
+            },
             "payload": {
               "type": "object",
               "required": [
@@ -359,16 +758,39 @@
                 "handshakeId"
               ],
               "properties": {
-                "handshakeId": { "type": "string", "minLength": 1 },
-                "protocolVersion": { "const": 1 },
-                "desktopId": { "type": "string", "minLength": 1 },
-                "agentInstanceId": { "type": "string", "minLength": 1 },
-                "agentVersion": { "type": "string", "minLength": 1 },
-                "sdkVersion": { "type": "string", "minLength": 1 },
-                "runtimeVersion": { "type": "string", "minLength": 1 },
+                "handshakeId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "protocolVersion": {
+                  "const": 1
+                },
+                "desktopId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "agentInstanceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "agentVersion": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sdkVersion": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "runtimeVersion": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "capabilities": {
                   "type": "array",
-                  "items": { "type": "string", "minLength": 1 }
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -378,19 +800,199 @@
     },
     "error": {
       "allOf": [
-        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
         {
           "type": "object",
           "properties": {
-            "type": { "const": "error" },
+            "type": {
+              "const": "error"
+            },
             "payload": {
               "type": "object",
-              "required": ["code", "message"],
+              "required": [
+                "code",
+                "message"
+              ],
               "properties": {
-                "code": { "type": "string", "minLength": 1 },
-                "message": { "type": "string" },
-                "retryable": { "type": "boolean" },
-                "details": { "type": "object" }
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "details": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "permission.requested": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
+        {
+          "type": "object",
+          "required": [
+            "approvalId"
+          ],
+          "properties": {
+            "type": {
+              "const": "permission.requested"
+            },
+            "approvalId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "toolUseID",
+                "toolName",
+                "createdAt",
+                "expiresAt",
+                "defaultToNo",
+                "content"
+              ],
+              "properties": {
+                "workspaceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "toolUseID": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "toolName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "agentID": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expiresAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "defaultToNo": {
+                  "type": "boolean"
+                },
+                "hasDecisionReason": {
+                  "type": "boolean"
+                },
+                "hasBlockedPath": {
+                  "type": "boolean"
+                },
+                "content": {
+                  "type": "object",
+                  "required": [
+                    "encoding",
+                    "byteLength",
+                    "sha256",
+                    "chunkCount"
+                  ],
+                  "properties": {
+                    "encoding": {
+                      "const": "json-utf8"
+                    },
+                    "byteLength": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "chunkCount": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "permission.resolved": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
+        {
+          "type": "object",
+          "required": [
+            "approvalId"
+          ],
+          "properties": {
+            "type": {
+              "const": "permission.resolved"
+            },
+            "approvalId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "status",
+                "resolvedAt",
+                "resolutionReason"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "approved_once",
+                    "denied",
+                    "expired",
+                    "invalidated"
+                  ]
+                },
+                "resolvedAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "resolutionReason": {
+                  "enum": [
+                    "user_allow_once",
+                    "user_deny",
+                    "timeout",
+                    "run_cancelled",
+                    "sdk_aborted",
+                    "policy_disabled",
+                    "device_revoked",
+                    "agent_shutdown"
+                  ]
+                },
+                "responseCommandId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
               }
             }
           }

@@ -1,3 +1,4 @@
+import { ApprovalSummary } from '../approval/approval-types.js';
 import { JsonObject, RunRecord, SessionRecord } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
 import { computeStatus } from '../session/session-summary.js';
@@ -41,6 +42,8 @@ export interface SnapshotInput {
   queuedRuns: QueuedRunSummary[];
   journal: EventJournal;
   globalCapacity: GlobalCapacity;
+  /** 该会话当前 pending 审批的安全摘要；不含正文。 */
+  pendingApprovals?: readonly ApprovalSummary[];
 }
 
 interface ProjectedEvent {
@@ -55,6 +58,9 @@ export class SnapshotFactory {
     const all = input.journal.recent(input.session.sessionId, Number.MAX_SAFE_INTEGER);
     const projected = project(all);
     const lastSeq = input.journal.lastSeq(input.session.sessionId);
+    const pendingApprovals = (input.pendingApprovals ?? []).map(
+      pendingSummary,
+    );
 
     const fixed = {
       session: {
@@ -66,6 +72,7 @@ export class SnapshotFactory {
           input.session.lifecycle,
           input.activeRun !== null,
           input.queuedRuns.length,
+          input.activeRun?.status ?? null,
         ),
       },
       activeRun:
@@ -75,7 +82,9 @@ export class SnapshotFactory {
               runId: input.activeRun.runId,
               status: input.activeRun.status,
               commandId: input.activeRun.commandId,
+              pendingApprovalCount: input.activeRun.pendingApprovalCount,
             },
+      pendingApprovals,
       queuedRuns: input.queuedRuns,
       globalCapacity: input.globalCapacity,
       lastRunStatus: lastRunStatus(all, input.activeRun),
@@ -131,6 +140,25 @@ export class SnapshotFactory {
       payload,
     };
   }
+}
+
+/** 快照只保留安全摘要字段。 */
+function pendingSummary(summary: ApprovalSummary): JsonObject {
+  return {
+    approvalId: summary.approvalId,
+    toolUseID: summary.toolUseID,
+    toolName: summary.toolName,
+    agentID: summary.agentID,
+    createdAt: summary.createdAt,
+    expiresAt: summary.expiresAt,
+    defaultToNo: summary.defaultToNo,
+    content: {
+      encoding: summary.content.encoding,
+      byteLength: summary.content.byteLength,
+      sha256: summary.content.sha256,
+      chunkCount: summary.content.chunkCount,
+    },
+  };
 }
 
 function lastRunStatus(

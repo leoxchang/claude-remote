@@ -1,0 +1,17 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_example",
+  "timestamp": 1762432800000,
+  "type": "permission.resolved",
+  "eventId": "event_02",
+  "sessionId": "session_01",
+  "seq": 43,
+  "runId": "run_01",
+  "approvalId": "approval_01",
+  "payload": {
+    "status": "approved_once",
+    "resolvedAt": 1762432860000,
+    "resolutionReason": "user_allow_once",
+    "responseCommandId": "cmd_02"
+  }
+}

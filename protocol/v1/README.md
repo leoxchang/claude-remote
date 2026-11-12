@@ -85,3 +85,15 @@ S02 只新增类型和可选字段，不改变 S00/S01 的 `seq`、`command.resu
 ## 覆盖率
 
 `scripts/s00/` 与 `protocol/v1/src/` 的 statements/branches/functions/lines 均要求 ≥ 80%（`npm run test:coverage`）。
+## S03 扩展（手机权限审批，向后兼容）
+
+S03 只新增可选字段与消息类型，不改变 S01/S02 的 prompt/run/event 语义。
+
+- **新命令 `permission.respond`**：信封必须同时携带 `commandId`、`traceId`、`workspaceId`、`sessionId`、`runId`、`approvalId`；`payload` 只允许 `{"decision":"allow_once"|"deny"}`，携带 `input`、`updatedInput`、`updatedPermissions` 或内容 hash 一律 `INVALID_MESSAGE`。响应仍是普通 `command.result`，同一 `commandId` 重试不产生第二次决策。
+- **新事件 `permission.requested`**：信封在 `sessionId/runId/seq` 之外携带 `approvalId`；`payload` 只含安全摘要（toolUseID、toolName、agentID、createdAt、expiresAt、defaultToNo、内容 encoding/byteLength/sha256/chunkCount），不含命令、路径或输入正文。
+- **新事件 `permission.resolved`**：信封携带 `approvalId`；`payload.status` 为 `approved_once/denied/expired/invalidated`，`resolutionReason` 为 `user_allow_once/user_deny/timeout/run_cancelled/sdk_aborted/policy_disabled/device_revoked/agent_shutdown`，`responseCommandId` 只在用户响应时非空。
+- **完整内容**只经认证 HTTPS `GET /v1/approvals/{approvalId}/content?chunkIndex=n` 读取：Bearer 设备认证、`Cache-Control: no-store`、仅 pending 且设备匹配、单块 UTF-8 ≤32 KiB、单份 ≤1 MiB（≤32 块）。内容 GET 不占 seq、不进入命令幂等表。
+- **run/session 状态**：`RunStatus` 新增 `waiting_approval`；`session.status` 的 `state` 可为 `waiting_approval`；`session.snapshot` 增加 `activeRun.pendingApprovalCount` 与最多 8 条 `pendingApprovals` 安全摘要。`workspace.list` 的 `scheduler` 增加全局 `pendingApprovalCount`。
+- **新增错误码**：`APPROVAL_NOT_FOUND`、`APPROVAL_SESSION_MISMATCH`、`APPROVAL_CONTENT_TOO_LARGE`、`APPROVAL_CONTENT_UNAVAILABLE`、`APPROVAL_CAPACITY_EXCEEDED`、`UNSUPPORTED_USER_INTERACTION`、`APPROVAL_TOOL_UNSUPPORTED`、`APPROVAL_DUPLICATE_AFTER_RESOLUTION`。
+- 审批、审计、队列与 Journal 仍为内存状态；Agent 重启后旧 `approvalId` 不可读取或响应，不自动重放。
+- 共享样例见 `examples/s03/`。

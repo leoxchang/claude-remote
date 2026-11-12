@@ -70,6 +70,10 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
     ref: 'https://s00.local/commands.schema.json#/$defs/queue.remove',
   },
   {
+    type: 'permission.respond',
+    ref: 'https://s00.local/commands.schema.json#/$defs/permission.respond',
+  },
+  {
     type: 'command.result',
     ref: 'https://s00.local/commands.schema.json#/$defs/command.result',
   },
@@ -112,6 +116,14 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
   {
     type: 'run.started',
     ref: 'https://s00.local/events.schema.json#/$defs/run.started',
+  },
+  {
+    type: 'permission.requested',
+    ref: 'https://s00.local/events.schema.json#/$defs/permission.requested',
+  },
+  {
+    type: 'permission.resolved',
+    ref: 'https://s00.local/events.schema.json#/$defs/permission.resolved',
   },
   {
     type: 'desktop.status',

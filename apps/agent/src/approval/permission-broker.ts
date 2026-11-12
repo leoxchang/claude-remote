@@ -18,6 +18,7 @@ import {
   SdkPermissionRequest,
 } from './approval-types.js';
 import { ApprovalStore } from './approval-store.js';
+import { toApprovalSummary } from './approval-summary.js';
 import {
   approvalContentDescriptor,
   buildApprovalContent,
@@ -264,6 +265,9 @@ export class PermissionBroker {
       toolUseID: request.toolUseID,
       toolName: request.toolName,
       agentID: request.agentID ?? null,
+      defaultToNo: request.defaultToNo === true,
+      hasDecisionReason: request.decisionReason !== undefined,
+      hasBlockedPath: request.blockedPath !== undefined,
       status: 'pending',
       createdAt,
       expiresAt,
@@ -283,7 +287,7 @@ export class PermissionBroker {
     this.cancelTimers.set(approvalId, cancel);
 
     try {
-      this.events.requested(toSummary(record, request));
+      this.events.requested(toSummary(record));
     } catch {
       cancel();
       this.cancelTimers.delete(approvalId);
@@ -568,26 +572,9 @@ function createDeferred<T>(): Deferred<T> {
 }
 
 /** 生成公开摘要；仅含安全字段与内容描述。 */
-function toSummary(
-  record: ApprovalRecord,
-  request: SdkPermissionRequest,
-): ApprovalSummary {
+function toSummary(record: ApprovalRecord): ApprovalSummary {
   if (record.content === null) {
     throw new Error('pending approval must carry content');
   }
-  return {
-    approvalId: record.approvalId,
-    workspaceId: record.workspaceId,
-    sessionId: record.sessionId,
-    runId: record.runId,
-    toolUseID: record.toolUseID,
-    toolName: record.toolName,
-    agentID: record.agentID,
-    createdAt: record.createdAt,
-    expiresAt: record.expiresAt,
-    defaultToNo: request.defaultToNo === true,
-    hasDecisionReason: request.decisionReason !== undefined,
-    hasBlockedPath: request.blockedPath !== undefined,
-    content: approvalContentDescriptor(record.content),
-  };
+  return toApprovalSummary(record, approvalContentDescriptor(record.content));
 }

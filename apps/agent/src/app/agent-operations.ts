@@ -1,4 +1,12 @@
 import { AgentError } from '../command/errors.js';
+import { ApprovalStore } from '../approval/approval-store.js';
+import { pendingApprovalSummaries } from '../approval/approval-summary.js';
+import {
+  ApprovalSummary,
+  PermissionResponseInput,
+  PermissionResponseResult,
+} from '../approval/approval-types.js';
+import { PermissionBroker } from '../approval/permission-broker.js';
 import { SnapshotCoordinator } from '../events/snapshot-coordinator.js';
 import {
   MAX_ACTIVE_RUNS,
@@ -27,6 +35,8 @@ export interface SchedulerSummary {
   activeRunCount: number;
   queuedRunCount: number;
   maxQueuedRuns: number;
+  /** 全局 pending 审批数。 */
+  pendingApprovalCount: number;
 }
 
 /** workspace.list 的结果。 */
@@ -56,6 +66,8 @@ export interface AgentOperations {
   cancelRun(sessionId: string, runId: string): Promise<CancelAccepted>;
   removeQueuedRun(sessionId: string, runId: string): Promise<QueueRemoved>;
   snapshot(sessionId: string): Promise<SessionSnapshotEvent>;
+  respondPermission(input: PermissionResponseInput): PermissionResponseResult;
+  pendingApprovals(sessionId: string): ApprovalSummary[];
   activeCount(): number;
   queuedRunCount(): number;
 }
@@ -67,6 +79,8 @@ export interface AgentOperationsDependencies {
   scheduler: RunScheduler;
   runs: ManagedRunController;
   snapshots: SnapshotCoordinator;
+  approvalBroker: PermissionBroker;
+  approvalStore: ApprovalStore;
   currentEpoch: () => number;
 }
 
@@ -82,6 +96,7 @@ export class AgentOperationsImpl implements AgentOperations {
         activeRunCount: this.activeCount(),
         queuedRunCount: this.queuedRunCount(),
         maxQueuedRuns: MAX_GLOBAL_QUEUED_RUNS,
+        pendingApprovalCount: this.deps.approvalStore.globalPendingCount(),
       },
     };
   }
@@ -156,6 +171,18 @@ export class AgentOperationsImpl implements AgentOperations {
       this.deps.currentEpoch(),
     );
     return snapshot;
+  }
+
+  /** 用户决策；关联 ID 与当前策略由 Broker 再次复核。 */
+  respondPermission(
+    input: PermissionResponseInput,
+  ): PermissionResponseResult {
+    return this.deps.approvalBroker.respond(input);
+  }
+
+  /** 会话 pending 的安全摘要；不含正文。 */
+  pendingApprovals(sessionId: string): ApprovalSummary[] {
+    return pendingApprovalSummaries(this.deps.approvalStore, sessionId);
   }
 
   activeCount(): number {

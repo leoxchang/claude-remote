@@ -1,3 +1,4 @@
+import { ApprovalSummary } from '../approval/approval-types.js';
 import { RunRecord, SessionRecord } from '../domain/types.js';
 import { MAX_ACTIVE_RUNS } from '../run/run-limits.js';
 import { SessionSnapshotEvent } from '../session/session-controller.js';
@@ -14,6 +15,7 @@ export interface SnapshotCoordinatorDependencies {
   getSession: (sessionId: string) => SessionRecord;
   getActiveRun: (sessionId: string) => RunRecord | null;
   getQueuedRuns?: (sessionId: string) => QueuedRunSummary[];
+  getPendingApprovals?: (sessionId: string) => ApprovalSummary[];
   getGlobalCapacity?: () => GlobalCapacity;
   send: (snapshot: SessionSnapshotEvent, connectionEpoch: number) => void;
 }
@@ -37,6 +39,7 @@ export class SnapshotCoordinator {
       activeRun: this.deps.getActiveRun(sessionId),
       queuedRuns: this.deps.getQueuedRuns?.(sessionId) ?? [],
       journal: this.deps.journal,
+      pendingApprovals: this.deps.getPendingApprovals?.(sessionId) ?? [],
       globalCapacity: this.deps.getGlobalCapacity?.() ?? {
         activeRunCount: 0,
         maxActiveRuns: MAX_ACTIVE_RUNS,

@@ -1,0 +1,16 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_example",
+  "timestamp": 1762432800000,
+  "type": "permission.respond",
+  "commandId": "cmd_02",
+  "traceId": "trace_02",
+  "workspaceId": "ws_01",
+  "sessionId": "session_01",
+  "runId": "run_01",
+  "approvalId": "approval_01",
+  "sourceDeviceId": "device_01",
+  "payload": {
+    "decision": "allow_once"
+  }
+}

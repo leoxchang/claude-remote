@@ -27,6 +27,7 @@ export interface CommandMessage extends MessageEnvelope {
   sessionId?: string;
   workspaceId?: string;
   runId?: string;
+  approvalId?: string;
   /** 发送命令的设备 ID；schema 要求必填，这里保留可选以兼容只读场景。 */
   sourceDeviceId?: string;
 }
@@ -44,6 +45,7 @@ export interface EventMessage extends MessageEnvelope {
   sessionId: string;
   seq: number;
   runId?: string;
+  approvalId?: string;
 }
 
 /** 握手、桌面状态和非时间线错误等控制消息。 */
@@ -57,12 +59,7 @@ export type ProtocolMessage =
   | ControlMessage;
 
 /**
- * S03–S05 预留的类型名：只注册名称，不在 V1 实现，
+ * 尚未实现的预留类型名：不在 V1 实现，
  * 必须与已实现字段语义不冲突（由 PROTO-10 测试锁定）。
  */
-export const RESERVED_MESSAGE_TYPES: readonly string[] = [
-  'permission.requested',
-  'permission.respond',
-  'permission.resolved',
-  'session.sync',
-];
+export const RESERVED_MESSAGE_TYPES: readonly string[] = ['session.sync'];

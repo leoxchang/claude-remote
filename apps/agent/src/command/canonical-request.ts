@@ -9,6 +9,7 @@ export interface CommandIdentity {
   workspaceId?: string;
   sessionId?: string;
   runId?: string;
+  approvalId?: string;
   payload: JsonObject;
 }
 
@@ -23,6 +24,7 @@ export function canonicalRequestFingerprint(identity: CommandIdentity): string {
     workspaceId: identity.workspaceId ?? null,
     sessionId: identity.sessionId ?? null,
     runId: identity.runId ?? null,
+    approvalId: identity.approvalId ?? null,
     payload: identity.payload,
   });
   return createHash('sha256').update(canonical, 'utf8').digest('base64url');
