@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyReply } from 'fastify';
 
 import { PairingError } from '../pairing/pairing-service.js';
+import { registerWorkspaceRoutes } from '../workspace/workspace-admin.js';
 import { AdminDependencies } from './server.js';
 
 /** 注册只在本机 Unix socket 上可用的管理路由。 */
@@ -9,6 +10,10 @@ export function registerAdminRoutes(
   deps: AdminDependencies,
 ): void {
   app.get('/admin/v1/status', async () => deps.getStatus());
+
+  if (deps.workspaces !== undefined) {
+    registerWorkspaceRoutes(app, { workspaces: deps.workspaces });
+  }
 
   app.get('/admin/v1/devices', async () => deps.deviceStore.list());
 

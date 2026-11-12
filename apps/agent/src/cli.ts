@@ -6,7 +6,9 @@ import { createAgentRuntime } from './app/runtime.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from './config/paths.js';
 import { initializeConfig } from './config/initialize.js';
 import { loadConfig } from './config/load.js';
+import { loadConfigV2 } from './config/config-v2.js';
 import { renderPairingQr } from './pairing/qr.js';
+import { toSummary } from './workspace/workspace-types.js';
 
 /** 构造 Agent CLI；运行中管理操作统一走本机 Unix socket。 */
 export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
@@ -92,6 +94,55 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
     .action(async (deviceId: string) => {
       const record = await adminClient().revoke(deviceId);
       process.stdout.write(`${JSON.stringify(record, null, 2)}\n`);
+    });
+
+  const workspace = program
+    .command('workspace')
+    .description('manage locally authorized projects');
+
+  workspace
+    .command('add')
+    .description('authorize a local project')
+    .requiredOption('--path <absolutePath>', 'absolute project path')
+    .requiredOption('--name <displayName>', 'display name shown on the phone')
+    .action(async (options: { path: string; name: string }) => {
+      const summary = await adminClient().workspaceAdd(
+        options.path,
+        options.name,
+      );
+      process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    });
+
+  workspace
+    .command('list')
+    .description('list authorized projects from the local config')
+    .action(async () => {
+      const config = await loadConfigV2(configDir);
+      process.stdout.write(
+        `${JSON.stringify(config.workspaces.map(toSummary), null, 2)}\n`,
+      );
+    });
+
+  workspace
+    .command('rename')
+    .description('rename an authorized project')
+    .argument('<workspaceId>', 'workspace id to rename')
+    .requiredOption('--name <displayName>', 'new display name')
+    .action(async (workspaceId: string, options: { name: string }) => {
+      const summary = await adminClient().workspaceRename(
+        workspaceId,
+        options.name,
+      );
+      process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    });
+
+  workspace
+    .command('remove')
+    .description('remove a project authorization')
+    .argument('<workspaceId>', 'workspace id to remove')
+    .action(async (workspaceId: string) => {
+      const result = await adminClient().workspaceRemove(workspaceId);
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     });
 
   return program;

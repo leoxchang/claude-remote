@@ -2,6 +2,7 @@ import { request } from 'node:http';
 
 import { DeviceRecord } from '../domain/types.js';
 import { PairingQrPayload } from '../pairing/pairing-service.js';
+import { WorkspaceSummary } from '../workspace/workspace-types.js';
 import { AdminStatus } from './server.js';
 
 /** 管理接口返回的结构化错误。 */
@@ -32,6 +33,38 @@ export class AdminClient {
     return this.request<DeviceRecord>('POST', '/admin/v1/revoke', {
       deviceId,
     });
+  }
+
+  workspaceList(): Promise<WorkspaceSummary[]> {
+    return this.request<WorkspaceSummary[]>('GET', '/admin/v1/workspaces');
+  }
+
+  workspaceAdd(path: string, displayName: string): Promise<WorkspaceSummary> {
+    return this.request<WorkspaceSummary>('POST', '/admin/v1/workspaces/add', {
+      path,
+      displayName,
+    });
+  }
+
+  workspaceRename(
+    workspaceId: string,
+    displayName: string,
+  ): Promise<WorkspaceSummary> {
+    return this.request<WorkspaceSummary>(
+      'POST',
+      '/admin/v1/workspaces/rename',
+      { workspaceId, displayName },
+    );
+  }
+
+  workspaceRemove(
+    workspaceId: string,
+  ): Promise<{ workspaceId: string; removed: boolean }> {
+    return this.request<{ workspaceId: string; removed: boolean }>(
+      'POST',
+      '/admin/v1/workspaces/remove',
+      { workspaceId },
+    );
   }
 
   private request<T>(

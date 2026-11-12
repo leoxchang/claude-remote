@@ -6,6 +6,7 @@ import { chmod } from 'node:fs/promises';
 
 import { PairingService } from '../pairing/pairing-service.js';
 import { DeviceStore } from '../store/device-store.js';
+import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { registerAdminRoutes } from './routes.js';
 
 /** 管理接口的 socket 权限。 */
@@ -27,6 +28,7 @@ export interface AdminDependencies {
   socketPath: string;
   pairingService: PairingService;
   deviceStore: DeviceStore;
+  workspaces?: WorkspaceManager;
   getStatus: () => AdminStatus;
   onRevoke: (deviceId: string) => void;
 }

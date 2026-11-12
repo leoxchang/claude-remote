@@ -24,6 +24,9 @@ export const ERROR_CODES = [
   'PAIRING_FAILED',
   'PAIRING_EXPIRED',
   'DEVICE_ALREADY_PAIRED',
+  // S02 新增（本机项目管理与队列）
+  'WORKSPACE_NOT_FOUND',
+  'WORKSPACE_BUSY',
 ] as const;
 
 /** 协议 V1 已注册的错误码。 */

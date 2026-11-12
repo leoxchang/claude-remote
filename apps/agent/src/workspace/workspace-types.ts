@@ -29,3 +29,8 @@ export const MIN_PER_SESSION_QUEUE_LIMIT = 1;
 
 /** 每会话队列上限上界。 */
 export const MAX_PER_SESSION_QUEUE_LIMIT = 20;
+
+/** 只含公开字段的项目摘要。 */
+export function toSummary(record: WorkspaceRecord): WorkspaceSummary {
+  return { workspaceId: record.workspaceId, displayName: record.displayName };
+}

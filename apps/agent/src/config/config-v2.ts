@@ -11,11 +11,16 @@ import {
   MIN_PER_SESSION_QUEUE_LIMIT,
   WorkspaceRecord,
 } from '../workspace/workspace-types.js';
-import { writeFileAtomic, writeFileAtomicSync } from './atomic-file.js';
+import {
+  readJsonFileIfExists,
+  writeFileAtomic,
+  writeFileAtomicSync,
+} from './atomic-file.js';
 import {
   AGENT_LISTEN_HOST,
   AGENT_LISTEN_PORT,
   CONFIG_FILE_MODE,
+  DEFAULT_CONFIG_DIR,
   resolveAgentPaths,
 } from './paths.js';
 
@@ -74,6 +79,18 @@ export function migrateConfigV1ToV2(input: unknown): AgentConfigV2 {
     listen: parseListen(record),
     tailscale: parseTailscale(record),
   };
+}
+
+/** 读取并迁移本机配置；文件缺失时报错，不创建空配置。 */
+export async function loadConfigV2(
+  configDir: string = DEFAULT_CONFIG_DIR,
+): Promise<AgentConfigV2> {
+  const paths = resolveAgentPaths(configDir);
+  const raw = await readJsonFileIfExists(paths.agentFile);
+  if (raw === undefined) {
+    throw new Error('agent.json not found; run init first');
+  }
+  return migrateConfigV1ToV2(raw);
 }
 
 /** 严格校验 V2 配置；返回新的不可共享对象。 */
