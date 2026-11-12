@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s02_run_started",
+  "timestamp": 1762432800002,
+  "type": "run.started",
+  "eventId": "event_s02_run_started",
+  "sessionId": "session_alpha",
+  "seq": 2,
+  "runId": "run_alpha",
+  "payload": {
+    "startedAt": 1762432800002,
+    "status": "starting"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s02_session_snapshot",
+  "timestamp": 1762432800004,
+  "type": "session.snapshot",
+  "eventId": "event_s02_session_snapshot",
+  "sessionId": "session_alpha",
+  "seq": 3,
+  "payload": {
+    "session": {
+      "sessionId": "session_alpha",
+      "claudeSessionId": "claude_alpha",
+      "workspaceId": "ws_alpha",
+      "title": "会话 2026-11-08 10:00",
+      "status": "queued"
+    },
+    "activeRun": null,
+    "queuedRuns": [
+      {
+        "runId": "run_alpha",
+        "commandId": "cmd_s02_session_snapshot",
+        "status": "queued",
+        "enqueuedAt": 1762432800001
+      }
+    ],
+    "globalCapacity": {
+      "activeRunCount": 1,
+      "maxActiveRuns": 2
+    },
+    "recentEvents": [],
+    "lastSeq": 2,
+    "oldestIncludedSeq": 1,
+    "snapshotTruncated": false
+  }
+}

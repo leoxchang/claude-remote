@@ -35,6 +35,45 @@
               "properties": {
                 "lastSeq": { "type": "integer", "minimum": 0 },
                 "currentRunId": { "type": "string", "minLength": 1 },
+                "oldestIncludedSeq": {
+                  "type": ["integer", "null"],
+                  "minimum": 1
+                },
+                "snapshotTruncated": { "type": "boolean" },
+                "session": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": { "type": "string", "minLength": 1 },
+                    "claudeSessionId": { "type": ["string", "null"] },
+                    "workspaceId": { "type": "string", "minLength": 1 },
+                    "title": { "type": "string", "minLength": 1 },
+                    "status": {
+                      "enum": ["idle", "queued", "running", "archived"]
+                    }
+                  }
+                },
+                "queuedRuns": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "items": {
+                    "type": "object",
+                    "required": ["runId", "commandId", "status", "enqueuedAt"],
+                    "properties": {
+                      "runId": { "type": "string", "minLength": 1 },
+                      "commandId": { "type": "string", "minLength": 1 },
+                      "status": { "const": "queued" },
+                      "enqueuedAt": { "type": "integer", "minimum": 0 }
+                    }
+                  }
+                },
+                "globalCapacity": {
+                  "type": "object",
+                  "required": ["activeRunCount", "maxActiveRuns"],
+                  "properties": {
+                    "activeRunCount": { "type": "integer", "minimum": 0 },
+                    "maxActiveRuns": { "const": 2 }
+                  }
+                },
                 "recentEvents": {
                   "type": "array",
                   "items": { "type": "object" }
@@ -187,6 +226,7 @@
                 "status": {
                   "enum": ["succeeded", "failed", "cancelled", "interrupted"]
                 },
+                "reason": { "enum": ["queue_removed"] },
                 "error": {
                   "type": "object",
                   "required": ["code", "message"],
@@ -195,6 +235,48 @@
                     "message": { "type": "string" }
                   }
                 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "run.queued": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "run.queued" },
+            "payload": {
+              "type": "object",
+              "required": ["enqueuedAt"],
+              "properties": {
+                "enqueuedAt": { "type": "integer", "minimum": 0 },
+                "waitReason": {
+                  "enum": ["SESSION_BUSY", "GLOBAL_CAPACITY"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "run.started": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        { "$ref": "#/$defs/runTimelineEvent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "run.started" },
+            "payload": {
+              "type": "object",
+              "required": ["startedAt", "status"],
+              "properties": {
+                "startedAt": { "type": "integer", "minimum": 0 },
+                "status": { "const": "starting" }
               }
             }
           }

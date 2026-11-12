@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s02_session_list",
+  "timestamp": 1762432800000,
+  "type": "session.list",
+  "commandId": "cmd_s02_session_list",
+  "traceId": "trace_s02_session_list",
+  "payload": {
+    "workspaceId": "ws_alpha",
+    "includeArchived": false,
+    "limit": 20
+  }
+}

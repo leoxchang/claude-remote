@@ -1,0 +1,11 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s02_queue_remove",
+  "timestamp": 1762432800003,
+  "type": "queue.remove",
+  "commandId": "cmd_s02_queue_remove",
+  "traceId": "trace_s02_queue_remove",
+  "sessionId": "session_alpha",
+  "runId": "run_alpha",
+  "payload": {}
+}

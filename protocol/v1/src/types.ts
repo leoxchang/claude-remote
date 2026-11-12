@@ -57,17 +57,10 @@ export type ProtocolMessage =
   | ControlMessage;
 
 /**
- * S02–S05 预留的类型名：只注册名称，不在 V1 实现，
- * 必须与 S01 字段语义不冲突（由 PROTO-10 测试锁定）。
+ * S03–S05 预留的类型名：只注册名称，不在 V1 实现，
+ * 必须与已实现字段语义不冲突（由 PROTO-10 测试锁定）。
  */
 export const RESERVED_MESSAGE_TYPES: readonly string[] = [
-  'workspace.list',
-  'session.create',
-  'session.resume',
-  'session.archive',
-  'queue.remove',
-  'run.queued',
-  'run.started',
   'permission.requested',
   'permission.respond',
   'permission.resolved',

@@ -5,9 +5,10 @@ import {
 } from '@claude-remote/protocol/types';
 import { validateProtocolMessage } from '@claude-remote/protocol/validator';
 
-import { DeviceRecord } from '../domain/types.js';
+import { DeviceRecord, JsonObject } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
 import { AgentOperations } from '../session/session-controller.js';
+import { CommandIdentity } from './canonical-request.js';
 import { AgentError } from './errors.js';
 import { InMemoryIdempotency } from './idempotency.js';
 
@@ -74,11 +75,34 @@ export class CommandRouter {
       return this.errorResult(command, 'FORBIDDEN', false);
     }
 
-    const { value, duplicate } = await this.idempotency.execute(
-      command.commandId,
-      () => this.dispatch(command),
-    );
+    const { value, duplicate } = await this.idempotent(command);
     return this.resultMessage(command, { ...value, duplicate });
+  }
+
+  /** 幂等执行；请求指纹冲突时返回稳定错误码。 */
+  private async idempotent(
+    command: CommandMessage,
+  ): Promise<{ value: DispatchPayload; duplicate: boolean }> {
+    try {
+      return await this.idempotency.execute(toIdentity(command), () =>
+        this.dispatch(command),
+      );
+    } catch (error: unknown) {
+      if (error instanceof AgentError) {
+        return {
+          value: {
+            status: 'error',
+            error: {
+              code: error.code,
+              message: error.code,
+              retryable: error.retryable,
+            },
+          },
+          duplicate: false,
+        };
+      }
+      return { value: errorPayload('INTERNAL_ERROR'), duplicate: false };
+    }
   }
 
   private async dispatch(command: CommandMessage): Promise<DispatchPayload> {
@@ -198,4 +222,27 @@ function errorPayload(code: string): DispatchPayload {
     status: 'error',
     error: { code, message: code, retryable: false },
   };
+}
+
+function toIdentity(command: CommandMessage): CommandIdentity {
+  return {
+    commandId: command.commandId,
+    type: command.type,
+    ...(command.workspaceId === undefined
+      ? {}
+      : { workspaceId: command.workspaceId }),
+    ...(command.sessionId === undefined
+      ? {}
+      : { sessionId: command.sessionId }),
+    ...(command.runId === undefined ? {} : { runId: command.runId }),
+    payload: toJsonObject(command.payload),
+  };
+}
+
+/** 已通过 schema 校验的对象载荷；非对象按空对象处理。 */
+function toJsonObject(value: unknown): JsonObject {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return {};
+  }
+  return value as JsonObject;
 }

@@ -33,6 +33,29 @@ S00 注册以下稳定错误码（`src/errors.ts` 的 `ERROR_CODES`），客户�
 | 版本 | `VERSION_INCOMPATIBLE` |
 | 审批（S03） | `APPROVAL_EXPIRED`、`APPROVAL_ALREADY_RESOLVED` |
 | 语音（S05） | `ASR_PROVIDER_ERROR` |
+| S02 项目/会话 | `WORKSPACE_NOT_FOUND`、`WORKSPACE_BUSY`、`SESSION_SELECTION_REQUIRED`、`SESSION_ARCHIVED`、`QUEUE_FULL`、`INVALID_CURSOR` |
+| S02 run/队列 | `RUN_NOT_FOUND`、`RUN_NOT_QUEUED`、`RUN_SESSION_MISMATCH`、`COMMAND_ID_CONFLICT` |
+
+## S02 扩展（向后兼容）
+
+S02 只新增类型和可选字段，不改变 S00/S01 的 `seq`、`command.result` 与去重语义。
+
+新增命令（`commands.schema.json`）：`workspace.list`、`session.create`、`session.list`、
+`session.resume`、`session.rename`、`session.archive`、`queue.remove`。
+
+新增事件（`events.schema.json`）：`run.queued`、`run.started`；`run.completed` 新增可选
+`reason: "queue_removed"`；`session.snapshot` 新增可选 `session.title`、`session.status`、
+`queuedRuns`、`globalCapacity`、`oldestIncludedSeq`、`snapshotTruncated`。
+
+幂等增强：
+
+- 幂等键仍然是 `commandId`，但请求指纹（type + 规范化 workspaceId/sessionId/runId + 规范化 payload 的
+  SHA-256）必须一致才返回首次结果并 `duplicate: true`；
+- 同一 `commandId` 的类型、会话、run 或 payload 不同时返回 `COMMAND_ID_CONFLICT`，不执行任何新业务操作；
+- Agent 只保存指纹与首次结果，不保存原始 prompt；
+- 幂等表只在内存，Agent 重启后不成立。
+
+合法与非法样例见 `examples/s02/`。
 
 ## 版本
 

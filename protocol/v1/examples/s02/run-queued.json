@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s02_run_queued",
+  "timestamp": 1762432800001,
+  "type": "run.queued",
+  "eventId": "event_s02_run_queued",
+  "sessionId": "session_alpha",
+  "seq": 1,
+  "runId": "run_alpha",
+  "payload": {
+    "enqueuedAt": 1762432800001,
+    "waitReason": "GLOBAL_CAPACITY"
+  }
+}

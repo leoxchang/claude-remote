@@ -1,24 +1,44 @@
+import {
+  canonicalRequestFingerprint,
+  CommandIdentity,
+} from './canonical-request.js';
+import { AgentError } from './errors.js';
+
 /** 幂等执行结果：value 为首次结果，duplicate 表示这是重复请求。 */
 export interface IdempotentResult<T> {
   value: T;
   duplicate: boolean;
 }
 
-/** 内存命令幂等表；缓存首次 Promise，并发重复请求等待同一结果。 */
-export class InMemoryIdempotency {
-  private readonly results = new Map<string, Promise<unknown>>();
+interface Entry {
+  fingerprint: string;
+  promise: Promise<unknown>;
+}
 
-  /** 同一 commandId 只执行一次 handler。 */
+/**
+ * 内存命令幂等表。
+ *
+ * 只保存首次 Promise 与请求指纹，不保存原始 payload；
+ * 同一 commandId 的请求内容不一致时抛 COMMAND_ID_CONFLICT。
+ */
+export class InMemoryIdempotency {
+  private readonly entries = new Map<string, Entry>();
+
+  /** 同一 commandId 且请求一致时只执行一次 handler。 */
   async execute<T>(
-    commandId: string,
+    identity: CommandIdentity,
     handler: () => Promise<T>,
   ): Promise<IdempotentResult<T>> {
-    const existing = this.results.get(commandId);
+    const fingerprint = canonicalRequestFingerprint(identity);
+    const existing = this.entries.get(identity.commandId);
     if (existing !== undefined) {
-      return { value: (await existing) as T, duplicate: true };
+      if (existing.fingerprint !== fingerprint) {
+        throw new AgentError('COMMAND_ID_CONFLICT');
+      }
+      return { value: (await existing.promise) as T, duplicate: true };
     }
     const pending = handler();
-    this.results.set(commandId, pending);
+    this.entries.set(identity.commandId, { fingerprint, promise: pending });
     return { value: await pending, duplicate: false };
   }
 }

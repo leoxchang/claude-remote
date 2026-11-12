@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryIdempotency } from '../src/command/idempotency.js';
+function identity(commandId: string) {
+  return {
+    commandId,
+    type: 'prompt.send',
+    sessionId: 'session_a',
+    payload: { text: 'hello' },
+  };
+}
+
 
 describe('InMemoryIdempotency', () => {
   it('runs concurrent calls with the same commandId exactly once', async () => {
@@ -13,8 +22,8 @@ describe('InMemoryIdempotency', () => {
     };
 
     const [first, second] = await Promise.all([
-      idempotency.execute('cmd_1', handler),
-      idempotency.execute('cmd_1', handler),
+      idempotency.execute(identity('cmd_1'), handler),
+      idempotency.execute(identity('cmd_1'), handler),
     ]);
 
     expect(calls).toBe(1);
@@ -26,8 +35,8 @@ describe('InMemoryIdempotency', () => {
     const idempotency = new InMemoryIdempotency();
     const handler = vi.fn(async () => 'value');
 
-    await idempotency.execute('cmd_1', handler);
-    await idempotency.execute('cmd_2', handler);
+    await idempotency.execute(identity('cmd_1'), handler);
+    await idempotency.execute(identity('cmd_2'), handler);
 
     expect(handler).toHaveBeenCalledTimes(2);
   });
@@ -38,8 +47,8 @@ describe('InMemoryIdempotency', () => {
       throw new Error('boom');
     });
 
-    await expect(idempotency.execute('cmd_1', handler)).rejects.toThrow('boom');
-    await expect(idempotency.execute('cmd_1', handler)).rejects.toThrow('boom');
+    await expect(idempotency.execute(identity('cmd_1'), handler)).rejects.toThrow('boom');
+    await expect(idempotency.execute(identity('cmd_1'), handler)).rejects.toThrow('boom');
 
     expect(handler).toHaveBeenCalledTimes(1);
   });

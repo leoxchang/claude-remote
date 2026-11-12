@@ -42,6 +42,34 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
     ref: 'https://s00.local/commands.schema.json#/$defs/session.snapshot',
   },
   {
+    type: 'workspace.list',
+    ref: 'https://s00.local/commands.schema.json#/$defs/workspace.list',
+  },
+  {
+    type: 'session.create',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.create',
+  },
+  {
+    type: 'session.list',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.list',
+  },
+  {
+    type: 'session.resume',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.resume',
+  },
+  {
+    type: 'session.rename',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.rename',
+  },
+  {
+    type: 'session.archive',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.archive',
+  },
+  {
+    type: 'queue.remove',
+    ref: 'https://s00.local/commands.schema.json#/$defs/queue.remove',
+  },
+  {
     type: 'command.result',
     ref: 'https://s00.local/commands.schema.json#/$defs/command.result',
   },
@@ -76,6 +104,14 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
   {
     type: 'run.completed',
     ref: 'https://s00.local/events.schema.json#/$defs/run.completed',
+  },
+  {
+    type: 'run.queued',
+    ref: 'https://s00.local/events.schema.json#/$defs/run.queued',
+  },
+  {
+    type: 'run.started',
+    ref: 'https://s00.local/events.schema.json#/$defs/run.started',
   },
   {
     type: 'desktop.status',

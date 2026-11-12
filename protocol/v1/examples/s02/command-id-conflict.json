@@ -1,0 +1,17 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s02_command_id_conflict",
+  "timestamp": 1762432800005,
+  "type": "command.result",
+  "commandId": "cmd_s02_conflict",
+  "traceId": "trace_s02_conflict",
+  "payload": {
+    "status": "error",
+    "duplicate": false,
+    "error": {
+      "code": "COMMAND_ID_CONFLICT",
+      "message": "COMMAND_ID_CONFLICT",
+      "retryable": false
+    }
+  }
+}

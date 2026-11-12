@@ -75,6 +75,132 @@
         }
       ]
     },
+    "workspace.list": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "workspace.list" },
+            "payload": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "session.create": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "session.create" },
+            "payload": {
+              "type": "object",
+              "required": ["workspaceId"],
+              "properties": {
+                "workspaceId": { "type": "string", "minLength": 1 },
+                "title": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.list": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "session.list" },
+            "payload": {
+              "type": "object",
+              "required": ["workspaceId"],
+              "properties": {
+                "workspaceId": { "type": "string", "minLength": 1 },
+                "includeArchived": { "type": "boolean" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 50 },
+                "cursor": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.resume": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "session.resume" },
+            "payload": {
+              "type": "object",
+              "required": ["sessionId"],
+              "properties": {
+                "sessionId": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.rename": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "session.rename" },
+            "payload": {
+              "type": "object",
+              "required": ["sessionId", "title"],
+              "properties": {
+                "sessionId": { "type": "string", "minLength": 1 },
+                "title": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.archive": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId"],
+          "properties": {
+            "type": { "const": "session.archive" },
+            "payload": {
+              "type": "object",
+              "required": ["sessionId"],
+              "properties": {
+                "sessionId": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "queue.remove": {
+      "allOf": [
+        { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["commandId", "traceId", "sessionId", "runId"],
+          "properties": {
+            "type": { "const": "queue.remove" },
+            "payload": { "type": "object" }
+          }
+        }
+      ]
+    },
     "command.result": {
       "allOf": [
         { "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope" },
