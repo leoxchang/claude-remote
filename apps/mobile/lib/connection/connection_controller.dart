@@ -17,6 +17,9 @@ typedef Delay = Future<void> Function(Duration duration);
 /// 握手成功后的回调；由会话层决定 start 还是 snapshot。
 typedef ReadyHandler = Future<void> Function();
 
+/// Agent 实例变化回调；`previous` 为 null 表示首次连接。
+typedef AgentInstanceHandler = void Function(String? previous, String next);
+
 final class ConnectionController {
   ConnectionController({
     required this.socketFactory,
@@ -25,6 +28,7 @@ final class ConnectionController {
     required this.onReady,
     this.onSocket,
     this.onStatus,
+    this.onAgentInstanceChanged,
     Delay? delay,
     Duration Function()? jitter,
     this.connectTimeout = const Duration(seconds: 10),
@@ -40,6 +44,7 @@ final class ConnectionController {
   final ReadyHandler onReady;
   final void Function(AgentSocket socket)? onSocket;
   final void Function(ConnectionStatus status)? onStatus;
+  final AgentInstanceHandler? onAgentInstanceChanged;
   final Duration connectTimeout;
   final Delay _delay;
   final Duration Function() _jitter;
@@ -50,6 +55,7 @@ final class ConnectionController {
   bool _disposed = false;
   bool _paused = false;
   AgentSocket? _socket;
+  String? _agentInstanceId;
   StreamSubscription<String>? _subscription;
   final StreamController<ProtocolMessage> _incoming =
       StreamController<ProtocolMessage>.broadcast();
@@ -58,6 +64,9 @@ final class ConnectionController {
   Stream<ProtocolMessage> get incoming => _incoming.stream;
 
   ConnectionStatus get status => _status;
+
+  /// 当前 Agent 进程的实例标识；每次 Mac 重启都会变化。
+  String? get agentInstanceId => _agentInstanceId;
 
   /// 每次成功升级连接都会递增；旧连接的回调据此丢弃。
   int get connectionEpoch => _epoch;
@@ -126,9 +135,19 @@ final class ConnectionController {
       return;
     }
     if (!_incoming.isClosed) _incoming.add(message);
-    if (message.type == 'connection.ready' && !ready.isCompleted) {
-      ready.complete();
+    if (message.type == 'connection.ready') {
+      _updateAgentInstance(message.payload['agentInstanceId']);
+      if (!ready.isCompleted) ready.complete();
     }
+  }
+
+  /// 只在实际变化时回调；首次连接 previous 为 null。
+  void _updateAgentInstance(Object? raw) {
+    if (raw is! String || raw.isEmpty) return;
+    final previous = _agentInstanceId;
+    if (previous == raw) return;
+    _agentInstanceId = raw;
+    onAgentInstanceChanged?.call(previous, raw);
   }
 
   Future<void> _drop(int epoch) async {

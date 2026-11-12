@@ -66,6 +66,7 @@ Map<String, Object?> commandResult({
 Map<String, Object?> readyMessage({
   String handshakeId = 'hs_1',
   int connectionEpoch = 1,
+  String? agentInstanceId,
 }) {
   return {
     'protocolVersion': 1,
@@ -78,6 +79,7 @@ Map<String, Object?> readyMessage({
       'versions': {'agent': '0.0.1', 'sdk': '0.3.319', 'runtime': '2.1.319'},
       'capabilities': ['text'],
       'handshakeId': handshakeId,
+      'agentInstanceId': ?agentInstanceId,
     },
   };
 }
