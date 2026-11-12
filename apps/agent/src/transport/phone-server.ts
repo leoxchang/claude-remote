@@ -4,6 +4,8 @@ import websocket from '@fastify/websocket';
 import Fastify, { FastifyInstance, FastifyReply } from 'fastify';
 import { WebSocket } from 'ws';
 
+import { ApprovalContentController } from '../approval/approval-content-controller.js';
+import { AgentError } from '../command/errors.js';
 import { DeviceRecord } from '../domain/types.js';
 import {
   PairingError,
@@ -12,7 +14,7 @@ import {
   PairingService,
 } from '../pairing/pairing-service.js';
 import { DeviceStore } from '../store/device-store.js';
-import { authenticateUpgrade } from './authenticate.js';
+import { authenticateRequest, authenticateUpgrade } from './authenticate.js';
 
 /** 手机接口只监听 localhost；由运行时显式 listen。 */
 export const PHONE_LISTEN = { host: '127.0.0.1', port: 8787 } as const;
@@ -36,7 +38,21 @@ export interface PhoneServerDependencies {
   deviceStore: DeviceStore;
   workspace: { workspaceId: string; displayName: string };
   onConnection: (socket: WebSocket, device: DeviceRecord) => void;
+  /** 审批内容读取；未装配时该路由返回 APPROVAL_NOT_FOUND。 */
+  approvalContent?: ApprovalContentController;
 }
+
+/** 内容 endpoint 的稳定状态映射。 */
+const CONTENT_HTTP_STATUS: Record<string, number> = {
+  INVALID_MESSAGE: 400,
+  UNAUTHENTICATED: 401,
+  FORBIDDEN: 403,
+  APPROVAL_NOT_FOUND: 404,
+  APPROVAL_ALREADY_RESOLVED: 409,
+  APPROVAL_CONTENT_UNAVAILABLE: 409,
+  APPROVAL_EXPIRED: 410,
+  RATE_LIMITED: 429,
+};
 
 /** 创建手机 HTTP/WSS 入口，不在 101 之前接受未认证升级。 */
 export async function createPhoneServer(
@@ -85,7 +101,54 @@ export async function createPhoneServer(
     deps.onConnection(socket, device);
   });
 
+  app.get('/v1/approvals/:approvalId/content', async (request, reply) => {
+    reply.header('cache-control', 'no-store');
+    const device = await authenticateRequest(
+      request.headers as Record<string, unknown>,
+      deps.deviceStore,
+    ).catch(() => null);
+    if (device === null) {
+      return sendError(reply, 401, 'UNAUTHENTICATED');
+    }
+    if (deps.approvalContent === undefined) {
+      return sendError(reply, 404, 'APPROVAL_NOT_FOUND');
+    }
+    const params = request.params as { approvalId?: unknown };
+    const approvalId = params.approvalId;
+    const chunkIndex = parseChunkIndex(
+      (request.query as { chunkIndex?: unknown }).chunkIndex,
+    );
+    if (
+      typeof approvalId !== 'string' ||
+      approvalId.length === 0 ||
+      chunkIndex === null
+    ) {
+      return sendError(reply, 400, 'INVALID_MESSAGE');
+    }
+    try {
+      return deps.approvalContent.readChunk({
+        approvalId,
+        chunkIndex,
+        deviceId: device.deviceId,
+      });
+    } catch (error: unknown) {
+      if (error instanceof AgentError) {
+        const status = CONTENT_HTTP_STATUS[error.code] ?? 409;
+        return sendError(reply, status, error.code);
+      }
+      throw error;
+    }
+  });
+
   return app;
+}
+
+/** 只接受无符号十进制整数；拒绝负数、小数、空格与科学计数法。 */
+function parseChunkIndex(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) {
+    return null;
+  }
+  return Number(value);
 }
 
 function isPairingInput(value: unknown): value is PairingInput {

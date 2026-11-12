@@ -21,7 +21,7 @@ const BEARER_PREFIX = 'bearer ';
  * 只从 Authorization 头校验 `<deviceId>.<deviceToken>`。
  * 不接受 query string、subprotocol 或任何 URL 携带的凭证。
  */
-export async function authenticateUpgrade(
+export async function authenticateRequest(
   headers: Record<string, unknown>,
   store: DeviceStore,
 ): Promise<DeviceRecord> {
@@ -41,4 +41,12 @@ export async function authenticateUpgrade(
     throw new AuthenticationError();
   }
   return device;
+}
+
+/** WSS 升级前鉴权；与 HTTP 请求共用同一 Bearer 规则。 */
+export async function authenticateUpgrade(
+  headers: Record<string, unknown>,
+  store: DeviceStore,
+): Promise<DeviceRecord> {
+  return authenticateRequest(headers, store);
 }
