@@ -15,6 +15,11 @@
     "test:coverage": "vitest run --coverage",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:agent": "vitest run --root apps/agent",
+    "test:mobile": "cd apps/mobile && flutter test",
+    "test:s01": "vitest run --root apps/agent",
+    "test:s01:live": "vitest run --config vitest.s01-live.config.ts",
+    "verify:s01": "tsx scripts/s01/verify-gate.ts",
+    "test:s02:concurrency": "vitest run --config vitest.s02-live.config.ts",
     "coverage:agent": "vitest run --root apps/agent --coverage",
     "s00:gate": "tsx scripts/s00/gate-cli.ts"
   },

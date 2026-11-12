@@ -1,41 +1,49 @@
 # Tailscale Serve 配置记录
 
-**状态：** **NOT_RUN** — 本机未安装 Tailscale（2026-11-10 核对）。
+**状态：** **PARTIAL** — Tailscale 1.104.6 已安装并连接，MagicDNS 已开；**HTTPS Certificates 未启用**，Serve 尚未配置成功（2026-11-12 核对）。
 **目标：** 只用 Serve 把 `https://<machine>.<tailnet>.ts.net` 转发到 `127.0.0.1:8787`；**不得启用 Funnel**。
 
-## 1. 前置条件（未满足）
+## 1. 前置条件
 
 | 条件 | 状态 |
 |---|---|
-| Mac 安装 Tailscale 并登录 | 未安装 |
-| iPhone 与 Mac 在同一 tailnet | 未验证 |
-| MagicDNS 开启 | 未验证 |
-| HTTPS Certificates 开启 | 未验证 |
-| 机器名不含敏感信息（会进入公开 CT 日志） | 未验证 |
+| Mac 安装 Tailscale 并登录 | ✅ 1.104.6，BackendState=Running |
+| Mac 与 iPhone 在同一 tailnet | ⏳ iPhone 未接入 |
+| MagicDNS 开启 | ✅ `CurrentTailnet.MagicDNSEnabled=true` |
+| HTTPS Certificates 开启 | ❌ `CertDomains: null` |
+| 机器名不含敏感信息 | ✅ `macbook-pro` |
 
-## 2. 配置步骤（安装后执行并回填）
-
-具体子命令以安装后的官方 CLI 为准；本文件不预先写死可能过时的参数。
-
-1. 安装 Tailscale，登录与 iPhone 相同的 tailnet。
-2. 确认 `status` 显示已连接，记录脱敏的机器名与 tailnet 名。
-3. 开启 MagicDNS 与 HTTPS Certificates（Admin 控制台）。
-4. 配置 Serve：把 `https://<machine>.<tailnet>.ts.net` 代理到 `127.0.0.1:8787`。
-5. 用 `tailscale serve status` 记录实际监听与转发目标。
-6. 确认 Funnel 关闭：`funnel` 状态必须为未启用，且不存在公网入口。
-7. 用系统 CA 校验访问 `https://<machine>.<tailnet>.ts.net`，记录证书主体与有效期。
-
-回填以下字段（不记录完整证书、密钥或账号信息）：
+## 2. 已实测的本机信息
 
 ```text
-machineHostname: <已脱敏>
-tailnetName:     <已脱敏>
-serveTarget:     127.0.0.1:8787
-funnelEnabled:   false（必须）
-certificateCheck: <通过 / 失败 + 时间>
+machineHostname: macbook-pro
+tailnetName:     tail0970fd.ts.net
+dnsName:         macbook-pro.tail0970fd.ts.net
+tailscaleIPs:    100.95.53.10, fd7a:115c:a1e0::e01:35dd
+serveTarget:     127.0.0.1:8787（待配置）
+funnelEnabled:   false（当前无任何 serve/funnel 配置）
 ```
 
-## 3. 验收标准
+## 3. 待执行步骤
+
+1. 在 Tailscale 管理后台（Admin → DNS）开启 **HTTPS Certificates**；
+2. 执行 `/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 8787`；
+3. 用 `tailscale serve status` 记录实际监听与转发目标；
+4. 确认 Funnel 关闭：`tailscale funnel status` 必须显示未启用；
+5. 用系统 CA 校验访问 `https://macbook-pro.tail0970fd.ts.net`，记录证书主体与有效期；
+6. 回填下面字段。
+
+```text
+machineHostname: macbook-pro
+tailnetName:     tail0970fd.ts.net
+serveTarget:     <待回填>
+funnelEnabled:   false（必须）
+certificateCheck: <待回填>
+```
+
+> 说明：HTTPS Certificates 关闭时 `tailscale serve --bg 8787` 会一直等待证书签发而不返回，已在 2026-11-12 观测到；这不是命令写错。
+
+## 4. 验收标准
 
 - E2E-01：系统 CA 校验通过，无 Funnel，无关闭 TLS 校验的客户端配置。
 - Agent 只监听 `127.0.0.1:8787`，不存在 `0.0.0.0` 监听。
