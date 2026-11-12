@@ -92,7 +92,7 @@ void main() {
 
     expect(lastCommandType(socket), 'prompt.send');
     socket.emitMessage(
-      commandResult(commandId: lastCommandId(socket), data: {'runId': 'run_01'}),
+      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
     );
     await future;
 
@@ -156,7 +156,7 @@ void main() {
     await pumpEventQueue();
     expect(lastCommandId(timeoutSocket), firstId);
     timeoutSocket.emitMessage(
-      commandResult(commandId: firstId, data: {'runId': 'run_01'}),
+      commandResult(commandId: firstId, data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
     );
     await retry;
 
@@ -168,7 +168,7 @@ void main() {
     final future = controller().sendText();
     await pumpEventQueue();
     socket.emitMessage(
-      commandResult(commandId: lastCommandId(socket), data: {'runId': 'run_01'}),
+      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
     );
     await future;
     expect(state().busy, isTrue);
@@ -194,7 +194,7 @@ void main() {
     final future = controller().sendText();
     await pumpEventQueue();
     socket.emitMessage(
-      commandResult(commandId: lastCommandId(socket), data: {'runId': 'run_01'}),
+      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
     );
     await future;
 

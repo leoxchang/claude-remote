@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 输入区：空白或超限时发送按钮不可用。
+/// 输入区：空白或超限时按钮不可用；忙碌时按钮显示“排队”。
 class Composer extends StatelessWidget {
   const Composer({
     super.key,
@@ -8,12 +8,14 @@ class Composer extends StatelessWidget {
     required this.enabled,
     required this.onChanged,
     required this.onSend,
+    this.label = '发送',
   });
 
   final TextEditingController controller;
   final bool enabled;
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -35,10 +37,10 @@ class Composer extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton.filled(
+            FilledButton.icon(
               onPressed: enabled ? onSend : null,
               icon: const Icon(Icons.send),
-              tooltip: '发送',
+              label: Text(label),
             ),
           ],
         ),

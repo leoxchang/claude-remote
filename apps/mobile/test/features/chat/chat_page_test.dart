@@ -61,7 +61,9 @@ void main() {
   testWidgets('disables send while offline', (tester) async {
     await pumpChat(tester);
 
-    final button = tester.widget<IconButton>(find.byType(IconButton));
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '发送'),
+    );
     expect(button.onPressed, isNull);
   });
 
@@ -72,7 +74,9 @@ void main() {
     chatOf(container).updateDraft('hello');
     await tester.pump();
 
-    final button = tester.widget<IconButton>(find.byType(IconButton));
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '发送'),
+    );
     expect(button.onPressed, isNotNull);
   });
 

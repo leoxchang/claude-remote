@@ -8,6 +8,7 @@ import '../../data/providers.dart';
 import 'chat_controller.dart';
 import 'widgets/composer.dart';
 import 'widgets/message_list.dart';
+import 'widgets/queue_panel.dart';
 import 'widgets/run_controls.dart';
 
 /// S01 唯一聊天页：时间线、停止控制和 composer。
@@ -81,6 +82,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
               onPressed: controller.retryUnknownCommand,
               child: const Text('结果未知，重试上一条'),
             ),
+          QueuePanel(
+            queue: state.queue,
+            previews: state.queuePreviews,
+            onRemove: (runId) => unawaited(controller.removeQueuedRun(runId)),
+          ),
           RunControls(
             busy: state.busy,
             cancelling: state.cancelling,
@@ -89,6 +95,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           Composer(
             controller: _text,
             enabled: state.canSend,
+            label: state.queueMode ? '排队' : '发送',
             onChanged: controller.updateDraft,
             onSend: () async {
               await controller.sendText();

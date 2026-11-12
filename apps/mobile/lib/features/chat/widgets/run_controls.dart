@@ -18,12 +18,16 @@ class RunControls extends StatelessWidget {
     if (!busy) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: FilledButton.tonal(
-          onPressed: cancelling ? null : onStop,
-          child: Text(cancelling ? '正在取消…' : '停止'),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FilledButton.tonal(
+            onPressed: cancelling ? null : onStop,
+            child: Text(cancelling ? '正在取消…' : '停止'),
+          ),
+          const SizedBox(height: 2),
+          const Text('停止当前不会清除队列'),
+        ],
       ),
     );
   }

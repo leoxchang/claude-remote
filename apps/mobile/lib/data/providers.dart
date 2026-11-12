@@ -43,6 +43,9 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
     appVersion: PairingApi.appVersion,
     onSocket: client.replaceSocket,
     onStatus: chat.setConnection,
+    onAgentInstanceChanged: (previous, next) {
+      if (previous != null && previous != next) chat.invalidateForRestart();
+    },
     onReady: () async {
       chat.setSyncing(true);
       try {

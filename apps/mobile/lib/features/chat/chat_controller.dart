@@ -10,6 +10,8 @@ import '../../domain/run.dart';
 import '../../domain/session.dart';
 import '../../domain/timeline.dart';
 import '../../protocol/messages.dart';
+import '../../protocol/s02_messages.dart';
+import 'prompt_command_coordinator.dart';
 
 /// S01 单条 prompt 的 UTF-8 字节上限。
 const int maxPromptBytes = 16384;
@@ -34,6 +36,10 @@ final class ChatState {
     this.lastRunStatus,
     this.timeline,
     this.snapshotTruncated = false,
+    this.queue = const <QueuedRunSummary>[],
+    this.queuePreviews = const <String, String>{},
+    this.archived = false,
+    this.slotsFull = false,
   });
 
   final ConnectionStatus connection;
@@ -47,15 +53,24 @@ final class ChatState {
   final RunStatus? lastRunStatus;
   final TimelineState? timeline;
   final bool snapshotTruncated;
+  final List<QueuedRunSummary> queue;
+  final Map<String, String> queuePreviews;
+  final bool archived;
+  final bool slotsFull;
 
   int get draftBytes => utf8.encode(draft).length;
 
   bool get busy => activeRunId != null;
 
+  /// 有活跃 run 或全局槽已满时，发送按钮显示“排队”。
+  bool get queueMode => busy || slotsFull;
+
+  bool get hasQueue => queue.isNotEmpty;
+
   bool get canSend =>
       connection == ConnectionStatus.ready &&
       !syncing &&
-      !busy &&
+      !archived &&
       composer == ComposerStatus.idle &&
       draftBytes > 0 &&
       draftBytes <= maxPromptBytes;
@@ -72,6 +87,10 @@ final class ChatState {
     Object? lastRunStatus = _unset,
     TimelineState? timeline,
     bool? snapshotTruncated,
+    List<QueuedRunSummary>? queue,
+    Map<String, String>? queuePreviews,
+    bool? archived,
+    bool? slotsFull,
   }) {
     return ChatState(
       connection: connection ?? this.connection,
@@ -91,6 +110,10 @@ final class ChatState {
           : lastRunStatus as RunStatus?,
       timeline: timeline ?? this.timeline,
       snapshotTruncated: snapshotTruncated ?? this.snapshotTruncated,
+      queue: queue ?? this.queue,
+      queuePreviews: queuePreviews ?? this.queuePreviews,
+      archived: archived ?? this.archived,
+      slotsFull: slotsFull ?? this.slotsFull,
     );
   }
 
@@ -109,15 +132,18 @@ final chatControllerProvider = NotifierProvider<ChatController, ChatState>(
 
 final class ChatController extends Notifier<ChatState> {
   String? _sessionId;
-  CommandRequest<JsonMap>? _pendingPrompt;
+  PromptCommandCoordinator? _coordinator;
   int _sequence = 0;
 
   @override
   ChatState build() => const ChatState();
 
-  /// 测试和启动流程用于注入当前会话。
+  /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
   void attachSession(String sessionId) {
+    if (_sessionId == sessionId) return;
     _sessionId = sessionId;
+    _coordinator = null;
+    state = ChatState(connection: state.connection);
   }
 
   /// 当前本地会话；未附着时为 null。
@@ -140,35 +166,95 @@ final class ChatController extends Notifier<ChatState> {
     state = state.copyWith(draft: draft, error: null);
   }
 
-  /// 应用一条时间线事件；run.completed 清空忙碌状态。
+  /// 应用一条时间线事件；队列与 activeRun 同步更新。
   void mergeEvent(TimelineEvent event) {
     final current = state.timeline ?? TimelineState.initial(event.sessionId);
     final next = applyEvent(current, event);
-    final status = event.type == 'run.completed'
-        ? RunStatus.tryParse(event.payload['status'] as String?)
-        : null;
+    final runId = event.runId;
+    var queue = state.queue;
+    var previews = state.queuePreviews;
+    var activeRunId = state.activeRunId;
+    var cancelling = state.cancelling;
+    var archived = state.archived;
+    RunStatus? lastRunStatus = state.lastRunStatus;
+
+    switch (event.type) {
+      case 'run.queued':
+        if (runId != null && !queue.any((run) => run.runId == runId)) {
+          final enqueuedAt = event.payload['enqueuedAt'];
+          queue = [
+            ...queue,
+            QueuedRunSummary(
+              runId: runId,
+              commandId: '',
+              enqueuedAt: enqueuedAt is int ? enqueuedAt : 0,
+            ),
+          ];
+        }
+        break;
+      case 'run.started':
+        if (runId != null) {
+          queue = queue.where((run) => run.runId != runId).toList();
+          activeRunId = runId;
+        }
+        break;
+      case 'run.completed':
+        if (runId != null) {
+          queue = queue.where((run) => run.runId != runId).toList();
+          previews = {...previews}..remove(runId);
+        }
+        if (runId == null || activeRunId == runId) activeRunId = null;
+        lastRunStatus =
+            RunStatus.tryParse(event.payload['status'] as String?) ??
+                lastRunStatus;
+        cancelling = false;
+        break;
+      case 'session.status':
+        final eventRunId = event.payload['activeRunId'];
+        if (eventRunId is String && eventRunId.isNotEmpty) {
+          activeRunId = eventRunId;
+        }
+        if (event.payload['state'] == 'archived') archived = true;
+        break;
+      default:
+        break;
+    }
+
     state = state.copyWith(
       timeline: next,
-      lastRunStatus: status ?? state.lastRunStatus,
-      activeRunId: event.type == 'run.completed' ? null : state.activeRunId,
-      cancelling: event.type == 'run.completed' ? false : state.cancelling,
+      lastRunStatus: lastRunStatus,
+      activeRunId: activeRunId,
+      cancelling: cancelling,
+      queue: queue,
+      queuePreviews: previews,
+      archived: archived,
     );
   }
 
-  /// 用快照覆盖时间线，并记录截断标记。
+  /// 用快照覆盖时间线、队列与全局容量。
   void mergeSnapshot(SessionSnapshot snapshot) {
     final current = state.timeline ?? TimelineState.initial('');
     final next = applySnapshot(current, snapshot);
+    final remainingRunIds = snapshot.queuedRuns
+        .map((run) => run.runId)
+        .toSet();
     state = state.copyWith(
       timeline: next,
       snapshotTruncated: snapshot.snapshotTruncated,
       lastRunStatus: snapshot.lastRunStatus ?? state.lastRunStatus,
       activeRunId: snapshot.activeRunId,
       syncing: false,
+      queue: snapshot.queuedRuns,
+      queuePreviews: {
+        for (final entry in state.queuePreviews.entries)
+          if (remainingRunIds.contains(entry.key)) entry.key: entry.value,
+      },
+      archived: snapshot.sessionStatus == 'archived',
+      slotsFull: snapshot.globalCapacity?.isFull ?? state.slotsFull,
     );
   }
 
-  /// 发送当前草稿；不可发送条件在本地直接拒绝，不产生 commandId。
+  /// 发送当前草稿；忙碌或全局槽满时仍可发送并自动排队。
   Future<void> sendText() async {
     if (state.draftBytes > maxPromptBytes) {
       state = state.copyWith(error: '内容超过 16 KiB 上限');
@@ -184,30 +270,43 @@ final class ChatController extends Notifier<ChatState> {
       state = state.copyWith(error: '尚未连接 Mac 或会话未就绪');
       return;
     }
-    final request = CommandRequest<JsonMap>(
+    final text = state.draft;
+    final request = S02Commands.promptSend(
       commandId: _nextId('cmd_prompt'),
       traceId: _nextId('trace'),
-      type: 'prompt.send',
       sessionId: sessionId,
-      payload: {'text': state.draft},
-      decode: (json) => json,
+      text: text,
     );
-    _pendingPrompt = request;
+    final coordinator =
+        _coordinator ??= PromptCommandCoordinator(
+          client: client,
+          timeout: ref.read(promptTimeoutProvider),
+        );
     state = state.copyWith(composer: ComposerStatus.sending, error: null);
-    await _executePrompt(request, client);
+    await _executePrompt(coordinator, sessionId, request, text);
   }
 
   /// 结果未知时用同一 commandId 重试，不生成新命令。
   Future<void> retryUnknownCommand() async {
-    final request = _pendingPrompt;
-    if (request == null) return;
-    final client = await ref.read(commandClientProvider.future);
-    if (client == null) {
-      state = state.copyWith(error: '尚未连接 Mac');
-      return;
-    }
+    final sessionId = _sessionId;
+    final coordinator = _coordinator;
+    if (sessionId == null || coordinator == null) return;
     state = state.copyWith(composer: ComposerStatus.sending, error: null);
-    await _executePrompt(request, client);
+    try {
+      final accepted = await coordinator.retry(sessionId);
+      _applyAccepted(accepted, previewText: state.draft);
+    } on CommandFailure catch (error) {
+      state = state.copyWith(
+        composer: ComposerStatus.idle,
+        error: _messageFor(error.code),
+      );
+    } on CommandTimeout {
+      state = state.copyWith(
+        composer: ComposerStatus.unknown,
+        unknownCommandId: coordinator.unknownFor(sessionId)?.request.commandId,
+        error: '结果未知，可用同一命令重试',
+      );
+    }
   }
 
   /// 停止当前 run；cancelling 期间按钮禁用。
@@ -237,23 +336,65 @@ final class ChatController extends Notifier<ChatState> {
     }
   }
 
-  Future<void> _executePrompt(
-    CommandRequest<JsonMap> request,
-    CommandClient client,
-  ) async {
+  /// 移除指定 queued run；只传目标 runId，不影响其他会话与队列。
+  Future<void> removeQueuedRun(String runId) async {
+    final sessionId = _sessionId;
+    if (sessionId == null) return;
+    final client = await ref.read(commandClientProvider.future);
+    if (client == null) {
+      state = state.copyWith(error: '尚未连接 Mac');
+      return;
+    }
     try {
-      final data = await client.execute<JsonMap>(
-        request,
-        timeout: ref.read(promptTimeoutProvider),
+      await client.execute(
+        S02Commands.queueRemove(
+          commandId: _nextId('cmd_remove'),
+          traceId: _nextId('trace'),
+          sessionId: sessionId,
+          runId: runId,
+        ),
       );
-      final runId = data['runId'];
       state = state.copyWith(
-        draft: '',
-        composer: ComposerStatus.idle,
-        activeRunId: runId is String ? runId : null,
-        unknownCommandId: null,
+        queue: state.queue.where((run) => run.runId != runId).toList(),
+        queuePreviews: {...state.queuePreviews}..remove(runId),
         error: null,
       );
+    } on CommandFailure catch (error) {
+      state = state.copyWith(error: _messageFor(error.code));
+    } on CommandTimeout {
+      state = state.copyWith(error: '移除请求超时，请重试');
+    }
+  }
+
+  /// 标记全局执行槽已满；快照会持续刷新该值。
+  void setSlotsFull(bool full) {
+    state = state.copyWith(slotsFull: full);
+  }
+
+  /// Agent 新实例使未确认 prompt 失效；之后必须由用户决定重试或放弃。
+  void invalidateForRestart() {
+    final coordinator = _coordinator;
+    final sessionId = _sessionId;
+    if (coordinator == null || sessionId == null) return;
+    coordinator.invalidateForRestart();
+    final unknown = coordinator.unknownFor(sessionId);
+    if (unknown == null) return;
+    state = state.copyWith(
+      composer: ComposerStatus.unknown,
+      unknownCommandId: unknown.request.commandId,
+      error: 'Agent 已重启，请决定是否重试',
+    );
+  }
+
+  Future<void> _executePrompt(
+    PromptCommandCoordinator coordinator,
+    String sessionId,
+    CommandRequest<PromptAccepted> request,
+    String text,
+  ) async {
+    try {
+      final accepted = await coordinator.send(request);
+      _applyAccepted(accepted, previewText: text);
     } on CommandFailure catch (error) {
       state = state.copyWith(
         composer: ComposerStatus.idle,
@@ -268,10 +409,39 @@ final class ChatController extends Notifier<ChatState> {
     }
   }
 
+  void _applyAccepted(PromptAccepted accepted, {required String previewText}) {
+    final queued = accepted.status == 'queued';
+    state = state.copyWith(
+      draft: '',
+      composer: ComposerStatus.idle,
+      activeRunId: queued ? state.activeRunId : accepted.runId,
+      unknownCommandId: null,
+      error: null,
+      queue: queued
+          ? [
+              ...state.queue,
+              QueuedRunSummary(
+                runId: accepted.runId,
+                commandId: _nextId('cmd_queued'),
+                enqueuedAt: DateTime.now().millisecondsSinceEpoch,
+              ),
+            ]
+          : state.queue,
+      queuePreviews: queued
+          ? {...state.queuePreviews, accepted.runId: _preview(previewText)}
+          : state.queuePreviews,
+    );
+  }
+
+  String _preview(String text) {
+    final single = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return single.length <= 40 ? single : '${single.substring(0, 40)}…';
+  }
+
   String _blockedReason() {
+    if (state.archived) return '会话已归档，只能查看';
     if (state.connection != ConnectionStatus.ready) return 'Mac 未连接';
     if (state.syncing) return '正在同步，请稍候';
-    if (state.busy) return '当前会话已有任务执行';
     if (state.draftBytes == 0) return '请输入内容';
     return '当前不可发送';
   }
@@ -279,6 +449,11 @@ final class ChatController extends Notifier<ChatState> {
   String _messageFor(String code) {
     return switch (code) {
       'SESSION_BUSY' => '当前会话已有任务执行',
+      'SESSION_ARCHIVED' => '会话已归档，只能查看',
+      'QUEUE_FULL' => '队列已满，稍后再试',
+      'RUN_NOT_QUEUED' => '该任务已开始，无法移除',
+      'PROMPT_PENDING' => '上一条消息尚未确认，请稍后重试',
+      'WORKSPACE_NOT_ALLOWED' => '项目不可用，请在本机重新授权',
       'SESSION_NOT_FOUND' => '会话已失效，请重新同步',
       'DEVICE_REVOKED' => '设备已被吊销，请重新配对',
       'PERMISSION_REQUIRED' => '该操作需要审批，S01 不支持',

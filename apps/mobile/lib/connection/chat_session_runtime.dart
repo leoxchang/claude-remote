@@ -36,11 +36,21 @@ final class ChatSessionRuntime {
 
   void _handleMessage(ProtocolMessage message) {
     if (message is TimelineEvent) {
+      // 只把当前会话的事件送入聊天页；其他会话由 App 状态单独保存。
+      final sessionId = chat.sessionId;
+      if (sessionId != null && message.sessionId != sessionId) return;
       chat.mergeEvent(message);
       return;
     }
     if (message is ControlMessage && message.type == 'session.snapshot') {
-      chat.mergeSnapshot(SessionSnapshot.fromPayload(message.payload));
+      final snapshot = SessionSnapshot.fromPayload(message.payload);
+      final sessionId = chat.sessionId;
+      if (sessionId != null &&
+          snapshot.sessionId != null &&
+          snapshot.sessionId != sessionId) {
+        return;
+      }
+      chat.mergeSnapshot(snapshot);
       return;
     }
     if (message is ControlMessage && message.type == 'error') {
