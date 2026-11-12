@@ -98,8 +98,10 @@ export function startLiveRun(
   const runId = `run_${options.label}_${Date.now()}`;
   const sessionId = `session_${options.label}`;
 
-  const handlePromise = adapter.startRun({
+  const handle = adapter.startRun({
     sessionId,
+    workspaceId: 'live',
+    adapterGeneration: 0,
     claudeSessionId: null,
     runId,
     text: options.prompt,
@@ -115,6 +117,7 @@ export function startLiveRun(
       recordEvent(event, state, waiters, firstDelta, terminal);
     },
   });
+  handle.resumeEvents();
 
   return {
     label: options.label,
@@ -129,13 +132,11 @@ export function startLiveRun(
       });
     },
     interrupt: async () => {
-      const handle = await handlePromise;
       await handle.interrupt();
     },
     close: async () => {
       try {
-        const handle = await handlePromise;
-        handle.close();
+        await handle.close();
       } catch (error: unknown) {
         console.error(`close failed for run ${options.label}`, error);
       }

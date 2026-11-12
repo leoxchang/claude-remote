@@ -1,9 +1,9 @@
 import { AdapterEvent } from '../events/adapter-events.js';
 import {
-  AgentDriver,
-  AgentRunHandle,
-  StartRunInput,
-} from './agent-driver.js';
+  ManagedRunDriver,
+  ManagedRunHandle,
+  ManagedRunStart,
+} from './managed-run-driver.js';
 
 /** 测试用中断行为。 */
 export interface MockRunScript {
@@ -11,14 +11,14 @@ export interface MockRunScript {
 }
 
 /** 可控驱动：测试自行决定何时发出事件与终态。 */
-export class MockDriver implements AgentDriver {
-  readonly runs: StartRunInput[] = [];
+export class MockDriver implements ManagedRunDriver {
+  readonly runs: ManagedRunStart[] = [];
   readonly script: MockRunScript = { interruptBehavior: 'silent' };
   closedHandles = 0;
 
-  private current: StartRunInput | null = null;
+  private current: ManagedRunStart | null = null;
 
-  async startRun(input: StartRunInput): Promise<AgentRunHandle> {
+  startRun(input: ManagedRunStart): ManagedRunHandle {
     this.runs.push(input);
     this.current = input;
     return {
@@ -30,9 +30,10 @@ export class MockDriver implements AgentDriver {
           this.finish('interrupted');
         }
       },
-      close: () => {
+      close: async () => {
         this.closedHandles += 1;
       },
+      resumeEvents: () => undefined,
     };
   }
 

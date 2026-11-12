@@ -8,7 +8,11 @@ import {
 /** 测试用驱动：记录启动、可注入失败、缓冲 resumeEvents 之前的事件。 */
 export class MockManagedRunDriver implements ManagedRunDriver {
   readonly started: ManagedRunStart[] = [];
+  readonly interruptCalls: string[] = [];
+  readonly closedRunIds: string[] = [];
   failNextStart = false;
+  /** interrupt 时是否自动发出 cancelled 终态。 */
+  interruptBehavior: 'silent' | 'cancelled' = 'silent';
 
   private readonly buffered = new Map<string, AdapterEvent[]>();
   private readonly resumed = new Set<string>();
@@ -20,8 +24,20 @@ export class MockManagedRunDriver implements ManagedRunDriver {
     }
     this.started.push(input);
     return {
-      interrupt: async () => undefined,
-      close: async () => undefined,
+      interrupt: async () => {
+        this.interruptCalls.push(input.runId);
+        if (this.interruptBehavior === 'cancelled') {
+          this.emit(input.runId, {
+            kind: 'runResult',
+            sessionId: input.sessionId,
+            runId: input.runId,
+            status: 'cancelled',
+          });
+        }
+      },
+      close: async () => {
+        this.closedRunIds.push(input.runId);
+      },
       resumeEvents: () => {
         this.resumed.add(input.runId);
         const pending = this.buffered.get(input.runId) ?? [];

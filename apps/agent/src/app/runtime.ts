@@ -1,4 +1,4 @@
-import { AgentDriver } from '../adapter/agent-driver.js';
+import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from '../config/paths.js';
 import { AgentConfig } from '../domain/types.js';
 import { AgentOperations } from '../session/session-controller.js';
@@ -24,7 +24,7 @@ export interface AgentRuntimeOptions {
 /** 组装一个 Agent 运行时；命令层与测试共用同一装配路径。 */
 export async function createAgentRuntime(
   config: AgentConfig,
-  driver: AgentDriver,
+  driver: ManagedRunDriver,
   options: AgentRuntimeOptions = {},
 ): Promise<AgentRuntime> {
   const configDir = options.configDir ?? DEFAULT_CONFIG_DIR;

@@ -76,6 +76,9 @@ export class RunScheduler {
   private readonly registry: AdapterRegistry;
   private readonly sessions: SessionRegistry;
   private readonly now: () => number;
+  private eventHandler:
+    | ((event: AdapterEvent, context: { runId: string; generation: number }) => void)
+    | null = null;
   private generation = 0;
   private enqueueOrder = 0;
 
@@ -83,6 +86,31 @@ export class RunScheduler {
     this.registry = options.registry ?? new AdapterRegistry();
     this.sessions = options.sessions;
     this.now = options.now ?? Date.now;
+    this.eventHandler = options.onEvent ?? null;
+  }
+
+  /** 由 RunController 注入事件处理；同一时刻只有一个处理者。 */
+  setEventHandler(
+    handler: (event: AdapterEvent, context: { runId: string; generation: number }) => void,
+  ): void {
+    this.eventHandler = handler;
+  }
+
+  /** 事件是否仍属于该 run 的当前 generation。 */
+  isCurrent(runId: string, generation: number): boolean {
+    return this.registry.assertCurrent(runId, generation);
+  }
+
+  /** 等待句柄关闭并从注册表移除；关闭失败不阻塞终态。 */
+  async closeHandle(runId: string): Promise<void> {
+    const handle = this.registry.get(runId);
+    this.registry.remove(runId);
+    if (handle === null) return;
+    try {
+      await handle.close();
+    } catch {
+      // 关闭失败只影响清理；终态仍必须写入。
+    }
   }
 
   /** 接受一条 prompt：先入队，再在同步临界区内尝试调度。 */
@@ -396,7 +424,7 @@ export class RunScheduler {
         text: starting.text ?? '',
         cwd: workspace.rootPath,
         onEvent: (event) => {
-          this.options.onEvent?.(event, { runId: starting.runId, generation });
+          this.eventHandler?.(event, { runId: starting.runId, generation });
         },
       });
       this.registry.register(starting.runId, generation, handle);

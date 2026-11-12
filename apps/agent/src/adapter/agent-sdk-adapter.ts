@@ -6,11 +6,12 @@ import {
   query,
 } from '@anthropic-ai/claude-agent-sdk';
 
+import { AdapterEvent } from '../events/adapter-events.js';
 import {
-  AgentDriver,
-  AgentRunHandle,
-  StartRunInput,
-} from './agent-driver.js';
+  ManagedRunDriver,
+  ManagedRunHandle,
+  ManagedRunStart,
+} from './managed-run-driver.js';
 
 /** S00 验证过的完整设置来源。 */
 const SETTING_SOURCES = ['user', 'project', 'local'] as const;
@@ -54,7 +55,7 @@ interface RunState {
 }
 
 /** 真实 Agent SDK 适配器；SDK 类型只出现在本文件。 */
-export class AgentSdkAdapter implements AgentDriver {
+export class AgentSdkAdapter implements ManagedRunDriver {
   private readonly queryFactory: QueryFactory;
 
   constructor(options: { queryFactory?: QueryFactory } = {}) {
@@ -62,8 +63,13 @@ export class AgentSdkAdapter implements AgentDriver {
       options.queryFactory ?? ((params) => query(params));
   }
 
-  /** 每次 run 启动一个新的 query，只包含当前 prompt。 */
-  async startRun(input: StartRunInput): Promise<AgentRunHandle> {
+  /**
+   * 每次 run 启动一个新的 query，只包含当前 prompt。
+   *
+   * 方法同步返回句柄：query 与 Streaming Input 在当前调用栈创建，
+   * SDK 事件在 resumeEvents 之前先缓冲。
+   */
+  startRun(input: ManagedRunStart): ManagedRunHandle {
     const options: Options = {
       cwd: input.cwd,
       permissionMode: 'default',
@@ -91,33 +97,48 @@ export class AgentSdkAdapter implements AgentDriver {
       terminal: false,
       closed: false,
     };
-    void this.consume(q, input, state);
+    const pending: AdapterEvent[] = [];
+    let resumed = false;
+    const emit = (event: AdapterEvent): void => {
+      if (resumed) {
+        input.onEvent(event);
+        return;
+      }
+      pending.push(event);
+    };
+    void this.consume(q, input, state, emit);
 
     return {
       interrupt: async () => {
         state.interrupted = true;
         await q.interrupt();
       },
-      close: () => {
+      close: async () => {
         if (state.closed) return;
         state.closed = true;
         q.close();
+      },
+      resumeEvents: () => {
+        if (resumed) return;
+        resumed = true;
+        for (const event of pending.splice(0)) input.onEvent(event);
       },
     };
   }
 
   private async consume(
     q: Query,
-    input: StartRunInput,
+    input: ManagedRunStart,
     state: RunState,
+    emit: (event: AdapterEvent) => void,
   ): Promise<void> {
     try {
       for await (const message of q) {
-        this.mapMessage(message, input, state);
+        this.mapMessage(message, input, state, emit);
       }
     } catch {
       if (!state.terminal) {
-        input.onEvent({
+        emit({
           kind: 'runResult',
           sessionId: input.sessionId,
           runId: input.runId,
@@ -136,11 +157,12 @@ export class AgentSdkAdapter implements AgentDriver {
 
   private mapMessage(
     message: SDKMessage,
-    input: StartRunInput,
+    input: ManagedRunStart,
     state: RunState,
+    emit: (event: AdapterEvent) => void,
   ): void {
     if (message.type === 'system' && message.subtype === 'init') {
-      input.onEvent({
+      emit({
         kind: 'init',
         sessionId: input.sessionId,
         runId: input.runId,
@@ -150,24 +172,24 @@ export class AgentSdkAdapter implements AgentDriver {
     }
 
     if (message.type === 'stream_event') {
-      this.mapStreamEvent(message.event, input, state);
+      this.mapStreamEvent(message.event, input, state, emit);
       return;
     }
 
     if (message.type === 'assistant') {
-      this.mapAssistant(message.message.id, message.message.content, input);
+      this.mapAssistant(message.message.id, message.message.content, input, emit);
       return;
     }
 
     if (message.type === 'user') {
-      this.mapToolResults(message.message.content, input);
+      this.mapToolResults(message.message.content, input, emit);
       return;
     }
 
     if (message.type === 'result') {
       if (state.terminal) return;
       state.terminal = true;
-      input.onEvent({
+      emit({
         kind: 'runResult',
         sessionId: input.sessionId,
         runId: input.runId,
@@ -186,8 +208,9 @@ export class AgentSdkAdapter implements AgentDriver {
 
   private mapStreamEvent(
     event: Extract<SDKMessage, { type: 'stream_event' }>['event'],
-    input: StartRunInput,
+    input: ManagedRunStart,
     state: RunState,
+    emit: (event: AdapterEvent) => void,
   ): void {
     if (event.type === 'message_start') {
       state.messageId = event.message.id;
@@ -197,7 +220,7 @@ export class AgentSdkAdapter implements AgentDriver {
       event.type === 'content_block_delta' &&
       event.delta.type === 'text_delta'
     ) {
-      input.onEvent({
+      emit({
         kind: 'textDelta',
         sessionId: input.sessionId,
         runId: input.runId,
@@ -211,7 +234,8 @@ export class AgentSdkAdapter implements AgentDriver {
   private mapAssistant(
     messageId: string,
     content: readonly unknown[],
-    input: StartRunInput,
+    input: ManagedRunStart,
+    emit: (event: AdapterEvent) => void,
   ): void {
     const textBlocks: Array<{ type: 'text'; text: string }> = [];
     const toolBlocks: Array<Record<string, unknown>> = [];
@@ -223,7 +247,7 @@ export class AgentSdkAdapter implements AgentDriver {
       if (block['type'] === 'tool_use') toolBlocks.push(block);
     }
     if (textBlocks.length > 0) {
-      input.onEvent({
+      emit({
         kind: 'assistantCompleted',
         sessionId: input.sessionId,
         runId: input.runId,
@@ -232,7 +256,7 @@ export class AgentSdkAdapter implements AgentDriver {
       });
     }
     for (const block of toolBlocks) {
-      input.onEvent({
+      emit({
         kind: 'toolStarted',
         sessionId: input.sessionId,
         runId: input.runId,
@@ -243,21 +267,25 @@ export class AgentSdkAdapter implements AgentDriver {
     }
   }
 
-  private mapToolResults(content: unknown, input: StartRunInput): void {
+  private mapToolResults(
+    content: unknown,
+    input: ManagedRunStart,
+    emit: (event: AdapterEvent) => void,
+  ): void {
     if (!Array.isArray(content)) return;
     for (const block of content) {
       if (!isBlock(block) || block['type'] !== 'tool_result') continue;
       const toolUseId = String(block['tool_use_id'] ?? '');
       const isError = block['is_error'] === true;
       const text = contentToText(block['content']);
-      input.onEvent({
+      emit({
         kind: 'toolOutput',
         sessionId: input.sessionId,
         runId: input.runId,
         toolUseId,
         text,
       });
-      input.onEvent({
+      emit({
         kind: 'toolCompleted',
         sessionId: input.sessionId,
         runId: input.runId,

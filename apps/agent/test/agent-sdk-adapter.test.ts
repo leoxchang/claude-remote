@@ -5,7 +5,7 @@ import {
   AgentSdkAdapter,
   QueryFactoryParams,
 } from '../src/adapter/agent-sdk-adapter.js';
-import { StartRunInput } from '../src/adapter/agent-driver.js';
+import { ManagedRunStart } from '../src/adapter/managed-run-driver.js';
 import { AdapterEvent } from '../src/events/adapter-events.js';
 
 interface FakeQuery {
@@ -44,21 +44,30 @@ function adapterWith(messages: unknown[]): {
   return { adapter, calls, query };
 }
 
-const input = (overrides: Partial<StartRunInput> = {}): StartRunInput => ({
+const input = (overrides: Partial<ManagedRunStart> = {}): ManagedRunStart => ({
   sessionId: 'session_01',
+  workspaceId: 'ws_alpha',
   claudeSessionId: null,
   runId: 'run_01',
+  adapterGeneration: 1,
   text: 'hello',
   cwd: '/tmp/s01-fixture',
   onEvent: () => undefined,
   ...overrides,
 });
 
+/** 启动并立即释放缓冲事件；S01 用例只关心映射结果。 */
+function start(adapter: AgentSdkAdapter, startInput: ManagedRunStart) {
+  const handle = adapter.startRun(startInput);
+  handle.resumeEvents();
+  return handle;
+}
+
 describe('AgentSdkAdapter options', () => {
   it('uses the S00 verified presets, settings and cwd', async () => {
     const { adapter, calls } = adapterWith([]);
 
-    await adapter.startRun(input());
+    start(adapter, input());
 
     expect(calls[0]?.options).toMatchObject({
       cwd: '/tmp/s01-fixture',
@@ -74,7 +83,7 @@ describe('AgentSdkAdapter options', () => {
   it('sends exactly one prompt message', async () => {
     const { adapter, calls } = adapterWith([]);
 
-    await adapter.startRun(input());
+    start(adapter, input());
 
     const messages: unknown[] = [];
     for await (const message of calls[0]?.prompt ?? []) messages.push(message);
@@ -89,8 +98,8 @@ describe('AgentSdkAdapter options', () => {
 
   it('resumes only when a claude session id is known', async () => {
     const { adapter, calls } = adapterWith([]);
-    await adapter.startRun(input());
-    await adapter.startRun(input({ claudeSessionId: 'claude_01' }));
+    start(adapter, input());
+    start(adapter, input({ claudeSessionId: 'claude_01' }));
 
     expect(calls[0]?.options.resume).toBeUndefined();
     expect(calls[1]?.options.resume).toBe('claude_01');
@@ -98,7 +107,7 @@ describe('AgentSdkAdapter options', () => {
 
   it('denies permission requests without updated permissions', async () => {
     const { adapter, calls } = adapterWith([]);
-    await adapter.startRun(input());
+    start(adapter, input());
 
     const result = await calls[0]?.options.canUseTool?.(
       'Bash',
@@ -158,7 +167,7 @@ describe('AgentSdkAdapter message mapping', () => {
     const { adapter, query } = adapterWith(messages);
     const events: AdapterEvent[] = [];
 
-    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    start(adapter, input({ onEvent: (event) => events.push(event) }));
     await vi.waitFor(() => {
       expect(events.some((event) => event.kind === 'runResult')).toBe(true);
     });
@@ -199,7 +208,8 @@ describe('AgentSdkAdapter interruption', () => {
       queryFactory: () => query as unknown as Query,
     });
     const events: AdapterEvent[] = [];
-    const handle = await adapter.startRun(
+    const handle = start(
+      adapter,
       input({ onEvent: (event) => events.push(event) }),
     );
 
@@ -226,7 +236,7 @@ describe('AgentSdkAdapter edge mapping', () => {
     });
     const events: AdapterEvent[] = [];
 
-    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    start(adapter, input({ onEvent: (event) => events.push(event) }));
     await vi.waitFor(() => {
       expect(events.some((event) => event.kind === 'runResult')).toBe(true);
     });
@@ -248,7 +258,7 @@ describe('AgentSdkAdapter edge mapping', () => {
     ]);
     const events: AdapterEvent[] = [];
 
-    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    start(adapter, input({ onEvent: (event) => events.push(event) }));
     await vi.waitFor(() => {
       expect(events.some((event) => event.kind === 'runResult')).toBe(true);
     });
@@ -281,7 +291,7 @@ describe('AgentSdkAdapter edge mapping', () => {
     ]);
     const events: AdapterEvent[] = [];
 
-    await adapter.startRun(input({ onEvent: (event) => events.push(event) }));
+    start(adapter, input({ onEvent: (event) => events.push(event) }));
     await vi.waitFor(() => {
       expect(events.some((event) => event.kind === 'runResult')).toBe(true);
     });
@@ -301,7 +311,7 @@ describe('AgentSdkAdapter tool denial', () => {
   it('denies every tool through a PreToolUse hook', async () => {
     const { adapter, calls } = adapterWith([]);
 
-    await adapter.startRun(input());
+    start(adapter, input());
 
     const matcher = calls[0]?.options.hooks?.PreToolUse?.[0];
     const hook = matcher?.hooks[0];

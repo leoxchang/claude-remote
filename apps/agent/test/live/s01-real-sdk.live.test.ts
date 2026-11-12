@@ -40,8 +40,10 @@ async function runOnce(
     resolveTerminal = resolve;
   });
 
-  const handle = await adapter.startRun({
+  const handle = adapter.startRun({
     sessionId: 'session_01',
+    workspaceId: 'live',
+    adapterGeneration: 0,
     claudeSessionId: options.claudeSessionId,
     runId: `run_${Date.now()}`,
     text: options.text,
@@ -63,6 +65,7 @@ async function runOnce(
       }
     },
   });
+  handle.resumeEvents();
 
   try {
     onHandle?.(() => handle.interrupt());
@@ -76,7 +79,7 @@ async function runOnce(
       }),
     ]);
   } finally {
-    handle.close();
+    await handle.close();
   }
   return { claudeSessionId, text, deltaCount, status, toolStatuses };
 }

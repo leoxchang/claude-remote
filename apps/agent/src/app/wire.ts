@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 
-import { AgentDriver } from '../adapter/agent-driver.js';
+import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { createAdminServer } from '../admin/server.js';
 import { CommandRouter } from '../command/router.js';
 import { resolveAgentPaths } from '../config/paths.js';
@@ -28,7 +28,7 @@ const CAPABILITIES = ['text', 'message.delta', 'tool.events', 'session.snapshot'
 /** 组装依赖所需的输入。 */
 export interface WireOptions {
   config: AgentConfig;
-  driver: AgentDriver;
+  driver: ManagedRunDriver;
   configDir: string;
   logger: AgentLogger;
 }
