@@ -1,16 +1,16 @@
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { initializeConfig } from '../../apps/agent/src/config/initialize.js';
+import { initializeConfig } from '../../../apps/agent/src/config/initialize.js';
 import {
   loadConfigV2,
   migrateConfigV1ToV2,
   writeConfigV2Atomic,
-} from '../../apps/agent/src/config/config-v2.js';
-import { WorkspaceManager } from '../../apps/agent/src/workspace/workspace-manager.js';
+} from '../../../apps/agent/src/config/config-v2.js';
+import { WorkspaceManager } from '../../../apps/agent/src/workspace/workspace-manager.js';
 
 describe('S02 rollback exercise', () => {
   it('restores the single V1 workspace without silently truncating V2', async () => {
@@ -44,7 +44,7 @@ describe('S02 rollback exercise', () => {
     expect(restored.version).toBe(2);
     expect(restored.workspaces).toHaveLength(1);
     expect(restored.workspaces[0]?.workspaceId).toBe('default');
-    expect(restored.workspaces[0]?.rootPath).toBe(alpha);
+    expect(restored.workspaces[0]?.rootPath).toBe(await realpath(alpha));
   });
 
   it('fails instead of inventing config when the backup is missing', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkSecrets, scanText } from './check-secrets.js';
+import { checkSecrets, scanText } from '../check-secrets.js';
 
 describe('checkSecrets', () => {
   it('rejects queued prompt text and real absolute paths', () => {

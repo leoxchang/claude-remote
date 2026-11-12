@@ -17,7 +17,11 @@ const PATTERNS: ReadonlyArray<{ kind: string; pattern: RegExp }> = [
   },
   { kind: 'aws-key', pattern: /\bAKIA[0-9A-Z]{16}\b/ },
   { kind: 'absolute-private-path', pattern: /\/private\/[A-Za-z0-9._-]+/ },
-  { kind: 'queued-prompt-text', pattern: /queued prompt text/i },
+  {
+    // 分成两段拼接，避免扫描器源码命中自身规则。
+    kind: 'queued-prompt-text',
+    pattern: new RegExp(['queued prompt', 'text'].join(' '), 'i'),
+  },
 ];
 
 const SKIP_DIRECTORIES = new Set([

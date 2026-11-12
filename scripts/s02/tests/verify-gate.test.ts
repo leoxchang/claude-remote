@@ -7,7 +7,7 @@ import {
   evaluateGate,
   parseChecklist,
   verifyGate,
-} from './verify-gate.js';
+} from '../verify-gate.js';
 
 interface Overrides {
   mocks?: GateStatus;
