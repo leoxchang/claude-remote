@@ -3,6 +3,7 @@ import { MessageEnvelope } from '@claude-remote/protocol/types';
 import { AgentError } from '../command/errors.js';
 import { SessionRecord, SessionStatus } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
+import { defaultSessionTitle } from './session-title.js';
 
 const SESSION_ID_BYTES = 12;
 
@@ -86,13 +87,4 @@ export class SessionController {
     this.session = { ...current, ...changes };
     return { ...this.session };
   }
-}
-
-/** 默认标题：本机时间 `会话 YYYY-MM-DD HH:mm`，允许重名。 */
-function defaultSessionTitle(now: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, '0');
-  return [
-    `会话 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-    `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-  ].join(' ');
 }

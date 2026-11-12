@@ -27,6 +27,8 @@ export const ERROR_CODES = [
   // S02 新增（本机项目管理与队列）
   'WORKSPACE_NOT_FOUND',
   'WORKSPACE_BUSY',
+  'SESSION_SELECTION_REQUIRED',
+  'INVALID_CURSOR',
 ] as const;
 
 /** 协议 V1 已注册的错误码。 */
