@@ -83,7 +83,7 @@ void main() {
     expect(
       () => ProtocolDecoder.decode(
         '{"protocolVersion":1,"messageId":"m","timestamp":0,'
-        '"type":"permission.requested","payload":{}}',
+        '"type":"session.future.type","payload":{}}',
       ),
       throwsA(
         isA<ProtocolDecodeException>().having(

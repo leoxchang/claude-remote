@@ -15,6 +15,7 @@ const Set<String> _commandTypes = {
   'session.rename',
   'session.archive',
   'queue.remove',
+  'permission.respond',
 };
 
 const Set<String> _eventTypes = {
@@ -27,6 +28,8 @@ const Set<String> _eventTypes = {
   'run.queued',
   'run.started',
   'run.completed',
+  'permission.requested',
+  'permission.resolved',
 };
 
 const Set<String> _controlTypes = {
@@ -77,6 +80,10 @@ abstract final class ProtocolDecoder {
         payload: payload,
       );
     }
+    // 无法识别的审批事件必须 fail closed，不能静默忽略后继续需要审批的 run。
+    if (type.startsWith('permission.')) {
+      throw ProtocolConflictException('unsupported permission event: $type');
+    }
     throw const ProtocolDecodeException('UNKNOWN_MESSAGE_TYPE', 'type');
   }
 
@@ -106,6 +113,11 @@ abstract final class ProtocolDecoder {
     if ((type == 'run.cancel' || type == 'queue.remove') && runId == null) {
       throw const ProtocolDecodeException('INVALID_MESSAGE', 'runId');
     }
+    final approvalId = _optionalString(root, 'approvalId');
+    if (type == 'permission.respond' &&
+        (approvalId == null || sessionId == null || runId == null)) {
+      throw const ProtocolDecodeException('INVALID_MESSAGE', 'approvalId');
+    }
     return CommandMessage(
       messageId: messageId,
       timestamp: timestamp,
@@ -116,6 +128,7 @@ abstract final class ProtocolDecoder {
       sessionId: sessionId,
       runId: runId,
       workspaceId: _optionalString(root, 'workspaceId'),
+      approvalId: approvalId,
     );
   }
 
@@ -141,6 +154,7 @@ abstract final class ProtocolDecoder {
       sessionId: sessionId,
       seq: seq,
       runId: _optionalString(root, 'runId'),
+      approvalId: _optionalString(root, 'approvalId'),
     );
   }
 

@@ -13,6 +13,7 @@ final class SessionState {
     this.activeRunId,
     this.activeRunStatus,
     this.lastRunStatus,
+    this.pendingApprovalCount = 0,
     this.queue = const <QueuedRunSummary>[],
     this.globalCapacity = const GlobalCapacity(
       activeRunCount: 0,
@@ -28,6 +29,7 @@ final class SessionState {
       status: summary.status,
       claudeSessionId: summary.claudeSessionId,
       activeRunId: summary.activeRunId,
+      pendingApprovalCount: summary.pendingApprovalCount,
     );
   }
 
@@ -39,6 +41,7 @@ final class SessionState {
   final String? activeRunId;
   final RunStatus? activeRunStatus;
   final RunStatus? lastRunStatus;
+  final int pendingApprovalCount;
   final List<QueuedRunSummary> queue;
   final GlobalCapacity globalCapacity;
 
@@ -53,6 +56,7 @@ final class SessionState {
     bool clearActiveRun = false,
     RunStatus? activeRunStatus,
     RunStatus? lastRunStatus,
+    int? pendingApprovalCount,
     List<QueuedRunSummary>? queue,
     GlobalCapacity? globalCapacity,
   }) {
@@ -67,6 +71,8 @@ final class SessionState {
           ? null
           : (activeRunStatus ?? this.activeRunStatus),
       lastRunStatus: lastRunStatus ?? this.lastRunStatus,
+      pendingApprovalCount:
+          pendingApprovalCount ?? this.pendingApprovalCount,
       queue: queue ?? this.queue,
       globalCapacity: globalCapacity ?? this.globalCapacity,
     );
@@ -87,6 +93,8 @@ SessionState applySnapshotToSession(
     activeRunId: snapshot.activeRunId,
     activeRunStatus: snapshot.activeRunStatus,
     lastRunStatus: snapshot.lastRunStatus ?? previous.lastRunStatus,
+    pendingApprovalCount:
+        snapshot.activeRunId == null ? 0 : snapshot.pendingApprovalCount,
     queue: snapshot.queuedRuns,
     globalCapacity: snapshot.globalCapacity ?? previous.globalCapacity,
   );
@@ -145,6 +153,7 @@ SessionState applyEventToSession(SessionState previous, TimelineEvent event) {
         lastRunStatus:
             RunStatus.tryParse(_stringOrNull(event.payload['status'])) ??
                 previous.lastRunStatus,
+        pendingApprovalCount: 0,
         queue: queue,
         globalCapacity: previous.globalCapacity,
       );
@@ -156,6 +165,10 @@ SessionState applyEventToSession(SessionState previous, TimelineEvent event) {
           _stringOrNull(event.payload['status']) ??
           _stringOrNull(event.payload['state']) ??
           (activeRunId == null ? previous.status : 'running');
+      final pendingApprovalCount = event.payload['pendingApprovalCount'];
+      final activeStatus = RunStatus.tryParse(
+        _stringOrNull(event.payload['status']),
+      );
       return SessionState(
         sessionId: previous.sessionId,
         workspaceId: previous.workspaceId,
@@ -167,8 +180,11 @@ SessionState applyEventToSession(SessionState previous, TimelineEvent event) {
         activeRunId: activeRunId,
         activeRunStatus: activeRunId == null
             ? null
-            : (previous.activeRunStatus ?? RunStatus.starting),
+            : (activeStatus ?? previous.activeRunStatus ?? RunStatus.starting),
         lastRunStatus: previous.lastRunStatus,
+        pendingApprovalCount: pendingApprovalCount is int
+            ? pendingApprovalCount
+            : previous.pendingApprovalCount,
         queue: previous.queue,
         globalCapacity: previous.globalCapacity,
       );

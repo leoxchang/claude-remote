@@ -1,5 +1,6 @@
 import '../protocol/decoder.dart';
 import '../protocol/messages.dart';
+import '../protocol/s03_messages.dart';
 import 'run.dart';
 
 /// 服务端快照；语义见 S01 spec §12.1 与 S02 spec §9.3。
@@ -17,6 +18,9 @@ final class SessionSnapshot {
     this.claudeSessionId,
     this.title,
     this.queuedRuns = const <QueuedRunSummary>[],
+    this.pendingApprovals = const <ApprovalSummary>[],
+    this.hasPendingApprovals = false,
+    this.pendingApprovalCount = 0,
     this.globalCapacity,
   });
 
@@ -29,13 +33,30 @@ final class SessionSnapshot {
         ? recentEvents.map(ProtocolDecoder.decodeEvent).toList(growable: false)
         : const <TimelineEvent>[];
     final queued = payload['queuedRuns'];
+    final sessionId = _stringOrNull(session['sessionId']);
+    final workspaceId = _stringOrEmpty(session['workspaceId']);
+    final activeRunId = _stringOrNull(activeRun['runId']);
+    final pendingWire = payload['pendingApprovals'];
+    final pendingApprovals = pendingWire is List
+        ? pendingWire
+            .map(
+              (entry) => ApprovalSummary.fromSnapshotEntry(
+                entry,
+                sessionId: sessionId ?? '',
+                workspaceId: workspaceId,
+                runId: activeRunId ?? '',
+              ),
+            )
+            .whereType<ApprovalSummary>()
+            .toList(growable: false)
+        : const <ApprovalSummary>[];
     return SessionSnapshot(
-      sessionId: _stringOrNull(session['sessionId']),
+      sessionId: sessionId,
       events: events,
       lastSeq: _intOrZero(payload['lastSeq']),
       oldestIncludedSeq: _intOrNull(payload['oldestIncludedSeq']),
       snapshotTruncated: payload['snapshotTruncated'] == true,
-      activeRunId: _stringOrNull(activeRun['runId']),
+      activeRunId: activeRunId,
       activeRunStatus: RunStatus.tryParse(_stringOrNull(activeRun['status'])),
       lastRunStatus: RunStatus.tryParse(_stringOrNull(payload['lastRunStatus'])),
       sessionStatus: _stringOrNull(session['status']),
@@ -48,6 +69,9 @@ final class SessionSnapshot {
               .whereType<QueuedRunSummary>()
               .toList(growable: false)
           : const <QueuedRunSummary>[],
+      pendingApprovals: pendingApprovals,
+      hasPendingApprovals: payload.containsKey('pendingApprovals'),
+      pendingApprovalCount: _intOrZero(activeRun['pendingApprovalCount']),
       globalCapacity: payload['globalCapacity'] is Map
           ? GlobalCapacity.fromWire(
               (payload['globalCapacity'] as Map).cast<String, Object?>(),
@@ -68,6 +92,9 @@ final class SessionSnapshot {
   final String? claudeSessionId;
   final String? title;
   final List<QueuedRunSummary> queuedRuns;
+  final List<ApprovalSummary> pendingApprovals;
+  final bool hasPendingApprovals;
+  final int pendingApprovalCount;
   final GlobalCapacity? globalCapacity;
 }
 
@@ -83,6 +110,7 @@ final class SessionSummary {
     this.status = 'idle',
     this.activeRunId,
     this.queuedCount = 0,
+    this.pendingApprovalCount = 0,
   });
 
   factory SessionSummary.fromWire(Map<String, Object?> wire) {
@@ -96,6 +124,7 @@ final class SessionSummary {
       status: _stringOrNull(wire['status']) ?? 'idle',
       activeRunId: _stringOrNull(wire['activeRunId']),
       queuedCount: _intOrZero(wire['queuedCount']),
+      pendingApprovalCount: _intOrZero(wire['pendingApprovalCount']),
     );
   }
 
@@ -108,6 +137,7 @@ final class SessionSummary {
   final String status;
   final String? activeRunId;
   final int queuedCount;
+  final int pendingApprovalCount;
 
   bool get isArchived => status == 'archived';
 
@@ -116,6 +146,7 @@ final class SessionSummary {
     String? status,
     String? activeRunId,
     int? queuedCount,
+    int? pendingApprovalCount,
     int? lastActivityAt,
     String? claudeSessionId,
   }) {
@@ -129,6 +160,7 @@ final class SessionSummary {
       status: status ?? this.status,
       activeRunId: activeRunId ?? this.activeRunId,
       queuedCount: queuedCount ?? this.queuedCount,
+      pendingApprovalCount: pendingApprovalCount ?? this.pendingApprovalCount,
     );
   }
 }

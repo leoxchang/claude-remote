@@ -1,4 +1,6 @@
+import '../protocol/envelope.dart';
 import '../protocol/messages.dart';
+import '../protocol/s03_messages.dart';
 import 'session.dart';
 import 'session_state.dart';
 import 'timeline.dart';
@@ -13,6 +15,9 @@ final class AppState {
     this.sessionStatesById = const <String, SessionState>{},
     this.timelinesBySessionId = const <String, TimelineState>{},
     this.composerDraftsBySessionId = const <String, String>{},
+    this.pendingApprovalsById = const <String, ApprovalSummary>{},
+    this.approvalIdsBySessionId = const <String, List<String>>{},
+    this.approvalEventFingerprints = const <String, String>{},
     this.selectedSessionId,
     this.agentInstanceId,
   });
@@ -25,6 +30,9 @@ final class AppState {
   final Map<String, SessionState> sessionStatesById;
   final Map<String, TimelineState> timelinesBySessionId;
   final Map<String, String> composerDraftsBySessionId;
+  final Map<String, ApprovalSummary> pendingApprovalsById;
+  final Map<String, List<String>> approvalIdsBySessionId;
+  final Map<String, String> approvalEventFingerprints;
   final String? selectedSessionId;
   final AgentInstanceId? agentInstanceId;
 
@@ -41,6 +49,9 @@ final class AppState {
     Map<String, SessionState>? sessionStatesById,
     Map<String, TimelineState>? timelinesBySessionId,
     Map<String, String>? composerDraftsBySessionId,
+    Map<String, ApprovalSummary>? pendingApprovalsById,
+    Map<String, List<String>>? approvalIdsBySessionId,
+    Map<String, String>? approvalEventFingerprints,
     String? selectedSessionId,
     bool clearSelection = false,
     AgentInstanceId? agentInstanceId,
@@ -54,6 +65,12 @@ final class AppState {
           timelinesBySessionId ?? this.timelinesBySessionId,
       composerDraftsBySessionId:
           composerDraftsBySessionId ?? this.composerDraftsBySessionId,
+      pendingApprovalsById:
+          pendingApprovalsById ?? this.pendingApprovalsById,
+      approvalIdsBySessionId:
+          approvalIdsBySessionId ?? this.approvalIdsBySessionId,
+      approvalEventFingerprints:
+          approvalEventFingerprints ?? this.approvalEventFingerprints,
       selectedSessionId:
           clearSelection ? null : (selectedSessionId ?? this.selectedSessionId),
       agentInstanceId: agentInstanceId ?? this.agentInstanceId,
@@ -127,7 +144,7 @@ AppState applySessionSnapshot(AppState previous, SessionSnapshot snapshot) {
           : SessionState.fromSummary(summary));
   final nextState = applySnapshotToSession(baseState, snapshot);
 
-  return previous.copyWith(
+  final next = previous.copyWith(
     timelinesBySessionId: {
       ...previous.timelinesBySessionId,
       sessionId: timeline,
@@ -143,7 +160,124 @@ AppState applySessionSnapshot(AppState previous, SessionSnapshot snapshot) {
             sessionId: _summaryFromState(summary, nextState),
           },
   );
+  return snapshot.hasPendingApprovals
+      ? _replaceSessionApprovals(next, sessionId, snapshot.pendingApprovals)
+      : next;
 }
+
+/// 用快照替换目标 session 的 pending；其他 session 的审批保持原样。
+AppState _replaceSessionApprovals(
+  AppState previous,
+  String sessionId,
+  List<ApprovalSummary> pending,
+) {
+  final byId = <String, ApprovalSummary>{...previous.pendingApprovalsById};
+  final previousIds =
+      previous.approvalIdsBySessionId[sessionId] ?? const <String>[];
+  for (final approvalId in previousIds) {
+    byId.remove(approvalId);
+  }
+  final ids = <String>[];
+  for (final summary in pending) {
+    if (summary.sessionId != sessionId) {
+      throw ProtocolConflictException(
+        'snapshot for $sessionId contains approval ${summary.approvalId} '
+        'from ${summary.sessionId}',
+      );
+    }
+    final existing = previous.pendingApprovalsById[summary.approvalId];
+    if (existing != null && existing.sessionId != sessionId) {
+      throw ProtocolConflictException(
+        'approval ${summary.approvalId} is bound to ${existing.sessionId}',
+      );
+    }
+    byId[summary.approvalId] = summary;
+    ids.add(summary.approvalId);
+  }
+  return previous.copyWith(
+    pendingApprovalsById: byId,
+    approvalIdsBySessionId: {
+      ...previous.approvalIdsBySessionId,
+      sessionId: ids,
+    },
+  );
+}
+
+/// 应用一条审批事件；eventId 去重，冲突与跨 session 串线抛异常。
+AppState applyApprovalEvent(AppState previous, TimelineEvent event) {
+  if (event.type != 'permission.requested' &&
+      event.type != 'permission.resolved') {
+    return previous;
+  }
+  final fingerprint = _approvalFingerprint(event);
+  final known = previous.approvalEventFingerprints[event.eventId];
+  if (known != null) {
+    if (known == fingerprint) return previous;
+    throw ProtocolConflictException(
+      'approval eventId ${event.eventId} retransmitted with different content',
+    );
+  }
+  final stamped = previous.copyWith(
+    approvalEventFingerprints: {
+      ...previous.approvalEventFingerprints,
+      event.eventId: fingerprint,
+    },
+  );
+  if (event.type == 'permission.requested') {
+    final summary = ApprovalSummary.fromEvent(event);
+    if (summary == null) {
+      throw ProtocolConflictException(
+        'permission.requested ${event.eventId} is missing safe fields',
+      );
+    }
+    final existing = stamped.pendingApprovalsById[summary.approvalId];
+    if (existing != null && existing.sessionId != summary.sessionId) {
+      throw ProtocolConflictException(
+        'approval ${summary.approvalId} arrived for two sessions',
+      );
+    }
+    final ids =
+        stamped.approvalIdsBySessionId[summary.sessionId] ?? const <String>[];
+    return stamped.copyWith(
+      pendingApprovalsById: {
+        ...stamped.pendingApprovalsById,
+        summary.approvalId: summary,
+      },
+      approvalIdsBySessionId: {
+        ...stamped.approvalIdsBySessionId,
+        summary.sessionId:
+            ids.contains(summary.approvalId) ? ids : [...ids, summary.approvalId],
+      },
+    );
+  }
+  final resolution = PermissionResolution.fromEvent(event);
+  if (resolution == null) {
+    throw ProtocolConflictException(
+      'permission.resolved ${event.eventId} is missing safe fields',
+    );
+  }
+  return _removeApproval(stamped, resolution.approvalId);
+}
+
+AppState _removeApproval(AppState previous, String approvalId) {
+  final summary = previous.pendingApprovalsById[approvalId];
+  if (summary == null) return previous;
+  final byId = <String, ApprovalSummary>{...previous.pendingApprovalsById}
+    ..remove(approvalId);
+  final ids = previous.approvalIdsBySessionId[summary.sessionId] ?? const <String>[];
+  return previous.copyWith(
+    pendingApprovalsById: byId,
+    approvalIdsBySessionId: {
+      ...previous.approvalIdsBySessionId,
+      summary.sessionId: ids
+          .where((id) => id != approvalId)
+          .toList(growable: false),
+    },
+  );
+}
+
+String _approvalFingerprint(TimelineEvent event) =>
+    '${event.sessionId}|${event.approvalId}|${event.type}|${event.payload}';
 
 /// workspace.list 的结果覆盖项目列表与调度摘要。
 AppState applyWorkspaceList(AppState previous, WorkspaceList list) {
@@ -209,6 +343,7 @@ SessionSummary _summaryFromState(
     status: state.status,
     activeRunId: state.activeRunId,
     queuedCount: state.queue.length,
+    pendingApprovalCount: state.pendingApprovalCount,
     claudeSessionId: state.claudeSessionId,
   );
 }

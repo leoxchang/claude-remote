@@ -12,6 +12,7 @@ final class CommandMessage extends ProtocolMessage {
     this.sessionId,
     this.runId,
     this.workspaceId,
+    this.approvalId,
   });
 
   final String commandId;
@@ -19,6 +20,7 @@ final class CommandMessage extends ProtocolMessage {
   final String? sessionId;
   final String? runId;
   final String? workspaceId;
+  final String? approvalId;
 
   @override
   Map<String, Object?> toWire() {
@@ -32,6 +34,7 @@ final class CommandMessage extends ProtocolMessage {
       if (sessionId != null) 'sessionId': sessionId,
       if (runId != null) 'runId': runId,
       if (workspaceId != null) 'workspaceId': workspaceId,
+      if (approvalId != null) 'approvalId': approvalId,
       'payload': payload,
     };
   }
@@ -78,12 +81,14 @@ final class TimelineEvent extends ProtocolMessage {
     required this.sessionId,
     required this.seq,
     this.runId,
+    this.approvalId,
   });
 
   final String eventId;
   final String sessionId;
   final int seq;
   final String? runId;
+  final String? approvalId;
 
   @override
   Map<String, Object?> toWire() => _envelope(this);
