@@ -1,5 +1,6 @@
 import { JsonObject, RunRecord, SessionRecord } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
+import { computeStatus } from '../session/session-summary.js';
 import { SessionSnapshotEvent } from '../session/session-controller.js';
 import { TimelineEvent } from './adapter-events.js';
 import { EventJournal } from './journal.js';
@@ -19,11 +20,27 @@ export const TOOL_OUTPUT_PREVIEW_BYTES = 4 * 1024;
 
 const MESSAGE_ID_BYTES = 9;
 
+/** 快照里的排队项摘要；不含 prompt 正文。 */
+export interface QueuedRunSummary {
+  runId: string;
+  commandId: string;
+  status: 'queued';
+  enqueuedAt: number;
+}
+
+/** 全局执行槽状态。 */
+export interface GlobalCapacity {
+  activeRunCount: number;
+  maxActiveRuns: number;
+}
+
 /** 构造快照所需的当前状态。 */
 export interface SnapshotInput {
   session: SessionRecord;
   activeRun: RunRecord | null;
+  queuedRuns: QueuedRunSummary[];
   journal: EventJournal;
+  globalCapacity: GlobalCapacity;
 }
 
 interface ProjectedEvent {
@@ -44,7 +61,12 @@ export class SnapshotFactory {
         sessionId: input.session.sessionId,
         claudeSessionId: input.session.claudeSessionId,
         workspaceId: input.session.workspaceId,
-        status: input.session.status,
+        title: input.session.title,
+        status: computeStatus(
+          input.session.lifecycle,
+          input.activeRun !== null,
+          input.queuedRuns.length,
+        ),
       },
       activeRun:
         input.activeRun === null
@@ -54,6 +76,8 @@ export class SnapshotFactory {
               status: input.activeRun.status,
               commandId: input.activeRun.commandId,
             },
+      queuedRuns: input.queuedRuns,
+      globalCapacity: input.globalCapacity,
       lastRunStatus: lastRunStatus(all, input.activeRun),
       lastSeq,
     };

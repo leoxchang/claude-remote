@@ -49,7 +49,12 @@ function create(journal: EventJournal, activeRun: RunRecord | null = RUN): Snaps
   const snapshot = new SnapshotFactory().create({
     session: SESSION,
     activeRun,
+    queuedRuns: [],
     journal,
+    globalCapacity: {
+      activeRunCount: activeRun === null ? 0 : 1,
+      maxActiveRuns: 2,
+    },
   });
   return snapshot.payload as unknown as SnapshotPayload;
 }
@@ -73,7 +78,9 @@ describe('SnapshotFactory', () => {
     const snapshot = new SnapshotFactory().create({
       session: SESSION,
       activeRun: RUN,
+      queuedRuns: [],
       journal,
+      globalCapacity: { activeRunCount: 1, maxActiveRuns: 2 },
     });
     const payload = snapshot.payload as unknown as SnapshotPayload;
 

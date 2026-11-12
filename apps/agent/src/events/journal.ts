@@ -19,15 +19,17 @@ export interface JournalAppendInput {
 export class EventJournal {
   private readonly eventsBySession = new Map<string, TimelineEvent[]>();
   private readonly seqBySession = new Map<string, number>();
+  private readonly eventsById = new Map<string, TimelineEvent>();
   private readonly listeners = new Set<(event: TimelineEvent) => void>();
 
-  /** 追加一条事件；同一 eventId 重传返回原事件，内容不同则冲突。 */
+  /** 追加一条事件；同一 eventId 重传返回原事件，跨会话或内容不同则冲突。 */
   append(input: JournalAppendInput): TimelineEvent {
     const events = this.eventsBySession.get(input.sessionId) ?? [];
     const eventId = input.eventId ?? `event_${randomBase64Url(EVENT_ID_BYTES)}`;
-    const existing = events.find((event) => event.eventId === eventId);
+    const existing = this.eventsById.get(eventId);
     if (existing !== undefined) {
       const sameContent =
+        existing.sessionId === input.sessionId &&
         existing.type === input.type &&
         JSON.stringify(existing.payload) === JSON.stringify(input.payload);
       if (!sameContent) {
@@ -52,6 +54,7 @@ export class EventJournal {
       ...(input.runId === undefined ? {} : { runId: input.runId }),
     };
     this.eventsBySession.set(input.sessionId, [...events, event]);
+    this.eventsById.set(eventId, event);
     for (const listener of this.listeners) listener(event);
     return event;
   }

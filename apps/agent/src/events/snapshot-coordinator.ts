@@ -1,13 +1,20 @@
 import { RunRecord, SessionRecord } from '../domain/types.js';
+import { MAX_ACTIVE_RUNS } from '../run/run-limits.js';
 import { SessionSnapshotEvent } from '../session/session-controller.js';
 import { EventJournal } from './journal.js';
-import { SnapshotFactory } from './snapshot-factory.js';
+import {
+  GlobalCapacity,
+  QueuedRunSummary,
+  SnapshotFactory,
+} from './snapshot-factory.js';
 
 /** 快照协调器依赖；发送动作由连接层提供。 */
 export interface SnapshotCoordinatorDependencies {
   journal: EventJournal;
   getSession: (sessionId: string) => SessionRecord;
   getActiveRun: (sessionId: string) => RunRecord | null;
+  getQueuedRuns?: (sessionId: string) => QueuedRunSummary[];
+  getGlobalCapacity?: () => GlobalCapacity;
   send: (snapshot: SessionSnapshotEvent, connectionEpoch: number) => void;
 }
 
@@ -28,7 +35,12 @@ export class SnapshotCoordinator {
     const snapshot = this.factory.create({
       session: this.deps.getSession(sessionId),
       activeRun: this.deps.getActiveRun(sessionId),
+      queuedRuns: this.deps.getQueuedRuns?.(sessionId) ?? [],
       journal: this.deps.journal,
+      globalCapacity: this.deps.getGlobalCapacity?.() ?? {
+        activeRunCount: 0,
+        maxActiveRuns: MAX_ACTIVE_RUNS,
+      },
     });
     this.deps.send(snapshot, connectionEpoch);
     return { snapshot, lastSeq: snapshot.payload['lastSeq'] as number };

@@ -1,4 +1,8 @@
-import { SessionRecord, SessionStatus } from '../domain/types.js';
+import {
+  SessionLifecycle,
+  SessionRecord,
+  SessionStatus,
+} from '../domain/types.js';
 
 /** 会话列表返回的摘要；不含 prompt、rootPath 或事件正文。 */
 export interface SessionSummary {
@@ -15,9 +19,22 @@ export interface SessionSummary {
 
 /** 按 spec §7.2 计算会话公开状态。 */
 export function computeSessionStatus(record: SessionRecord): SessionStatus {
-  if (record.lifecycle === 'archived') return 'archived';
-  if (record.activeRun !== null) return 'running';
-  if (record.queue.length > 0) return 'queued';
+  return computeStatus(
+    record.lifecycle,
+    record.activeRun !== null,
+    record.queue.length,
+  );
+}
+
+/** 由 lifecycle、活跃 run 与队列长度派生状态。 */
+export function computeStatus(
+  lifecycle: SessionLifecycle,
+  hasActiveRun: boolean,
+  queuedCount: number,
+): SessionStatus {
+  if (lifecycle === 'archived') return 'archived';
+  if (hasActiveRun) return 'running';
+  if (queuedCount > 0) return 'queued';
   return 'idle';
 }
 
