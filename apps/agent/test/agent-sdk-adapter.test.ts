@@ -296,3 +296,33 @@ describe('AgentSdkAdapter edge mapping', () => {
     expect(output).toMatchObject({ text: 'ab' });
   });
 });
+
+describe('AgentSdkAdapter tool denial', () => {
+  it('denies every tool through a PreToolUse hook', async () => {
+    const { adapter, calls } = adapterWith([]);
+
+    await adapter.startRun(input());
+
+    const matcher = calls[0]?.options.hooks?.PreToolUse?.[0];
+    const hook = matcher?.hooks[0];
+    expect(hook).toBeDefined();
+
+    const output = await hook?.(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: 'touch /tmp/should-not-run' },
+        tool_use_id: 'toolu_deny',
+      } as never,
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(output).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+      },
+    });
+  });
+});

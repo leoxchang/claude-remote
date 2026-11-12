@@ -18,6 +18,26 @@ const SETTING_SOURCES = ['user', 'project', 'local'] as const;
 /** S01 没有手机审批；需要人工决策的工具一律拒绝。 */
 const DENIAL_MESSAGE = 'Mobile approval is not available in S01';
 
+/**
+ * 用户设置里的 allow 规则会让工具跳过 canUseTool，
+ * 因此再用 PreToolUse hook 在工具执行前强制拒绝。
+ */
+async function denyBeforeToolUse(): Promise<{
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse';
+    permissionDecision: 'deny';
+    permissionDecisionReason: string;
+  };
+}> {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: DENIAL_MESSAGE,
+    },
+  };
+}
+
 /** 注入 SDK 的 query 工厂，便于测试。 */
 export interface QueryFactoryParams {
   prompt: AsyncIterable<SDKUserMessage>;
@@ -57,6 +77,9 @@ export class AgentSdkAdapter implements AgentDriver {
         message: DENIAL_MESSAGE,
         interrupt: false,
       }),
+      hooks: {
+        PreToolUse: [{ hooks: [denyBeforeToolUse] }],
+      },
       ...(input.claudeSessionId === null
         ? {}
         : { resume: input.claudeSessionId }),
