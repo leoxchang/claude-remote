@@ -85,6 +85,11 @@ export class ApprovalStore {
     return this.pendingWhere(() => true).length;
   }
 
+  /** 全部 pending，按创建顺序。 */
+  allPending(): ApprovalRecord[] {
+    return this.pendingWhere(() => true);
+  }
+
   /**
    * 原子终态迁移；只有 pending 能迁移。
    *

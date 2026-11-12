@@ -1,3 +1,4 @@
+import { AgentError } from '../command/errors.js';
 import { JsonValue } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
 import {
@@ -10,6 +11,8 @@ import {
   ApprovalStatus,
   ApprovalSummary,
   ApprovalTimers,
+  PermissionResponseInput,
+  PermissionResponseResult,
   PermissionResult,
   ResolutionReason,
   SdkPermissionRequest,
@@ -48,6 +51,10 @@ export const DENIAL_MESSAGES = {
   expired: 'Approval expired',
   denied: 'User denied',
   invalidated: 'Approval is no longer valid',
+  runCancelled: 'Run was cancelled',
+  policyDisabled: 'Mobile approval was disabled for this workspace',
+  deviceRevoked: 'Device is no longer authorized',
+  agentShutdown: 'Agent is shutting down',
 } as const;
 
 const APPROVAL_ID_BYTES = 9;
@@ -82,6 +89,7 @@ export class PermissionBroker {
   private readonly generateApprovalId: () => string;
   private readonly cancelTimers = new Map<string, () => void>();
   private readonly resolvers = new Map<string, (result: PermissionResult) => void>();
+  private readonly deadlines = new Map<string, number>();
 
   constructor(options: PermissionBrokerOptions) {
     this.store = options.store;
@@ -247,6 +255,7 @@ export class PermissionBroker {
     });
     this.store.registerPending(record);
     this.resolvers.set(approvalId, deferred.resolve);
+    this.deadlines.set(approvalId, this.clock.monotonicNow() + APPROVAL_TTL_MS);
     const cancel = this.timers.schedule(() => {
       this.expire(approvalId);
     }, APPROVAL_TTL_MS);
@@ -268,7 +277,170 @@ export class PermissionBroker {
     return deferred.promise;
   }
 
-  /** 已存在的 requestKey 重入按保守规则处理；pending 共享原 Promise。 */
+  /** 用户响应；同步决策，所有关联 ID 与当前策略/设备都重新复核。 */
+  respond(input: PermissionResponseInput): PermissionResponseResult {
+    this.settleIfExpired(input.approvalId);
+    const record = this.store.getById(input.approvalId);
+    if (record === null) throw new AgentError('APPROVAL_NOT_FOUND');
+    if (
+      record.workspaceId !== input.workspaceId ||
+      record.sessionId !== input.sessionId ||
+      record.runId !== input.runId
+    ) {
+      throw new AgentError('APPROVAL_SESSION_MISMATCH');
+    }
+    if (record.deviceId !== input.deviceId) {
+      throw new AgentError('FORBIDDEN');
+    }
+    if (record.status !== 'pending') {
+      throw new AgentError(
+        record.status === 'expired'
+          ? 'APPROVAL_EXPIRED'
+          : 'APPROVAL_ALREADY_RESOLVED',
+      );
+    }
+    if (this.ports.workspaceMode(record.workspaceId) !== 'allow_once') {
+      this.settle(
+        record,
+        'invalidated',
+        'policy_disabled',
+        this.deny(record.toolUseID, DENIAL_MESSAGES.policyDisabled),
+        'denied',
+      );
+      throw new AgentError('APPROVAL_ALREADY_RESOLVED');
+    }
+    if (!this.ports.deviceActive(record.deviceId)) {
+      this.settle(
+        record,
+        'invalidated',
+        'device_revoked',
+        this.deny(record.toolUseID, DENIAL_MESSAGES.deviceRevoked),
+        'denied',
+      );
+      throw new AgentError('FORBIDDEN');
+    }
+    if (input.decision === 'allow_once') {
+      const updatedInput = record.originalInput;
+      if (updatedInput === null) {
+        throw new AgentError('APPROVAL_CONTENT_UNAVAILABLE');
+      }
+      const resolvedAt = this.settle(
+        record,
+        'approved_once',
+        'user_allow_once',
+        { behavior: 'allow', updatedInput, toolUseID: record.toolUseID },
+        'denied',
+        input.commandId,
+      );
+      if (resolvedAt === null) {
+        throw new AgentError('APPROVAL_ALREADY_RESOLVED');
+      }
+      return {
+        approvalId: record.approvalId,
+        status: 'approved_once',
+        resolvedAt,
+      };
+    }
+    const resolvedAt = this.settle(
+      record,
+      'denied',
+      'user_deny',
+      this.deny(record.toolUseID, DENIAL_MESSAGES.denied),
+      'denied',
+      input.commandId,
+    );
+    if (resolvedAt === null) {
+      throw new AgentError('APPROVAL_ALREADY_RESOLVED');
+    }
+    return { approvalId: record.approvalId, status: 'denied', resolvedAt };
+  }
+
+  /** 到达 monotonic deadline 时先结算 expired，即使 timeout task 尚未执行。 */
+  settleIfExpired(approvalId: string): ApprovalRecord | null {
+    const record = this.store.getById(approvalId);
+    if (record === null || record.status !== 'pending') return null;
+    const deadline = this.deadlines.get(approvalId);
+    if (deadline === undefined || this.clock.monotonicNow() < deadline) {
+      return null;
+    }
+    this.settle(
+      record,
+      'expired',
+      'timeout',
+      this.deny(record.toolUseID, DENIAL_MESSAGES.expired),
+      'cancelled',
+    );
+    return this.store.getById(approvalId);
+  }
+
+  /** 取消或 SDK abort：失效该 run 的全部 pending。 */
+  invalidateRun(
+    runId: string,
+    reason: 'run_cancelled' | 'sdk_aborted',
+  ): number {
+    return this.invalidate(
+      this.store.pendingForRun(runId),
+      'invalidated',
+      reason,
+      DENIAL_MESSAGES.runCancelled,
+      'cancelled',
+    );
+  }
+
+  /** 项目策略切到 deny：失效该项目的 pending。 */
+  invalidateWorkspace(workspaceId: string, reason: 'policy_disabled'): number {
+    return this.invalidate(
+      this.store.pendingForWorkspace(workspaceId),
+      'invalidated',
+      reason,
+      DENIAL_MESSAGES.policyDisabled,
+      'denied',
+    );
+  }
+
+  /** 设备吊销或替换：失效旧设备的 pending。 */
+  invalidateDevice(deviceId: string, reason: 'device_revoked'): number {
+    return this.invalidate(
+      this.store.pendingForDevice(deviceId),
+      'invalidated',
+      reason,
+      DENIAL_MESSAGES.deviceRevoked,
+      'denied',
+    );
+  }
+
+  /** 优雅关闭：失效全部 pending，先于 Adapter close。 */
+  invalidateAll(reason: 'agent_shutdown'): number {
+    return this.invalidate(
+      this.store.allPending(),
+      'invalidated',
+      reason,
+      DENIAL_MESSAGES.agentShutdown,
+      'cancelled',
+    );
+  }
+
+  private invalidate(
+    records: readonly ApprovalRecord[],
+    status: 'invalidated',
+    reason: ResolutionReason,
+    message: string,
+    outcome: 'denied' | 'cancelled',
+  ): number {
+    let count = 0;
+    for (const record of records) {
+      const resolved = this.settle(
+        record,
+        status,
+        reason,
+        this.deny(record.toolUseID, message),
+        outcome,
+      );
+      if (resolved !== null) count += 1;
+    }
+    return count;
+  }
+
   private expire(approvalId: string): void {
     const record = this.store.getById(approvalId);
     if (record === null || record.status !== 'pending') {
@@ -279,7 +451,7 @@ export class PermissionBroker {
       record,
       'expired',
       'timeout',
-      DENIAL_MESSAGES.expired,
+      this.deny(record.toolUseID, DENIAL_MESSAGES.expired),
       'cancelled',
     );
   }
@@ -289,10 +461,10 @@ export class PermissionBroker {
     record: ApprovalRecord,
     status: Exclude<ApprovalStatus, 'pending'>,
     reason: ResolutionReason,
-    message: string,
+    result: PermissionResult,
     outcome: 'denied' | 'cancelled',
     responseCommandId: string | null = null,
-  ): boolean {
+  ): number | null {
     const resolvedAt = this.clock.wallNow();
     const committed = this.store.commitTerminal({
       approvalId: record.approvalId,
@@ -301,7 +473,7 @@ export class PermissionBroker {
       resolvedAt,
       responseCommandId,
     });
-    if (committed === null) return false;
+    if (committed === null) return null;
     this.clearTimer(record.approvalId);
     const notice: ApprovalResolvedNotice = {
       approvalId: record.approvalId,
@@ -328,11 +500,12 @@ export class PermissionBroker {
     );
     const resolver = this.resolvers.get(record.approvalId);
     this.resolvers.delete(record.approvalId);
-    resolver?.(this.deny(record.toolUseID, message));
-    return true;
+    resolver?.(result);
+    return resolvedAt;
   }
 
   private clearTimer(approvalId: string): void {
+    this.deadlines.delete(approvalId);
     const cancel = this.cancelTimers.get(approvalId);
     if (cancel === undefined) return;
     cancel();

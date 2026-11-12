@@ -224,3 +224,21 @@ export interface ApprovalClock {
 export interface ApprovalTimers {
   schedule(callback: () => void, delayMs: number): () => void;
 }
+
+/** permission.respond 的已认证输入；所有关联 ID 必须同时匹配。 */
+export interface PermissionResponseInput {
+  approvalId: string;
+  workspaceId: string;
+  sessionId: string;
+  runId: string;
+  deviceId: string;
+  commandId: string;
+  decision: 'allow_once' | 'deny';
+}
+
+/** permission.respond 的同步结果。 */
+export interface PermissionResponseResult {
+  approvalId: string;
+  status: 'approved_once' | 'denied';
+  resolvedAt: number;
+}
