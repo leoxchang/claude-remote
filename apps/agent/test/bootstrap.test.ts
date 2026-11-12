@@ -26,6 +26,7 @@ describe('agent bootstrap', () => {
 
   it('exposes the S01 run statuses in order', () => {
     expect(RUN_STATUSES).toEqual([
+      'queued',
       'starting',
       'running',
       'cancelling',

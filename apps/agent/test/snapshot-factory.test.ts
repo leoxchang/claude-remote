@@ -7,15 +7,32 @@ import { SnapshotFactory } from '../src/events/snapshot-factory.js';
 const SESSION: SessionRecord = {
   sessionId: 'session_01',
   workspaceId: 'default',
+  title: '会话 2026-11-12 10:00',
   claudeSessionId: 'claude_01',
+  lifecycle: 'active',
   status: 'running',
+  createdAt: 1_762_432_800_000,
+  lastActivityAt: 1_762_432_800_000,
+  activeRun: null,
+  queue: [],
+  runsById: new Map(),
+  lastSeq: 0,
+  lastRunStatus: null,
 };
 
 const RUN: RunRecord = {
   runId: 'run_01',
   sessionId: 'session_01',
+  workspaceId: 'default',
   commandId: 'cmd_01',
+  traceId: 'trace_01',
+  text: null,
   status: 'running',
+  enqueueOrder: 1,
+  enqueuedAt: 1_762_432_800_000,
+  startedAt: 1_762_432_800_000,
+  endedAt: null,
+  errorSummary: null,
 };
 
 interface SnapshotPayload {

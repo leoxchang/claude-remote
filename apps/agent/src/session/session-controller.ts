@@ -48,11 +48,21 @@ export class SessionController {
       throw new AgentError('WORKSPACE_NOT_ALLOWED');
     }
     if (this.session === null) {
+      const now = Date.now();
       this.session = {
         sessionId: `session_${randomBase64Url(SESSION_ID_BYTES)}`,
         workspaceId: 'default',
+        title: defaultSessionTitle(new Date(now)),
         claudeSessionId: null,
-        status: 'ready',
+        lifecycle: 'active',
+        status: 'idle',
+        createdAt: now,
+        lastActivityAt: now,
+        activeRun: null,
+        queue: [],
+        runsById: new Map(),
+        lastSeq: 0,
+        lastRunStatus: null,
       };
     }
     return { ...this.session };
@@ -76,4 +86,13 @@ export class SessionController {
     this.session = { ...current, ...changes };
     return { ...this.session };
   }
+}
+
+/** 默认标题：本机时间 `会话 YYYY-MM-DD HH:mm`，允许重名。 */
+function defaultSessionTitle(now: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return [
+    `会话 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+  ].join(' ');
 }

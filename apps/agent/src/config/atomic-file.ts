@@ -1,4 +1,13 @@
 import { chmod, open, readFile, rename, rm } from 'node:fs/promises';
+import {
+  chmodSync,
+  closeSync,
+  fsyncSync,
+  openSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 /** 原子写入文件：写同目录临时文件、落盘、设权限，再 rename 覆盖。 */
@@ -23,6 +32,32 @@ export async function writeFileAtomic(
     await rename(tempPath, path);
   } catch (error: unknown) {
     await rm(tempPath, { force: true });
+    throw error;
+  }
+}
+
+/** 同步版本：在同一 JavaScript 调用栈内完成落盘与替换。 */
+export function writeFileAtomicSync(
+  path: string,
+  content: string,
+  mode: number,
+): void {
+  const tempPath = join(
+    dirname(path),
+    `.${basename(path)}.${process.pid}.tmp`,
+  );
+  try {
+    const fd = openSync(tempPath, 'w');
+    try {
+      writeFileSync(fd, content, 'utf8');
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    chmodSync(tempPath, mode);
+    renameSync(tempPath, path);
+  } catch (error: unknown) {
+    rmSync(tempPath, { force: true });
     throw error;
   }
 }

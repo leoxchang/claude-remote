@@ -34,6 +34,7 @@ interface ActiveRun {
 /** 单会话单活跃 run 的状态机；一次 run 对应一次 driver.startRun。 */
 export class RunController {
   private readonly runs = new Map<string, ActiveRun>();
+  private enqueueOrder = 0;
 
   constructor(private readonly options: RunControllerOptions) {}
 
@@ -42,6 +43,7 @@ export class RunController {
     sessionId: string,
     text: string,
     commandId: string,
+    traceId: string = '',
   ): Promise<RunAccepted> {
     const session = this.options.sessions.get(sessionId);
     if (this.runs.has(sessionId)) {
@@ -49,8 +51,23 @@ export class RunController {
     }
 
     const runId = `run_${randomBase64Url(RUN_ID_BYTES)}`;
+    const now = Date.now();
+    this.enqueueOrder += 1;
     const active: ActiveRun = {
-      record: { runId, sessionId, commandId, status: 'starting' },
+      record: {
+        runId,
+        sessionId,
+        workspaceId: session.workspaceId,
+        commandId,
+        traceId,
+        text,
+        status: 'starting',
+        enqueueOrder: this.enqueueOrder,
+        enqueuedAt: now,
+        startedAt: now,
+        endedAt: null,
+        errorSummary: null,
+      },
       handle: null,
       interruptTimer: null,
     };
@@ -70,7 +87,7 @@ export class RunController {
       });
     } catch (error: unknown) {
       this.runs.delete(sessionId);
-      this.options.sessions.update(sessionId, { status: 'ready' });
+      this.options.sessions.update(sessionId, { status: 'idle' });
       if (error instanceof AgentError) throw error;
       throw new AgentError('INTERNAL_ERROR');
     }
@@ -132,9 +149,10 @@ export class RunController {
   private complete(sessionId: string): void {
     const active = this.runs.get(sessionId);
     if (active === undefined) return;
+    active.record = { ...active.record, text: null, endedAt: Date.now() };
     this.release(active);
     this.runs.delete(sessionId);
-    this.options.sessions.update(sessionId, { status: 'ready' });
+    this.options.sessions.update(sessionId, { status: 'idle' });
   }
 
   /** 没有终态时由控制器补发 run.completed。 */
@@ -144,9 +162,15 @@ export class RunController {
   ): void {
     const active = this.runs.get(sessionId);
     if (active === undefined) return;
+    active.record = {
+      ...active.record,
+      status,
+      text: null,
+      endedAt: Date.now(),
+    };
     this.release(active);
     this.runs.delete(sessionId);
-    this.options.sessions.update(sessionId, { status: 'ready' });
+    this.options.sessions.update(sessionId, { status: 'idle' });
     this.options.normalizer.consume({
       kind: 'runResult',
       sessionId,

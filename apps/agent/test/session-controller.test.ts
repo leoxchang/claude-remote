@@ -12,7 +12,7 @@ describe('SessionController', () => {
       sessionId: expect.stringMatching(/^session_/),
       workspaceId: 'default',
       claudeSessionId: null,
-      status: 'ready',
+      status: 'idle',
     });
   });
 
