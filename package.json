@@ -23,6 +23,7 @@
     "test:s02:live": "S02_LIVE=1 vitest run --config vitest.s02-live.config.ts",
     "verify:s02": "tsx scripts/s02/verify-gate.ts",
     "test:s02:concurrency": "vitest run --config vitest.s02-live.config.ts",
+    "test:s03:perm00": "vitest run --config vitest.s03-perm00.config.ts",
     "coverage:agent": "vitest run --root apps/agent --coverage",
     "s00:gate": "tsx scripts/s00/gate-cli.ts"
   },
