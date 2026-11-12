@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { MockDriver } from '../../src/adapter/mock-driver.js';
+import { MockManagedRunDriver } from '../../src/adapter/mock-managed-run-driver.js';
 import { AdminClient } from '../../src/admin/client.js';
 import { AgentLogger } from '../../src/app/logger.js';
 import { AgentRuntime, createAgentRuntime } from '../../src/app/runtime.js';
@@ -68,7 +68,7 @@ describe('agent restart', () => {
       tailscaleBaseUrl: 'https://macbook.example-tailnet.ts.net',
     });
 
-    const first = await createAgentRuntime(config, new MockDriver(), {
+    const first = await createAgentRuntime(config, new MockManagedRunDriver(), {
       configDir,
       phoneListen: { host: '127.0.0.1', port: 0 },
       logger: silentLogger,
@@ -109,7 +109,7 @@ describe('agent restart', () => {
     firstSocket.terminate();
     await first.close();
 
-    const second = await createAgentRuntime(config, new MockDriver(), {
+    const second = await createAgentRuntime(config, new MockManagedRunDriver(), {
       configDir,
       phoneListen: { host: '127.0.0.1', port: 0 },
       logger: silentLogger,

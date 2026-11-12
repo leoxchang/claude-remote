@@ -84,6 +84,7 @@ const event = (id: string): ProtocolMessage => ({
 function manager(): ConnectionManager {
   return new ConnectionManager({
     desktopId: 'desktop_test',
+    agentInstanceId: 'agent_test',
     versions: { agent: '0.0.0', sdk: '0.3.319', runtime: '2.1.319' },
     capabilities: ['text'],
   });

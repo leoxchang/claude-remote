@@ -66,6 +66,7 @@ export function createReadyMessage(input: {
   versions: { agent: string; sdk: string; runtime: string };
   capabilities: string[];
   handshakeId: string;
+  agentInstanceId?: string;
 }): ControlMessage {
   return {
     protocolVersion: 1,
@@ -78,6 +79,9 @@ export function createReadyMessage(input: {
       versions: input.versions,
       capabilities: input.capabilities,
       handshakeId: input.handshakeId,
+      ...(input.agentInstanceId === undefined
+        ? {}
+        : { agentInstanceId: input.agentInstanceId }),
     },
   };
 }

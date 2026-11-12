@@ -5,9 +5,10 @@ import {
 } from '@claude-remote/protocol/types';
 import { validateProtocolMessage } from '@claude-remote/protocol/validator';
 
+import { AgentOperations } from '../app/agent-operations.js';
 import { DeviceRecord, JsonObject } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
-import { AgentOperations } from '../session/session-controller.js';
+import { SessionListInput } from '../session/session-list.js';
 import { CommandIdentity } from './canonical-request.js';
 import { AgentError } from './errors.js';
 import { InMemoryIdempotency } from './idempotency.js';
@@ -22,6 +23,13 @@ const COMMAND_TYPES: readonly string[] = [
   'prompt.send',
   'run.cancel',
   'session.snapshot',
+  'workspace.list',
+  'session.create',
+  'session.list',
+  'session.resume',
+  'session.rename',
+  'session.archive',
+  'queue.remove',
 ];
 
 /** 命令路由依赖；幂等表可注入以便测试。 */
@@ -34,7 +42,12 @@ type DispatchPayload =
   | { status: 'ok'; data: Record<string, unknown> }
   | {
       status: 'error';
-      error: { code: string; message: string; retryable: boolean };
+      error: {
+        code: string;
+        message: string;
+        retryable: boolean;
+        details?: Record<string, unknown>;
+      };
     };
 
 /** 先校验信封与载荷，再交给幂等表和 AgentOperations。 */
@@ -96,6 +109,7 @@ export class CommandRouter {
               code: error.code,
               message: error.code,
               retryable: error.retryable,
+              ...(error.details === undefined ? {} : { details: error.details }),
             },
           },
           duplicate: false,
@@ -108,35 +122,69 @@ export class CommandRouter {
   private async dispatch(command: CommandMessage): Promise<DispatchPayload> {
     try {
       switch (command.type) {
+        case 'workspace.list':
+          return ok(this.operations.listWorkspaces());
         case 'session.start': {
-          const payload = asRecord(command.payload);
-          const workspaceId =
-            typeof payload['workspaceId'] === 'string'
-              ? payload['workspaceId']
-              : 'default';
-          const result = await this.operations.startSession(workspaceId);
-          return { status: 'ok', data: { ...result } };
+          const workspaceId = requirePayloadString(
+            command.payload,
+            'workspaceId',
+          );
+          return ok(this.operations.startSession(workspaceId));
+        }
+        case 'session.create': {
+          const workspaceId = requirePayloadString(
+            command.payload,
+            'workspaceId',
+          );
+          const title = optionalPayloadString(command.payload, 'title');
+          return ok(
+            this.operations.createSession(
+              workspaceId,
+              title === undefined ? undefined : title,
+            ),
+          );
+        }
+        case 'session.list':
+          return ok(this.operations.listSessions(readListInput(command.payload)));
+        case 'session.resume': {
+          const sessionId = requirePayloadString(command.payload, 'sessionId');
+          return ok(this.operations.resumeSession(sessionId));
+        }
+        case 'session.rename': {
+          const sessionId = requirePayloadString(command.payload, 'sessionId');
+          const title = requirePayloadString(command.payload, 'title');
+          return ok(this.operations.renameSession(sessionId, title));
+        }
+        case 'session.archive': {
+          const sessionId = requirePayloadString(command.payload, 'sessionId');
+          return ok(this.operations.archiveSession(sessionId));
         }
         case 'prompt.send': {
           const text = readPrompt(command.payload);
           const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
           const accepted = await this.operations.sendPrompt(
+            command.workspaceId,
             sessionId,
             text,
             command.commandId,
+            command.traceId,
           );
-          return { status: 'ok', data: { ...accepted } };
+          return ok(accepted);
         }
         case 'run.cancel': {
           const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
           const runId = requireString(command.runId, 'RUN_NOT_ACTIVE');
-          const accepted = await this.operations.cancelRun(sessionId, runId);
-          return { status: 'ok', data: { ...accepted } };
+          return ok(await this.operations.cancelRun(sessionId, runId));
+        }
+        case 'queue.remove': {
+          const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
+          const runId = requireString(command.runId, 'RUN_NOT_FOUND');
+          return ok(await this.operations.removeQueuedRun(sessionId, runId));
         }
         case 'session.snapshot': {
           const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
           const snapshot = await this.operations.snapshot(sessionId);
-          return { status: 'ok', data: { snapshot } };
+          return ok({ snapshot });
         }
         default:
           return errorPayload('UNKNOWN_MESSAGE_TYPE');
@@ -149,6 +197,7 @@ export class CommandRouter {
             code: error.code,
             message: error.code,
             retryable: error.retryable,
+            ...(error.details === undefined ? {} : { details: error.details }),
           },
         };
       }
@@ -194,6 +243,10 @@ export class CommandRouter {
   }
 }
 
+function ok<T extends object>(data: T): DispatchPayload {
+  return { status: 'ok', data: { ...data } as Record<string, unknown> };
+}
+
 function readPrompt(payload: unknown): string {
   const text = asRecord(payload)['text'];
   if (typeof text !== 'string' || text.trim().length === 0) {
@@ -205,7 +258,42 @@ function readPrompt(payload: unknown): string {
   return text;
 }
 
-function requireString(value: unknown, code: 'SESSION_NOT_FOUND' | 'RUN_NOT_ACTIVE'): string {
+function readListInput(payload: unknown): SessionListInput {
+  const record = asRecord(payload);
+  const workspaceId = requirePayloadString(payload, 'workspaceId');
+  const includeArchived = record['includeArchived'];
+  const limit = record['limit'];
+  const cursor = record['cursor'];
+  return {
+    workspaceId,
+    ...(includeArchived === undefined
+      ? {}
+      : { includeArchived: includeArchived === true }),
+    ...(typeof limit === 'number' ? { limit } : {}),
+    ...(typeof cursor === 'string' ? { cursor } : {}),
+  };
+}
+
+function requirePayloadString(payload: unknown, key: string): string {
+  const value = asRecord(payload)[key];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new AgentError('INVALID_MESSAGE');
+  }
+  return value;
+}
+
+function optionalPayloadString(
+  payload: unknown,
+  key: string,
+): string | undefined {
+  const value = asRecord(payload)[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function requireString(
+  value: unknown,
+  code: 'SESSION_NOT_FOUND' | 'RUN_NOT_ACTIVE' | 'RUN_NOT_FOUND',
+): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new AgentError(code);
   }

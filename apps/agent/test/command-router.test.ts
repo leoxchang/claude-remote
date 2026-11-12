@@ -1,12 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { AgentOperations } from '../src/app/agent-operations.js';
 import { AgentError } from '../src/command/errors.js';
 import { CommandRouter } from '../src/command/router.js';
 import { DeviceRecord } from '../src/domain/types.js';
-import {
-  AgentOperations,
-  SessionController,
-} from '../src/session/session-controller.js';
 
 const DEVICE: DeviceRecord = {
   deviceId: 'device_01',
@@ -26,11 +23,11 @@ const base = (type: string, commandId: string): Record<string, unknown> => ({
   type,
 });
 
-const sessionStart = (commandId: string, workspaceId?: string): unknown => ({
+const sessionStart = (commandId: string, workspaceId = 'default'): unknown => ({
   ...base('session.start', commandId),
   payload: {
     clientCapabilities: ['text'],
-    ...(workspaceId === undefined ? {} : { workspaceId }),
+    workspaceId,
   },
 });
 
@@ -48,28 +45,64 @@ const runCancel = (commandId: string): unknown => ({
 });
 
 type OperationSpies = Record<
-  'startSession' | 'sendPrompt' | 'cancelRun' | 'snapshot',
+  | 'listWorkspaces'
+  | 'createSession'
+  | 'listSessions'
+  | 'resumeSession'
+  | 'renameSession'
+  | 'archiveSession'
+  | 'startSession'
+  | 'sendPrompt'
+  | 'cancelRun'
+  | 'removeQueuedRun'
+  | 'snapshot'
+  | 'activeCount'
+  | 'queuedRunCount',
   ReturnType<typeof vi.fn>
 >;
 
 interface Harness {
   router: CommandRouter;
   operations: OperationSpies;
-  controller: SessionController;
 }
 
-function harness(overrides: Partial<AgentOperations> = {}): Harness {
-  const controller = new SessionController();
+function summary(sessionId = 'session_01') {
+  return {
+    sessionId,
+    workspaceId: 'default',
+    title: '会话 2026-11-12 10:00',
+    claudeSessionId: null,
+    status: 'idle' as const,
+    activeRunId: null,
+    queuedCount: 0,
+    createdAt: 1_762_432_800_000,
+    lastActivityAt: 1_762_432_800_000,
+  };
+}
+
+function harness(overrides: Partial<OperationSpies> = {}): Harness {
   const operations = {
-    startSession: vi.fn(async (workspaceId: string) => {
-      const session = await controller.start(workspaceId);
-      return {
-        sessionId: session.sessionId,
-        claudeSessionId: session.claudeSessionId,
-        status: session.status,
-      };
+    listWorkspaces: vi.fn(() => ({
+      workspaces: [{ workspaceId: 'default', displayName: 'Fixture' }],
+      scheduler: {
+        maxActiveRuns: 2,
+        activeRunCount: 0,
+        queuedRunCount: 0,
+        maxQueuedRuns: 100,
+      },
+    })),
+    createSession: vi.fn(() => summary()),
+    listSessions: vi.fn(() => ({ sessions: [summary()], nextCursor: null })),
+    resumeSession: vi.fn(() => summary()),
+    renameSession: vi.fn(() => summary()),
+    archiveSession: vi.fn(() => ({ ...summary(), status: 'archived' as const })),
+    startSession: vi.fn((workspaceId: string) => {
+      if (workspaceId !== 'default') {
+        throw new AgentError('WORKSPACE_NOT_ALLOWED');
+      }
+      return summary();
     }),
-    sendPrompt: vi.fn(async (sessionId: string) => ({
+    sendPrompt: vi.fn(async (_workspaceId: string | undefined, sessionId: string) => ({
       sessionId,
       runId: 'run_01',
       status: 'starting' as const,
@@ -79,6 +112,12 @@ function harness(overrides: Partial<AgentOperations> = {}): Harness {
       runId: 'run_01',
       status: 'cancelling' as const,
     })),
+    removeQueuedRun: vi.fn(async (sessionId: string, runId: string) => ({
+      sessionId,
+      runId,
+      status: 'cancelled' as const,
+      removed: true as const,
+    })),
     snapshot: vi.fn(async (sessionId: string) => ({
       protocolVersion: 1 as const,
       messageId: 'msg_snapshot',
@@ -86,20 +125,23 @@ function harness(overrides: Partial<AgentOperations> = {}): Harness {
       type: 'session.snapshot' as const,
       payload: { sessionId },
     })),
+    activeCount: vi.fn(() => 0),
+    queuedRunCount: vi.fn(() => 0),
     ...(overrides as Partial<OperationSpies>),
   } as OperationSpies;
   return {
-    router: new CommandRouter({ operations: operations as unknown as AgentOperations }),
+    router: new CommandRouter({
+      operations: operations as unknown as AgentOperations,
+    }),
     operations,
-    controller,
   };
 }
 
 describe('CommandRouter', () => {
-  it('routes session.start and returns the session id', async () => {
+  it('routes session.start and returns the session summary', async () => {
     const { router, operations } = harness();
 
-    const result = await router.route(sessionStart('cmd_1', 'default'), DEVICE);
+    const result = await router.route(sessionStart('cmd_1'), DEVICE);
 
     expect(result.type).toBe('command.result');
     expect(result.commandId).toBe('cmd_1');
@@ -109,7 +151,7 @@ describe('CommandRouter', () => {
       duplicate: false,
       data: { sessionId: expect.stringMatching(/^session_/) },
     });
-    expect(operations.startSession).toHaveBeenCalledTimes(1);
+    expect(operations.startSession).toHaveBeenCalledWith('default');
   });
 
   it('returns the same session for a repeated session.start', async () => {
@@ -120,9 +162,9 @@ describe('CommandRouter', () => {
     expect(second.payload).toMatchObject({
       status: 'ok',
       data: {
-          sessionId: (first.payload as unknown as { data: { sessionId: string } })
-            .data.sessionId,
-        },
+        sessionId: (first.payload as unknown as { data: { sessionId: string } })
+          .data.sessionId,
+      },
     });
   });
 
@@ -168,7 +210,7 @@ describe('CommandRouter', () => {
     });
   });
 
-  it('rejects a workspace other than default', async () => {
+  it('rejects a workspace other than the authorized one', async () => {
     const { router } = harness();
 
     const result = await router.route(sessionStart('cmd_1', 'other'), DEVICE);
@@ -241,6 +283,28 @@ describe('CommandRouter', () => {
     });
   });
 
+  it('carries queue-full details without prompt content', async () => {
+    const { router } = harness({
+      sendPrompt: vi.fn(async () => {
+        throw new AgentError('QUEUE_FULL', 'QUEUE_FULL', false, {
+          scope: 'session',
+          limit: 20,
+        });
+      }),
+    });
+
+    const result = await router.route(promptSend('cmd_1', 'secret'), DEVICE);
+
+    expect(result.payload).toMatchObject({
+      status: 'error',
+      error: {
+        code: 'QUEUE_FULL',
+        details: { scope: 'session', limit: 20 },
+      },
+    });
+    expect(JSON.stringify(result.payload)).not.toContain('secret');
+  });
+
   it('maps an inactive run cancel to RUN_NOT_ACTIVE', async () => {
     const { router } = harness({
       cancelRun: vi.fn(async () => {
@@ -254,6 +318,29 @@ describe('CommandRouter', () => {
       status: 'error',
       error: { code: 'RUN_NOT_ACTIVE' },
     });
+  });
+
+  it('routes queue.remove through the operations layer', async () => {
+    const { router, operations } = harness();
+
+    const result = await router.route(
+      {
+        ...base('queue.remove', 'cmd_1'),
+        sessionId: 'session_01',
+        runId: 'run_01',
+        payload: {},
+      },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({
+      status: 'ok',
+      data: { removed: true, status: 'cancelled' },
+    });
+    expect(operations.removeQueuedRun).toHaveBeenCalledWith(
+      'session_01',
+      'run_01',
+    );
   });
 
   it('returns a snapshot result for session.snapshot', async () => {

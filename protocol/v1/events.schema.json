@@ -362,6 +362,7 @@
                 "handshakeId": { "type": "string", "minLength": 1 },
                 "protocolVersion": { "const": 1 },
                 "desktopId": { "type": "string", "minLength": 1 },
+                "agentInstanceId": { "type": "string", "minLength": 1 },
                 "agentVersion": { "type": "string", "minLength": 1 },
                 "sdkVersion": { "type": "string", "minLength": 1 },
                 "runtimeVersion": { "type": "string", "minLength": 1 },

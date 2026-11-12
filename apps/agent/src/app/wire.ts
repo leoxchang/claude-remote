@@ -4,33 +4,43 @@ import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { createAdminServer } from '../admin/server.js';
 import { CommandRouter } from '../command/router.js';
 import { resolveAgentPaths } from '../config/paths.js';
-import { AgentConfig } from '../domain/types.js';
+import { AgentConfigV2 } from '../domain/types.js';
 import { EventJournal } from '../events/journal.js';
 import { EventNormalizer } from '../events/normalizer.js';
 import { SnapshotCoordinator } from '../events/snapshot-coordinator.js';
 import { PairingService } from '../pairing/pairing-service.js';
-import { RunController } from '../run/run-controller.js';
-import { SessionController } from '../session/session-controller.js';
+import { MAX_ACTIVE_RUNS } from '../run/run-limits.js';
+import { ManagedRunController } from '../run/run-controller.js';
+import { RunScheduler } from '../run/run-scheduler.js';
+import { SessionRegistry } from '../session/session-registry.js';
 import { DeviceStore } from '../store/device-store.js';
 import { ConnectionManager } from '../transport/connection-manager.js';
 import {
   createPhoneServer,
   PHONE_LISTEN,
 } from '../transport/phone-server.js';
+import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { AgentOperationsImpl } from './agent-operations.js';
 import { AgentLogger } from './logger.js';
 
 const AGENT_VERSION = '0.0.0';
 const SDK_VERSION = '0.3.319';
 const RUNTIME_VERSION = '2.1.319';
-const CAPABILITIES = ['text', 'message.delta', 'tool.events', 'session.snapshot'];
+const CAPABILITIES = [
+  'text',
+  'message.delta',
+  'tool.events',
+  'session.snapshot',
+  'multi.session',
+];
 
 /** 组装依赖所需的输入。 */
 export interface WireOptions {
-  config: AgentConfig;
+  config: AgentConfigV2;
   driver: ManagedRunDriver;
   configDir: string;
   logger: AgentLogger;
+  agentInstanceId: string;
 }
 
 /** 已组装好的 Agent；start 后才开始监听。 */
@@ -51,26 +61,43 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
     desktopId: config.desktopId,
     baseUrl: config.tailscale.baseUrl,
   });
-  const sessions = new SessionController();
+
+  let scheduler: RunScheduler | undefined;
+  const workspaces = new WorkspaceManager({
+    configDir,
+    config,
+    usage: {
+      hasActiveOrQueued: (workspaceId) =>
+        scheduler?.hasActiveOrQueued(workspaceId) ?? false,
+    },
+  });
+  const sessions = new SessionRegistry();
   const journal = new EventJournal();
   const normalizer = new EventNormalizer(journal);
-  const runs = new RunController({
+  scheduler = new RunScheduler({
     sessions,
-    driver,
+    workspaces,
     journal,
-    normalizer,
-    cwd: config.workspace.rootPath,
+    driver,
   });
+  const runs = new ManagedRunController({ scheduler, sessions, normalizer });
 
   let connections: ConnectionManager;
   const coordinator = new SnapshotCoordinator({
     journal,
     getSession: (sessionId) => sessions.get(sessionId),
-    getActiveRun: (sessionId) => runs.activeRun(sessionId),
+    getActiveRun: (sessionId) => sessions.get(sessionId).activeRun,
+    getQueuedRuns: (sessionId) => scheduler.queuedRuns(sessionId),
+    getGlobalCapacity: () => ({
+      activeRunCount: scheduler.activeCount(),
+      maxActiveRuns: MAX_ACTIVE_RUNS,
+    }),
     send: (snapshot) => connections.publish(snapshot),
   });
   const operations = new AgentOperationsImpl({
+    workspaces,
     sessions,
+    scheduler,
     runs,
     snapshots: coordinator,
     currentEpoch: () => {
@@ -101,6 +128,7 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
 
   connections = new ConnectionManager({
     desktopId: config.desktopId,
+    agentInstanceId: options.agentInstanceId,
     versions: {
       agent: AGENT_VERSION,
       sdk: SDK_VERSION,
@@ -126,6 +154,7 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
         socketPath: paths.socketPath,
         pairingService,
         deviceStore,
+        workspaces,
         getStatus: () => ({
           status: 'running',
           desktopId: config.desktopId,
@@ -140,10 +169,13 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
       phoneServer = await createPhoneServer({
         pairingService,
         deviceStore,
-        workspace: {
-          workspaceId: 'default',
-          displayName: config.workspace.displayName,
-        },
+        workspace:
+          config.workspaces[0] === undefined
+            ? { workspaceId: 'default', displayName: 'default' }
+            : {
+                workspaceId: config.workspaces[0].workspaceId,
+                displayName: config.workspaces[0].displayName,
+              },
         onConnection: (socket, device) => {
           logger.info('connection.accepted', { deviceId: device.deviceId });
           void connections.accept(socket, device);

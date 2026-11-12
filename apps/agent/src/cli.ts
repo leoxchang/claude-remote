@@ -5,7 +5,6 @@ import { AdminClient } from './admin/client.js';
 import { createAgentRuntime } from './app/runtime.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from './config/paths.js';
 import { initializeConfig } from './config/initialize.js';
-import { loadConfig } from './config/load.js';
 import { loadConfigV2 } from './config/config-v2.js';
 import { renderPairingQr } from './pairing/qr.js';
 import { toSummary } from './workspace/workspace-types.js';
@@ -46,7 +45,7 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
     .command('start')
     .description('start the agent in the foreground')
     .action(async () => {
-      const config = await loadConfig(configDir);
+      const config = await loadConfigV2(configDir);
       const runtime = await createAgentRuntime(config, new AgentSdkAdapter(), {
         configDir,
       });

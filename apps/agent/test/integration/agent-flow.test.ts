@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { MockDriver } from '../../src/adapter/mock-driver.js';
+import { MockManagedRunDriver } from '../../src/adapter/mock-managed-run-driver.js';
 import { AdminClient } from '../../src/admin/client.js';
 import { createAgentRuntime, AgentRuntime } from '../../src/app/runtime.js';
 import { AgentLogger } from '../../src/app/logger.js';
@@ -62,7 +62,7 @@ interface Harness {
   runtime: AgentRuntime;
   config: AgentConfig;
   configDir: string;
-  driver: MockDriver;
+  driver: MockManagedRunDriver;
   admin: AdminClient;
 }
 
@@ -75,7 +75,7 @@ async function startRuntime(): Promise<Harness> {
     displayName: 'S01 Fixture',
     tailscaleBaseUrl: 'https://macbook.example-tailnet.ts.net',
   });
-  const driver = new MockDriver();
+  const driver = new MockManagedRunDriver();
   const runtime = await createAgentRuntime(config, driver, {
     configDir,
     phoneListen: { host: '127.0.0.1', port: 0 },
@@ -205,11 +205,11 @@ describe('agent runtime integration', () => {
       (message) => message.commandId === 'cmd_3',
     );
     expect(busy.payload).toMatchObject({
-      status: 'error',
-      error: { code: 'SESSION_BUSY' },
+      status: 'ok',
+      data: { status: 'queued' },
     });
 
-    harness.driver.emit({
+    harness.driver.emit(runId, {
       kind: 'textDelta',
       sessionId,
       runId,
@@ -233,7 +233,12 @@ describe('agent runtime integration', () => {
       data: { status: 'cancelling' },
     });
 
-    harness.driver.finish('cancelled');
+    harness.driver.emit(runId, {
+      kind: 'runResult',
+      sessionId,
+      runId,
+      status: 'cancelled',
+    });
     const completed = await client.waitFor(
       (message) => message.type === 'run.completed',
     );

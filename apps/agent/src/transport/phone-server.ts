@@ -34,7 +34,7 @@ const PAIRING_HTTP_STATUS: Record<PairingErrorCode, number> = {
 export interface PhoneServerDependencies {
   pairingService: PairingService;
   deviceStore: DeviceStore;
-  workspace: { workspaceId: 'default'; displayName: string };
+  workspace: { workspaceId: string; displayName: string };
   onConnection: (socket: WebSocket, device: DeviceRecord) => void;
 }
 

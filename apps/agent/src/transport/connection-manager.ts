@@ -33,6 +33,7 @@ const CLOSE_SOCKET_ERROR = 4005;
 /** 连接层依赖；命令与压力回调由上层注入。 */
 export interface ConnectionManagerOptions {
   desktopId: string;
+  agentInstanceId: string;
   versions: { agent: string; sdk: string; runtime: string };
   capabilities: string[];
   onDeltaPressure?: (deviceId: string) => void;
@@ -158,6 +159,7 @@ export class ConnectionManager {
     connection.sender.send(
       createReadyMessage({
         desktopId: this.options.desktopId,
+        agentInstanceId: this.options.agentInstanceId,
         connectionEpoch: connection.epoch,
         versions: this.options.versions,
         capabilities: this.options.capabilities,

@@ -335,6 +335,11 @@ export class RunScheduler {
       .filter((session) => session.activeRun !== null).length;
   }
 
+  /** 全局 queued run 总数。 */
+  queuedRunCount(): number {
+    return this.globalQueuedCount();
+  }
+
   /** 目标会话的排队摘要，按 FIFO 顺序。 */
   queuedRuns(sessionId: string): QueuedRunSummary[] {
     return this.sessions
