@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyReply } from 'fastify';
 
 import { AgentError } from '../command/errors.js';
+import { isMobileApprovalMode } from '../config/config-v3.js';
 import { ConfigV2Error } from '../config/config-v2.js';
 import { toSummary } from './workspace-types.js';
 import { WorkspaceManager } from './workspace-manager.js';
@@ -54,6 +55,20 @@ export function registerWorkspaceRoutes(
     try {
       await deps.workspaces.remove(workspaceId);
       return { workspaceId, removed: true };
+    } catch (error: unknown) {
+      return sendAdminError(reply, error);
+    }
+  });
+
+  app.post('/admin/v1/workspaces/set-approval', async (request, reply) => {
+    const body = asBody(request.body);
+    const workspaceId = body['workspaceId'];
+    const mode = body['mode'];
+    if (typeof workspaceId !== 'string' || !isMobileApprovalMode(mode)) {
+      return sendError(reply, 400, 'INVALID_MESSAGE');
+    }
+    try {
+      return deps.workspaces.setApprovalMode(workspaceId, mode);
     } catch (error: unknown) {
       return sendAdminError(reply, error);
     }

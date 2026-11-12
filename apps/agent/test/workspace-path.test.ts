@@ -24,7 +24,7 @@ function record(rootPath: string): WorkspaceRecord {
     displayName: 'Fixture Alpha',
     rootPath,
     createdAt: 1_762_432_800_000,
-    policy: { perSessionQueueLimit: 20 },
+    policy: { perSessionQueueLimit: 20, mobileApprovalMode: 'deny' },
   };
 }
 

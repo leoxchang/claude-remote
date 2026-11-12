@@ -5,6 +5,7 @@ import { isAbsolute } from 'node:path';
 import { AgentError } from '../command/errors.js';
 import { AgentConfigV2 } from '../domain/types.js';
 import {
+  DEFAULT_MOBILE_APPROVAL_MODE,
   DEFAULT_PER_SESSION_QUEUE_LIMIT,
   MAX_PER_SESSION_QUEUE_LIMIT,
   MAX_WORKSPACES,
@@ -73,7 +74,10 @@ export function migrateConfigV1ToV2(input: unknown): AgentConfigV2 {
         displayName: validateDisplayName(requireString(legacy, 'displayName')),
         rootPath: requireAbsolutePath(legacy),
         createdAt: Date.now(),
-        policy: { perSessionQueueLimit: DEFAULT_PER_SESSION_QUEUE_LIMIT },
+        policy: {
+          perSessionQueueLimit: DEFAULT_PER_SESSION_QUEUE_LIMIT,
+          mobileApprovalMode: DEFAULT_MOBILE_APPROVAL_MODE,
+        },
       },
     ],
     listen: parseListen(record),
@@ -174,7 +178,10 @@ function parseWorkspace(input: unknown): WorkspaceRecord {
     displayName: validateDisplayName(requireString(record, 'displayName')),
     rootPath: requireAbsolutePath(record),
     createdAt,
-    policy: { perSessionQueueLimit: limit },
+    policy: {
+      perSessionQueueLimit: limit,
+      mobileApprovalMode: DEFAULT_MOBILE_APPROVAL_MODE,
+    },
   };
 }
 

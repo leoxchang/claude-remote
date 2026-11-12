@@ -4,7 +4,7 @@ import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { createAdminServer } from '../admin/server.js';
 import { CommandRouter } from '../command/router.js';
 import { resolveAgentPaths } from '../config/paths.js';
-import { AgentConfigV2 } from '../domain/types.js';
+import { AgentConfigV3 } from '../config/config-v3.js';
 import { EventJournal } from '../events/journal.js';
 import { EventNormalizer } from '../events/normalizer.js';
 import { SnapshotCoordinator } from '../events/snapshot-coordinator.js';
@@ -36,7 +36,7 @@ const CAPABILITIES = [
 
 /** 组装依赖所需的输入。 */
 export interface WireOptions {
-  config: AgentConfigV2;
+  config: AgentConfigV3;
   driver: ManagedRunDriver;
   configDir: string;
   logger: AgentLogger;

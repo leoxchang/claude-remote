@@ -1,6 +1,11 @@
 import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { readJsonFileIfExists } from '../config/atomic-file.js';
 import {
+  AgentConfigV3,
+  migrateConfigV2ToV3,
+  writeConfigV3Atomic,
+} from '../config/config-v3.js';
+import {
   migrateConfigV1ToV2,
   writeConfigV2Atomic,
 } from '../config/config-v2.js';
@@ -35,7 +40,7 @@ export interface AgentRuntimeOptions {
 
 /** 组装一个 Agent 运行时；命令层与测试共用同一装配路径。 */
 export async function createAgentRuntime(
-  config: AgentConfig | AgentConfigV2,
+  config: AgentConfig | AgentConfigV2 | AgentConfigV3,
   driver: ManagedRunDriver,
   options: AgentRuntimeOptions = {},
 ): Promise<AgentRuntime> {
@@ -80,29 +85,31 @@ export async function createAgentRuntime(
 /**
  * 启动时读取并迁移配置。
  *
- * V1 配置迁移为 V2 并原子写回，原文件保留为 agent.json.v1.bak；
- * 配置缺失或非法时直接失败，不创建空配置。
+ * V1 先迁移并写回 V2（保留 agent.json.v1.bak），再迁移到 V3
+ * （保留 agent.json.v2.bak，全部项目默认 deny）；配置缺失或非法时直接失败。
  */
 async function resolveStartupConfig(
   configDir: string,
-  fallback: AgentConfig | AgentConfigV2,
-): Promise<AgentConfigV2> {
+  fallback: AgentConfig | AgentConfigV2 | AgentConfigV3,
+): Promise<AgentConfigV3> {
   const paths = resolveAgentPaths(configDir);
   const raw = await readJsonFileIfExists(paths.agentFile);
   if (raw === undefined) {
-    const migrated = migrateConfigV1ToV2(fallback);
-    await writeConfigV2Atomic(configDir, migrated);
+    const migrated = migrateConfigV2ToV3(fallback);
+    await writeConfigV3Atomic(configDir, migrated);
     return migrated;
   }
-  const migrated = migrateConfigV1ToV2(raw);
-  if (isVersion(1, raw)) await writeConfigV2Atomic(configDir, migrated);
+  const version = configVersion(raw);
+  if (version === 1) {
+    await writeConfigV2Atomic(configDir, migrateConfigV1ToV2(raw));
+  }
+  const migrated = migrateConfigV2ToV3(raw);
+  if (version !== 3) await writeConfigV3Atomic(configDir, migrated);
   return migrated;
 }
 
-function isVersion(version: number, raw: unknown): boolean {
-  return (
-    typeof raw === 'object' &&
-    raw !== null &&
-    (raw as { version?: unknown }).version === version
-  );
+function configVersion(raw: unknown): number | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const version = (raw as { version?: unknown }).version;
+  return typeof version === 'number' ? version : null;
 }

@@ -1,6 +1,19 @@
-/** 单个项目的本机策略；S02 只有队列上限可配置。 */
+/** 项目级手机审批策略；只能由本机 Unix socket CLI 修改。 */
+export type MobileApprovalMode = 'deny' | 'allow_once';
+
+/** 全部合法审批模式；用于严格校验。 */
+export const MOBILE_APPROVAL_MODES: readonly MobileApprovalMode[] = [
+  'deny',
+  'allow_once',
+];
+
+/** 迁移与新增项目的默认审批模式：一律先 deny。 */
+export const DEFAULT_MOBILE_APPROVAL_MODE: MobileApprovalMode = 'deny';
+
+/** 单个项目的本机策略。 */
 export interface WorkspacePolicy {
   perSessionQueueLimit: number;
+  mobileApprovalMode: MobileApprovalMode;
 }
 
 /** 受保护的本地项目记录；rootPath 永不进入 App。 */
@@ -16,6 +29,7 @@ export interface WorkspaceRecord {
 export interface WorkspaceSummary {
   workspaceId: string;
   displayName: string;
+  mobileApprovalMode: MobileApprovalMode;
 }
 
 /** 本机最多授权的项目数。 */
@@ -32,5 +46,9 @@ export const MAX_PER_SESSION_QUEUE_LIMIT = 20;
 
 /** 只含公开字段的项目摘要。 */
 export function toSummary(record: WorkspaceRecord): WorkspaceSummary {
-  return { workspaceId: record.workspaceId, displayName: record.displayName };
+  return {
+    workspaceId: record.workspaceId,
+    displayName: record.displayName,
+    mobileApprovalMode: record.policy.mobileApprovalMode,
+  };
 }

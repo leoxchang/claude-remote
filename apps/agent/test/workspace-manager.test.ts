@@ -4,16 +4,16 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { AgentConfigV2 } from '../src/domain/types.js';
+import { AgentConfigV3 } from '../src/config/config-v3.js';
 import { WorkspaceManager } from '../src/workspace/workspace-manager.js';
 
 let configDir: string;
 let fixtureA: string;
 let fixtureB: string;
 
-function emptyConfig(): AgentConfigV2 {
+function emptyConfig(): AgentConfigV3 {
   return {
-    version: 2,
+    version: 3,
     desktopId: 'desktop_test',
     workspaces: [],
     listen: { host: '127.0.0.1', port: 8787 },
@@ -23,15 +23,15 @@ function emptyConfig(): AgentConfigV2 {
 
 interface Harness {
   manager: WorkspaceManager;
-  written: AgentConfigV2[];
+  written: AgentConfigV3[];
   setBusy: (busy: boolean) => void;
   failWrites: (fail: boolean) => void;
 }
 
-function setup(config: AgentConfigV2 = emptyConfig()): Harness {
+function setup(config: AgentConfigV3 = emptyConfig()): Harness {
   let busy = false;
   let failing = false;
-  const written: AgentConfigV2[] = [];
+  const written: AgentConfigV3[] = [];
   const manager = new WorkspaceManager({
     configDir,
     config,
@@ -130,6 +130,7 @@ describe('WorkspaceManager.list and rename', () => {
     expect(summary).toEqual({
       workspaceId: expect.stringMatching(/^ws_/),
       displayName: 'Fixture Alpha',
+      mobileApprovalMode: 'deny',
     });
     expect(JSON.stringify(manager.list())).not.toContain(fixtureA);
   });
@@ -146,6 +147,7 @@ describe('WorkspaceManager.list and rename', () => {
     expect(renamed).toEqual({
       workspaceId: record.workspaceId,
       displayName: 'Alpha 2',
+      mobileApprovalMode: 'deny',
     });
     expect(written.at(-1)?.workspaces[0]?.rootPath).toBe(record.rootPath);
     expect(written.at(-1)?.workspaces[0]?.workspaceId).toBe(record.workspaceId);

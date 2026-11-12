@@ -5,7 +5,7 @@ import { AdminClient } from './admin/client.js';
 import { createAgentRuntime } from './app/runtime.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from './config/paths.js';
 import { initializeConfig } from './config/initialize.js';
-import { loadConfigV2 } from './config/config-v2.js';
+import { loadConfigV3 } from './config/config-v3.js';
 import { renderPairingQr } from './pairing/qr.js';
 import { toSummary } from './workspace/workspace-types.js';
 
@@ -45,7 +45,7 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
     .command('start')
     .description('start the agent in the foreground')
     .action(async () => {
-      const config = await loadConfigV2(configDir);
+      const config = await loadConfigV3(configDir);
       const runtime = await createAgentRuntime(config, new AgentSdkAdapter(), {
         configDir,
       });
@@ -116,7 +116,7 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
     .command('list')
     .description('list authorized projects from the local config')
     .action(async () => {
-      const config = await loadConfigV2(configDir);
+      const config = await loadConfigV3(configDir);
       process.stdout.write(
         `${JSON.stringify(config.workspaces.map(toSummary), null, 2)}\n`,
       );
@@ -142,6 +142,22 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
     .action(async (workspaceId: string) => {
       const result = await adminClient().workspaceRemove(workspaceId);
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    });
+
+  workspace
+    .command('set-approval')
+    .description('enable or disable mobile approval for one project')
+    .argument('<workspaceId>', 'workspace id to update')
+    .requiredOption('--mode <mode>', 'allow_once or deny')
+    .action(async (workspaceId: string, options: { mode: string }) => {
+      if (options.mode !== 'deny' && options.mode !== 'allow_once') {
+        throw new Error('--mode must be deny or allow_once');
+      }
+      const summary = await adminClient().workspaceSetApproval(
+        workspaceId,
+        options.mode,
+      );
+      process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
     });
 
   return program;

@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { AgentSdkAdapter } from '../../src/adapter/agent-sdk-adapter.js';
-import { AgentConfigV2, RunRecord } from '../../src/domain/types.js';
+import { AgentConfigV3 } from '../../src/config/config-v3.js';
+import { RunRecord } from '../../src/domain/types.js';
+import { WorkspaceRecord } from '../../src/workspace/workspace-types.js';
 import { EventJournal } from '../../src/events/journal.js';
 import { EventNormalizer } from '../../src/events/normalizer.js';
 import { ManagedRunController } from '../../src/run/run-controller.js';
@@ -78,15 +80,15 @@ interface Harness {
 
 async function buildHarness(cwd: string[]): Promise<Harness> {
   const roots = await Promise.all(cwd.map((path) => realpath(path)));
-  const workspaces = roots.map((path, index) => ({
+  const workspaces: WorkspaceRecord[] = roots.map((path, index) => ({
     workspaceId: `ws_${index}`,
     displayName: `Fixture ${index}`,
     rootPath: path,
     createdAt: FIXED_NOW,
-    policy: { perSessionQueueLimit: 20 },
+    policy: { perSessionQueueLimit: 20, mobileApprovalMode: 'deny' },
   }));
-  const config: AgentConfigV2 = {
-    version: 2,
+  const config: AgentConfigV3 = {
+    version: 3,
     desktopId: 'desktop_live',
     workspaces,
     listen: { host: '127.0.0.1', port: 8787 },

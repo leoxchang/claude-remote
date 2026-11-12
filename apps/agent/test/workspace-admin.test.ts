@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AdminClient } from '../src/admin/client.js';
 import { AdminStatus, createAdminServer } from '../src/admin/server.js';
-import { AgentConfigV2 } from '../src/domain/types.js';
+import { AgentConfigV3 } from '../src/config/config-v3.js';
 import { PairingService } from '../src/pairing/pairing-service.js';
 import { DeviceStore } from '../src/store/device-store.js';
 import { WorkspaceManager } from '../src/workspace/workspace-manager.js';
@@ -19,9 +19,9 @@ let fixture: string;
 let server: FastifyInstance | null = null;
 let busy = false;
 
-function emptyConfig(): AgentConfigV2 {
+function emptyConfig(): AgentConfigV3 {
   return {
-    version: 2,
+    version: 3,
     desktopId: 'desktop_test',
     workspaces: [],
     listen: { host: '127.0.0.1', port: 8787 },
@@ -79,6 +79,7 @@ describe('workspace admin routes', () => {
     expect(added).toEqual({
       workspaceId: expect.stringMatching(/^ws_/),
       displayName: 'Fixture Alpha',
+      mobileApprovalMode: 'deny',
     });
 
     expect(await client.workspaceList()).toEqual([added]);
@@ -90,6 +91,17 @@ describe('workspace admin routes', () => {
     expect(renamed).toEqual({
       workspaceId: added.workspaceId,
       displayName: 'Fixture Alpha 2',
+      mobileApprovalMode: 'deny',
+    });
+
+    const approved = await client.workspaceSetApproval(
+      added.workspaceId,
+      'allow_once',
+    );
+    expect(approved).toEqual({
+      workspaceId: added.workspaceId,
+      displayName: 'Fixture Alpha 2',
+      mobileApprovalMode: 'allow_once',
     });
 
     await client.workspaceRemove(added.workspaceId);
@@ -118,5 +130,22 @@ describe('workspace admin routes', () => {
     await expect(client.workspaceAdd(missing, 'Missing')).rejects.toMatchObject(
       { code: 'WORKSPACE_NOT_ALLOWED' },
     );
+  });
+
+  it('rejects an unknown approval mode and unknown workspace', async () => {
+    const client = await startAdmin();
+    const added = await client.workspaceAdd(fixture, 'Fixture Alpha');
+
+    await expect(
+      client.workspaceSetApproval(
+        added.workspaceId,
+        // @ts-expect-error 运行期必须拒绝非法 mode
+        'always',
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_MESSAGE' });
+
+    await expect(
+      client.workspaceSetApproval('ws_missing', 'deny'),
+    ).rejects.toMatchObject({ code: 'WORKSPACE_NOT_FOUND' });
   });
 });

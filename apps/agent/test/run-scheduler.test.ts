@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AdapterRegistry } from '../src/adapter/adapter-registry.js';
 import { MockManagedRunDriver } from '../src/adapter/mock-managed-run-driver.js';
-import { AgentConfigV2 } from '../src/domain/types.js';
+import { AgentConfigV3 } from '../src/config/config-v3.js';
 import { EventJournal } from '../src/events/journal.js';
 import { RunScheduler } from '../src/run/run-scheduler.js';
 import { SessionRegistry } from '../src/session/session-registry.js';
@@ -35,7 +35,10 @@ async function setup(options: { queueLimit?: number } = {}): Promise<Harness> {
       displayName: 'Fixture Alpha',
       rootPath: await realpath(workspaceDir),
       createdAt: 1_762_432_800_000,
-      policy: { perSessionQueueLimit: options.queueLimit ?? 20 },
+      policy: {
+        perSessionQueueLimit: options.queueLimit ?? 20,
+        mobileApprovalMode: 'deny',
+      },
     },
   ];
   const workspaces = new WorkspaceManager({
@@ -79,9 +82,9 @@ async function setup(options: { queueLimit?: number } = {}): Promise<Harness> {
   };
 }
 
-function emptyConfig(): AgentConfigV2 {
+function emptyConfig(): AgentConfigV3 {
   return {
-    version: 2,
+    version: 3,
     desktopId: 'desktop_test',
     workspaces: [],
     listen: { host: '127.0.0.1', port: 8787 },

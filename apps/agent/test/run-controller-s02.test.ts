@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { MockManagedRunDriver } from '../src/adapter/mock-managed-run-driver.js';
-import { AgentConfigV2, TerminalRunStatus } from '../src/domain/types.js';
+import { TerminalRunStatus } from '../src/domain/types.js';
+import { AgentConfigV3 } from '../src/config/config-v3.js';
 import { AdapterEvent } from '../src/events/adapter-events.js';
 import { EventJournal } from '../src/events/journal.js';
 import { EventNormalizer } from '../src/events/normalizer.js';
@@ -30,8 +31,8 @@ interface Harness {
 async function setup(
   options: { interruptTimeoutMs?: number } = {},
 ): Promise<Harness> {
-  const config: AgentConfigV2 = {
-    version: 2,
+  const config: AgentConfigV3 = {
+    version: 3,
     desktopId: 'desktop_test',
     workspaces: [
       {
@@ -39,7 +40,10 @@ async function setup(
         displayName: 'Fixture Alpha',
         rootPath: await realpath(workspaceDir),
         createdAt: 1_762_432_800_000,
-        policy: { perSessionQueueLimit: 20 },
+        policy: {
+          perSessionQueueLimit: 20,
+          mobileApprovalMode: 'deny',
+        },
       },
     ],
     listen: { host: '127.0.0.1', port: 8787 },
