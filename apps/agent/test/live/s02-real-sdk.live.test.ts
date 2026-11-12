@@ -213,7 +213,8 @@ describe('S02 real SDK regression', () => {
           ].join(' '),
           'cmd_live_1',
           'trace_live_1',
-        );
+      'device_1',
+    );
         expect(first.status).toBe('starting');
         expect(
           await waitForTerminal(harness.sessions, session.sessionId, first.runId),
@@ -227,7 +228,8 @@ describe('S02 real SDK regression', () => {
           'What exact marker did I ask you to remember? Reply with just the marker.',
           'cmd_live_2',
           'trace_live_2',
-        );
+      'device_1',
+    );
         expect(
           await waitForTerminal(
             harness.sessions,
@@ -313,7 +315,8 @@ describe('S02 real SDK regression', () => {
           ].join(' '),
           'cmd_live_deny',
           'trace_live_deny',
-        );
+      'device_1',
+    );
         expect(
           await waitForTerminal(
             harness.sessions,

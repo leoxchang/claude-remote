@@ -21,6 +21,8 @@ export interface ManagedRunStart {
   adapterGeneration: number;
   text: string;
   cwd: string;
+  /** 发起该 run 的已认证设备；审批绑定到该设备。 */
+  deviceId: string;
   permissionBroker: PermissionGate;
   onEvent: (event: AdapterEvent) => void;
 }

@@ -50,6 +50,7 @@ function input(overrides: Partial<ManagedRunStart> = {}): ManagedRunStart {
     adapterGeneration: 3,
     text: 'hello',
     cwd: '/tmp/s02-fixture',
+    deviceId: 'device_1',
     permissionBroker: denyAllPermissionGate(),
     onEvent: () => undefined,
     ...overrides,

@@ -4,8 +4,14 @@ import {
   ManagedRunHandle,
   PermissionGate,
 } from '../adapter/managed-run-driver.js';
+import { RunApprovalContext } from '../approval/approval-types.js';
 import { AgentError } from '../command/errors.js';
-import { RunRecord, SessionRecord, TerminalRunStatus } from '../domain/types.js';
+import {
+  RunRecord,
+  RunStatus,
+  SessionRecord,
+  TerminalRunStatus,
+} from '../domain/types.js';
 import { AdapterEvent } from '../events/adapter-events.js';
 import { EventJournal } from '../events/journal.js';
 import { QueuedRunSummary } from '../events/snapshot-factory.js';
@@ -87,7 +93,7 @@ const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
  */
 export class RunScheduler {
   private readonly registry: AdapterRegistry;
-  private readonly permissionBroker: PermissionGate;
+  private permissionBroker: PermissionGate;
   private readonly sessions: SessionRegistry;
   private readonly now: () => number;
   private eventHandler:
@@ -110,6 +116,11 @@ export class RunScheduler {
     handler: (event: AdapterEvent, context: { runId: string; generation: number }) => void,
   ): void {
     this.eventHandler = handler;
+  }
+
+  /** 装配真实 Broker；未设置时保持一律拒绝。 */
+  setPermissionBroker(gate: PermissionGate): void {
+    this.permissionBroker = gate;
   }
 
   /** 事件是否仍属于该 run 的当前 generation。 */
@@ -135,6 +146,7 @@ export class RunScheduler {
     text: string;
     commandId: string;
     traceId: string;
+    deviceId: string;
   }): PromptAccepted {
     const session = this.sessions.get(input.sessionId);
     if (session.lifecycle === 'archived') {
@@ -161,10 +173,12 @@ export class RunScheduler {
       runId: this.options.generateRunId?.() ?? `run_${randomBase64Url(RUN_ID_BYTES)}`,
       sessionId: session.sessionId,
       workspaceId: session.workspaceId,
+      deviceId: input.deviceId,
       commandId: input.commandId,
       traceId: input.traceId,
       text: input.text,
       status: 'queued',
+      pendingApprovalCount: 0,
       enqueueOrder: this.enqueueOrder,
       enqueuedAt: now,
       startedAt: null,
@@ -258,6 +272,85 @@ export class RunScheduler {
     });
   }
 
+  /**
+   * 更新 run 的 pending 审批数。
+   *
+   * 首个 pending 使 starting/running 进入 waiting_approval，
+   * 计数归零后回到 running；cancelling/终态不受影响。
+   */
+  setPendingApprovalCount(runId: string, count: number): void {
+    const sessionId = this.sessions.findRunOwner(runId);
+    if (sessionId === null) return;
+    const session = this.sessions.get(sessionId);
+    const active = session.activeRun;
+    if (active === null || active.runId !== runId) return;
+    const nextStatus = approvalStatus(active.status, count);
+    const updated: RunRecord = {
+      ...active,
+      status: nextStatus,
+      pendingApprovalCount: count,
+    };
+    this.sessions.update(sessionId, (current) => ({
+      ...current,
+      activeRun: updated,
+      runsById: new Map([...current.runsById, [runId, updated]]),
+    }));
+    if (nextStatus !== active.status) {
+      this.options.journal.append({
+        sessionId,
+        type: 'session.status',
+        runId,
+        payload: {
+          state: nextStatus,
+          status: nextStatus,
+          pendingApprovalCount: count,
+        },
+      });
+    }
+  }
+
+  /** 审批的 run 绑定；非当前 run 或终态返回 null，cancelling 不接受审批。 */
+  approvalContext(
+    runId: string,
+  ): { context: RunApprovalContext; acceptingApprovals: boolean } | null {
+    const sessionId = this.sessions.findRunOwner(runId);
+    if (sessionId === null) return null;
+    const session = this.sessions.get(sessionId);
+    const active = session.activeRun;
+    if (active === null || active.runId !== runId) return null;
+    const workingDirectory = this.workingDirectory(active.workspaceId);
+    if (workingDirectory === null) return null;
+    if (active.status === 'cancelling') {
+      return {
+        context: {
+          workspaceId: active.workspaceId,
+          sessionId: active.sessionId,
+          runId: active.runId,
+          deviceId: active.deviceId,
+          workingDirectory,
+        },
+        acceptingApprovals: false,
+      };
+    }
+    if (
+      active.status !== 'starting' &&
+      active.status !== 'running' &&
+      active.status !== 'waiting_approval'
+    ) {
+      return null;
+    }
+    return {
+      context: {
+        workspaceId: active.workspaceId,
+        sessionId: active.sessionId,
+        runId: active.runId,
+        deviceId: active.deviceId,
+        workingDirectory,
+      },
+      acceptingApprovals: true,
+    };
+  }
+
   /** 开始取消；只有 outcome=started 时调用方才能 interrupt。 */
   beginCancel(sessionId: string, runId: string): CancelDecision {
     const session = this.sessions.get(sessionId);
@@ -312,6 +405,7 @@ export class RunScheduler {
       ...known,
       status: input.status,
       text: null,
+      pendingApprovalCount: 0,
       endedAt: now,
       errorSummary: input.errorSummary ?? null,
     };
@@ -388,6 +482,15 @@ export class RunScheduler {
       .reduce((total, session) => total + session.queue.length, 0);
   }
 
+  /** 解析项目真实路径；路径失效时审批 fail closed。 */
+  private workingDirectory(workspaceId: string): string | null {
+    try {
+      return this.options.workspaces.assertUsable(workspaceId).rootPath;
+    } catch {
+      return null;
+    }
+  }
+
   private drain(): void {
     while (this.activeCount() < MAX_ACTIVE_RUNS) {
       const candidate = this.nextEligible();
@@ -444,6 +547,7 @@ export class RunScheduler {
         adapterGeneration: generation,
         text: starting.text ?? '',
         cwd: workspace.rootPath,
+        deviceId: starting.deviceId,
         permissionBroker: this.permissionBroker,
         onEvent: (event) => {
           this.eventHandler?.(event, { runId: starting.runId, generation });
@@ -473,4 +577,20 @@ export class RunScheduler {
     if (handle === null) return;
     void handle.close().catch(() => undefined);
   }
+}
+
+/** pending 数到 run 状态的派生；取消与终态不因计数变化。 */
+function approvalStatus(current: RunStatus, count: number): RunStatus {
+  if (count > 0) {
+    if (
+      current === 'starting' ||
+      current === 'running' ||
+      current === 'waiting_approval'
+    ) {
+      return 'waiting_approval';
+    }
+    return current;
+  }
+  if (current === 'waiting_approval') return 'running';
+  return current;
 }

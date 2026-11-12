@@ -155,6 +155,7 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
     expect(accepted.status).toBe('starting');
 
@@ -180,6 +181,7 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
     harness.driver.emit(
       first.runId,
@@ -201,6 +203,7 @@ describe('ManagedRunController', () => {
       'second',
       'cmd_2',
       'trace_2',
+      'device_1',
     );
 
     expect(harness.driver.started[1]?.claudeSessionId).toBe('claude_1');
@@ -214,6 +217,7 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
 
     await harness.controller.cancel(harness.sessionId, accepted.runId);
@@ -232,6 +236,7 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
 
     await harness.controller.cancel(harness.sessionId, accepted.runId);
@@ -255,12 +260,14 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
     const second = await harness.controller.sendPrompt(
       other.sessionId,
       'second',
       'cmd_2',
       'trace_2',
+      'device_1',
     );
 
     await harness.controller.cancel(harness.sessionId, first.runId);
@@ -285,6 +292,7 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
     harness.driver.emit(
       first.runId,
@@ -301,6 +309,7 @@ describe('ManagedRunController', () => {
       'second',
       'cmd_2',
       'trace_2',
+      'device_1',
     );
     harness.driver.emit(
       second.runId,
@@ -322,6 +331,7 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
     harness.driver.emit(
       first.runId,
@@ -350,12 +360,14 @@ describe('ManagedRunController', () => {
       'first',
       'cmd_1',
       'trace_1',
+      'device_1',
     );
     const second = await harness.controller.sendPrompt(
       harness.sessionId,
       'second',
       'cmd_2',
       'trace_2',
+      'device_1',
     );
 
     const removed = await harness.controller.removeQueued(

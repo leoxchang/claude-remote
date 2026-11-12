@@ -130,6 +130,8 @@ export class PermissionBroker {
       this.events.reportError({
         code: 'PERMISSION_REQUIRED',
         message: DENIAL_MESSAGES.workspaceDisabled,
+        sessionId: runtime.context.sessionId,
+        runId,
       });
       return Promise.resolve(
         this.deny(request.toolUseID, DENIAL_MESSAGES.workspaceDisabled),
@@ -139,6 +141,8 @@ export class PermissionBroker {
       this.events.reportError({
         code: 'DEVICE_REVOKED',
         message: DENIAL_MESSAGES.deviceInactive,
+        sessionId: runtime.context.sessionId,
+        runId,
       });
       return Promise.resolve(
         this.deny(request.toolUseID, DENIAL_MESSAGES.deviceInactive),
@@ -150,6 +154,8 @@ export class PermissionBroker {
       this.events.reportError({
         code: classification.code,
         message: classification.message,
+        sessionId: runtime.context.sessionId,
+        runId,
       });
       return Promise.resolve(this.deny(request.toolUseID, classification.message));
     }
@@ -163,6 +169,8 @@ export class PermissionBroker {
       this.events.reportError({
         code: 'APPROVAL_CONTENT_UNAVAILABLE',
         message: DENIAL_MESSAGES.unavailable,
+        sessionId: runtime.context.sessionId,
+        runId,
       });
       return Promise.resolve(
         this.deny(request.toolUseID, DENIAL_MESSAGES.unavailable),
@@ -176,6 +184,8 @@ export class PermissionBroker {
         this.events.reportError({
           code: 'INTERNAL_ERROR',
           message: DENIAL_MESSAGES.conflict,
+          sessionId: existing.sessionId,
+          runId: existing.runId,
         });
         return Promise.resolve(this.deny(request.toolUseID, DENIAL_MESSAGES.conflict));
       }
@@ -186,6 +196,8 @@ export class PermissionBroker {
         this.events.reportError({
           code: 'APPROVAL_DUPLICATE_AFTER_RESOLUTION',
           message: DENIAL_MESSAGES.duplicateAfterResolution,
+          sessionId: existing.sessionId,
+          runId: existing.runId,
         });
         return Promise.resolve(
           this.deny(request.toolUseID, DENIAL_MESSAGES.duplicateAfterResolution),
@@ -200,6 +212,8 @@ export class PermissionBroker {
       this.events.reportError({
         code: 'APPROVAL_CAPACITY_EXCEEDED',
         message: DENIAL_MESSAGES.capacity,
+        sessionId: runtime.context.sessionId,
+        runId,
       });
       return Promise.resolve(this.deny(request.toolUseID, DENIAL_MESSAGES.capacity));
     }
@@ -207,6 +221,8 @@ export class PermissionBroker {
       this.events.reportError({
         code: 'APPROVAL_CAPACITY_EXCEEDED',
         message: DENIAL_MESSAGES.capacity,
+        sessionId: runtime.context.sessionId,
+        runId,
       });
       return Promise.resolve(this.deny(request.toolUseID, DENIAL_MESSAGES.capacity));
     }
@@ -222,7 +238,12 @@ export class PermissionBroker {
         error instanceof Error && error.message === 'APPROVAL_CONTENT_TOO_LARGE'
           ? 'APPROVAL_CONTENT_TOO_LARGE'
           : 'APPROVAL_CONTENT_UNAVAILABLE';
-      this.events.reportError({ code, message: DENIAL_MESSAGES.unavailable });
+      this.events.reportError({
+        code,
+        message: DENIAL_MESSAGES.unavailable,
+        sessionId: runtime.context.sessionId,
+        runId,
+      });
       return Promise.resolve(
         this.deny(request.toolUseID, DENIAL_MESSAGES.unavailable),
       );
@@ -556,6 +577,9 @@ function toSummary(
   }
   return {
     approvalId: record.approvalId,
+    workspaceId: record.workspaceId,
+    sessionId: record.sessionId,
+    runId: record.runId,
     toolUseID: record.toolUseID,
     toolName: record.toolName,
     agentID: record.agentID,

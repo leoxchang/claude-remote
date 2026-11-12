@@ -62,6 +62,8 @@ export interface PairingServiceOptions {
   desktopId: string;
   baseUrl: string;
   now?: () => number;
+  /** replace 成功吊销旧设备后同步调用；用于失效其审批与连接。 */
+  onDeviceReplaced?: (deviceId: string) => void;
 }
 
 interface PendingPairing {
@@ -78,6 +80,7 @@ export class PairingService {
   private readonly desktopId: string;
   private readonly baseUrl: string;
   private readonly now: () => number;
+  private readonly onDeviceReplaced: ((deviceId: string) => void) | undefined;
   private pending: PendingPairing | null = null;
   private attempts: number[] = [];
 
@@ -86,6 +89,7 @@ export class PairingService {
     this.desktopId = options.desktopId;
     this.baseUrl = options.baseUrl;
     this.now = options.now ?? (() => Date.now());
+    this.onDeviceReplaced = options.onDeviceReplaced;
   }
 
   /** 生成本机终端展示的二维码载荷；已有设备时需显式 replace。 */
@@ -140,6 +144,7 @@ export class PairingService {
         );
       }
       await this.deviceStore.revoke(active.deviceId);
+      this.onDeviceReplaced?.(active.deviceId);
     }
 
     const deviceId = `device_${randomBase64Url(DEVICE_ID_BYTES)}`;

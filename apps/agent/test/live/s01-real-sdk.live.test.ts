@@ -49,6 +49,7 @@ async function runOnce(
     runId: `run_${Date.now()}`,
     text: options.text,
     cwd: options.cwd,
+    deviceId: 'device_1',
     permissionBroker: denyAllPermissionGate(),
     onEvent: (event: AdapterEvent) => {
       if (event.kind === 'init') claudeSessionId = event.claudeSessionId;

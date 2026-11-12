@@ -2,6 +2,10 @@ import { FastifyInstance } from 'fastify';
 
 import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { createAdminServer } from '../admin/server.js';
+import { ApprovalContentController } from '../approval/approval-content-controller.js';
+import { ApprovalStore } from '../approval/approval-store.js';
+import { PermissionBroker } from '../approval/permission-broker.js';
+import { RunApprovalBridge } from '../approval/run-approval-bridge.js';
 import { CommandRouter } from '../command/router.js';
 import { resolveAgentPaths } from '../config/paths.js';
 import { AgentConfigV3 } from '../config/config-v3.js';
@@ -56,10 +60,17 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
   const { config, driver, configDir, logger } = options;
   const paths = resolveAgentPaths(configDir);
   const deviceStore = new DeviceStore(configDir);
+  let broker: PermissionBroker | null = null;
+  let connections: ConnectionManager;
   const pairingService = new PairingService({
     deviceStore,
     desktopId: config.desktopId,
     baseUrl: config.tailscale.baseUrl,
+    onDeviceReplaced: (deviceId) => {
+      connections.revoke(deviceId);
+      broker?.invalidateDevice(deviceId, 'device_revoked');
+      logger.info('device.replaced', { deviceId });
+    },
   });
 
   let scheduler: RunScheduler | undefined;
@@ -69,6 +80,10 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
     usage: {
       hasActiveOrQueued: (workspaceId) =>
         scheduler?.hasActiveOrQueued(workspaceId) ?? false,
+    },
+    onApprovalModeChanged: (workspaceId, mode) => {
+      if (mode !== 'deny') return;
+      broker?.invalidateWorkspace(workspaceId, 'policy_disabled');
     },
   });
   const sessions = new SessionRegistry();
@@ -80,9 +95,35 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
     journal,
     driver,
   });
-  const runs = new ManagedRunController({ scheduler, sessions, normalizer });
+  const approvalStore = new ApprovalStore();
+  const approvalBridge = new RunApprovalBridge({
+    scheduler,
+    workspaces,
+    devices: deviceStore,
+    journal,
+    normalizer,
+    logger,
+  });
+  const permissionBroker = new PermissionBroker({
+    store: approvalStore,
+    ports: approvalBridge,
+    events: approvalBridge,
+  });
+  broker = permissionBroker;
+  scheduler.setPermissionBroker(permissionBroker);
+  const approvalContent = new ApprovalContentController({
+    store: approvalStore,
+    settleExpired: (approvalId) => {
+      permissionBroker.settleIfExpired(approvalId);
+    },
+  });
+  const runs = new ManagedRunController({
+    scheduler,
+    sessions,
+    normalizer,
+    permissionBroker,
+  });
 
-  let connections: ConnectionManager;
   const coordinator = new SnapshotCoordinator({
     journal,
     getSession: (sessionId) => sessions.get(sessionId),
@@ -163,6 +204,7 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
         }),
         onRevoke: (deviceId) => {
           connections.revoke(deviceId);
+          permissionBroker.invalidateDevice(deviceId, 'device_revoked');
           logger.info('device.revoked', { deviceId });
         },
       });
@@ -180,11 +222,13 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
           logger.info('connection.accepted', { deviceId: device.deviceId });
           void connections.accept(socket, device);
         },
+        approvalContent,
       });
       await phoneServer.listen(listen);
       logger.info('agent.started', { desktopId: config.desktopId, listen });
     },
     async close() {
+      permissionBroker.invalidateAll('agent_shutdown');
       if (phoneServer !== null) {
         await phoneServer.close();
         phoneServer = null;

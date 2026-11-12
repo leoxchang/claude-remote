@@ -107,12 +107,14 @@ describe('RunScheduler dual-slot dispatch', () => {
     const harness = await setup();
     const a1 = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'a1',
       commandId: 'cmd_a1',
       traceId: 'trace_a1',
     });
     const a2 = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'a2',
       commandId: 'cmd_a2',
       traceId: 'trace_a2',
@@ -120,6 +122,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const other = harness.sessions.create({ workspaceId: harness.workspaceId });
     const b1 = harness.scheduler.enqueue({
       sessionId: other.sessionId,
+      deviceId: 'device_1',
       text: 'b1',
       commandId: 'cmd_b1',
       traceId: 'trace_b1',
@@ -127,6 +130,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const third = harness.sessions.create({ workspaceId: harness.workspaceId });
     const c1 = harness.scheduler.enqueue({
       sessionId: third.sessionId,
+      deviceId: 'device_1',
       text: 'c1',
       commandId: 'cmd_c1',
       traceId: 'trace_c1',
@@ -154,6 +158,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const harness = await setup();
     const accepted = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'hello',
       commandId: 'cmd_1',
       traceId: 'trace_1',
@@ -165,6 +170,7 @@ describe('RunScheduler dual-slot dispatch', () => {
 
     const queued = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'later',
       commandId: 'cmd_2',
       traceId: 'trace_2',
@@ -177,6 +183,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const harness = await setup();
     const accepted = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'hello',
       commandId: 'cmd_1',
       traceId: 'trace_1',
@@ -193,6 +200,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const harness = await setup();
     const a1 = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'a1',
       commandId: 'cmd_a1',
       traceId: 'trace_a1',
@@ -200,6 +208,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const other = harness.sessions.create({ workspaceId: harness.workspaceId });
     const b1 = harness.scheduler.enqueue({
       sessionId: other.sessionId,
+      deviceId: 'device_1',
       text: 'b1',
       commandId: 'cmd_b1',
       traceId: 'trace_b1',
@@ -207,6 +216,7 @@ describe('RunScheduler dual-slot dispatch', () => {
     const third = harness.sessions.create({ workspaceId: harness.workspaceId });
     const c1 = harness.scheduler.enqueue({
       sessionId: third.sessionId,
+      deviceId: 'device_1',
       text: 'c1',
       commandId: 'cmd_c1',
       traceId: 'trace_c1',
@@ -235,18 +245,21 @@ describe('RunScheduler dual-slot dispatch', () => {
     const harness = await setup();
     const first = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'one',
       commandId: 'cmd_1',
       traceId: 'trace_1',
     });
     const second = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'two',
       commandId: 'cmd_2',
       traceId: 'trace_2',
     });
     const third = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'three',
       commandId: 'cmd_3',
       traceId: 'trace_3',
@@ -267,18 +280,21 @@ describe('RunScheduler queue.remove', () => {
     const harness = await setup();
     const first = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'one',
       commandId: 'cmd_1',
       traceId: 'trace_1',
     });
     const second = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'two',
       commandId: 'cmd_2',
       traceId: 'trace_2',
     });
     const third = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'three',
       commandId: 'cmd_3',
       traceId: 'trace_3',
@@ -311,12 +327,14 @@ describe('RunScheduler queue.remove', () => {
     const harness = await setup();
     const active = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'one',
       commandId: 'cmd_1',
       traceId: 'trace_1',
     });
     const queued = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'two',
       commandId: 'cmd_2',
       traceId: 'trace_2',
@@ -350,12 +368,14 @@ describe('RunScheduler limits and failures', () => {
     const harness = await setup({ queueLimit: 1 });
     harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'one',
       commandId: 'cmd_1',
       traceId: 'trace_1',
     });
     const second = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'two',
       commandId: 'cmd_2',
       traceId: 'trace_2',
@@ -364,6 +384,7 @@ describe('RunScheduler limits and failures', () => {
     expect(() =>
       harness.scheduler.enqueue({
         sessionId: harness.sessionId,
+        deviceId: 'device_1',
         text: 'three',
         commandId: 'cmd_3',
         traceId: 'trace_3',
@@ -385,6 +406,7 @@ describe('RunScheduler limits and failures', () => {
       for (let index = 0; index < 20; index += 1) {
         harness.scheduler.enqueue({
           sessionId,
+      deviceId: 'device_1',
           text: `text-${index}`,
           commandId: `cmd_${sessionId}_${index}`,
           traceId: `trace_${sessionId}_${index}`,
@@ -394,12 +416,14 @@ describe('RunScheduler limits and failures', () => {
     const extra = harness.sessions.create({ workspaceId: harness.workspaceId });
     harness.scheduler.enqueue({
       sessionId: extra.sessionId,
+      deviceId: 'device_1',
       text: 'fill-1',
       commandId: 'cmd_fill_1',
       traceId: 'trace_fill_1',
     });
     harness.scheduler.enqueue({
       sessionId: extra.sessionId,
+      deviceId: 'device_1',
       text: 'fill-2',
       commandId: 'cmd_fill_2',
       traceId: 'trace_fill_2',
@@ -408,6 +432,7 @@ describe('RunScheduler limits and failures', () => {
     expect(() =>
       harness.scheduler.enqueue({
         sessionId: extra.sessionId,
+        deviceId: 'device_1',
         text: 'overflow',
         commandId: 'cmd_overflow',
         traceId: 'trace_overflow',
@@ -419,12 +444,14 @@ describe('RunScheduler limits and failures', () => {
     const harness = await setup();
     const blocker = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'blocker',
       commandId: 'cmd_blocker',
       traceId: 'trace_blocker',
     });
     const accepted = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'hello',
       commandId: 'cmd_1',
       traceId: 'trace_1',
@@ -452,6 +479,7 @@ describe('RunScheduler limits and failures', () => {
 
     const accepted = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'hello',
       commandId: 'cmd_1',
       traceId: 'trace_1',
@@ -465,6 +493,7 @@ describe('RunScheduler limits and failures', () => {
 
     const next = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'next',
       commandId: 'cmd_2',
       traceId: 'trace_2',
@@ -476,6 +505,7 @@ describe('RunScheduler limits and failures', () => {
     const harness = await setup();
     const accepted = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'secret prompt',
       commandId: 'cmd_1',
       traceId: 'trace_1',
@@ -498,6 +528,7 @@ describe('RunScheduler limits and failures', () => {
     const harness = await setup();
     const accepted = harness.scheduler.enqueue({
       sessionId: harness.sessionId,
+      deviceId: 'device_1',
       text: 'hello',
       commandId: 'cmd_1',
       traceId: 'trace_1',

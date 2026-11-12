@@ -29,6 +29,7 @@ describe('agent bootstrap', () => {
       'queued',
       'starting',
       'running',
+      'waiting_approval',
       'cancelling',
       'succeeded',
       'failed',

@@ -107,6 +107,7 @@ export function startLiveRun(
     runId,
     text: options.prompt,
     cwd: options.cwd,
+    deviceId: 'device_1',
     permissionBroker: denyAllPermissionGate(),
     onEvent: (event) => {
       if (event.sessionId !== sessionId || event.runId !== runId) {

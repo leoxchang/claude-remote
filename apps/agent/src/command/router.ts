@@ -88,17 +88,18 @@ export class CommandRouter {
       return this.errorResult(command, 'FORBIDDEN', false);
     }
 
-    const { value, duplicate } = await this.idempotent(command);
+    const { value, duplicate } = await this.idempotent(command, device);
     return this.resultMessage(command, { ...value, duplicate });
   }
 
   /** 幂等执行；请求指纹冲突时返回稳定错误码。 */
   private async idempotent(
     command: CommandMessage,
+    device: DeviceRecord,
   ): Promise<{ value: DispatchPayload; duplicate: boolean }> {
     try {
       return await this.idempotency.execute(toIdentity(command), () =>
-        this.dispatch(command),
+        this.dispatch(command, device),
       );
     } catch (error: unknown) {
       if (error instanceof AgentError) {
@@ -119,7 +120,10 @@ export class CommandRouter {
     }
   }
 
-  private async dispatch(command: CommandMessage): Promise<DispatchPayload> {
+  private async dispatch(
+    command: CommandMessage,
+    device: DeviceRecord,
+  ): Promise<DispatchPayload> {
     try {
       switch (command.type) {
         case 'workspace.list':
@@ -168,6 +172,7 @@ export class CommandRouter {
             text,
             command.commandId,
             command.traceId,
+            device.deviceId,
           );
           return ok(accepted);
         }

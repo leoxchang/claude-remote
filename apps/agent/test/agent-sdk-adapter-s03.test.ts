@@ -42,6 +42,7 @@ function startInput(
     adapterGeneration: 2,
     text: 'hello',
     cwd: '/tmp/s03-fixture',
+    deviceId: 'device_1',
     permissionBroker: gate,
     onEvent: () => undefined,
     ...overrides,

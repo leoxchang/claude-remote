@@ -57,6 +57,7 @@ const input = (overrides: Partial<ManagedRunStart> = {}): ManagedRunStart => ({
   adapterGeneration: 1,
   text: 'hello',
   cwd: '/tmp/s01-fixture',
+  deviceId: 'device_1',
   permissionBroker: denyAllPermissionGate(),
   onEvent: () => undefined,
   ...overrides,

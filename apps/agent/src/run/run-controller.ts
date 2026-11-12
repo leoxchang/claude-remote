@@ -12,11 +12,17 @@ import {
 /** interrupt 后等待终态的上限。 */
 export const INTERRUPT_TIMEOUT_MS = 10_000;
 
+/** 取消 run 前需要同步失效其 pending 审批。 */
+export interface RunApprovalInvalidator {
+  invalidateRun(runId: string, reason: 'run_cancelled' | 'sdk_aborted'): number;
+}
+
 /** 多会话 RunController 依赖。 */
 export interface ManagedRunControllerOptions {
   scheduler: RunScheduler;
   sessions: SessionRegistry;
   normalizer: EventNormalizer;
+  permissionBroker?: RunApprovalInvalidator;
   interruptTimeoutMs?: number;
 }
 
@@ -39,22 +45,30 @@ export class ManagedRunController {
     text: string,
     commandId: string,
     traceId: string,
+    deviceId: string,
   ): Promise<PromptAccepted> {
     try {
       return Promise.resolve(
-        this.options.scheduler.enqueue({ sessionId, text, commandId, traceId }),
+        this.options.scheduler.enqueue({
+          sessionId,
+          text,
+          commandId,
+          traceId,
+          deviceId,
+        }),
       );
     } catch (error: unknown) {
       return Promise.reject(error);
     }
   }
 
-  /** 取消指定 run；重复取消不再调用第二次 interrupt。 */
+  /** 取消指定 run：先同步失效审批，再 interrupt。 */
   async cancel(sessionId: string, runId: string): Promise<CancelAccepted> {
     const decision = this.options.scheduler.beginCancel(sessionId, runId);
     if (decision.outcome === 'alreadyCancelling') {
       return { sessionId, runId, status: 'cancelling' };
     }
+    this.options.permissionBroker?.invalidateRun(runId, 'run_cancelled');
     if (decision.handle !== null) {
       try {
         await decision.handle.interrupt();
@@ -142,6 +156,10 @@ export class ManagedRunController {
     errorSummary?: string,
   ): Promise<void> {
     this.clearTimer(runId);
+    this.options.permissionBroker?.invalidateRun(
+      runId,
+      status === 'cancelled' ? 'run_cancelled' : 'sdk_aborted',
+    );
     await this.options.scheduler.closeHandle(runId);
     try {
       this.options.scheduler.complete({
@@ -153,6 +171,7 @@ export class ManagedRunController {
     } catch {
       // run 已被更早的终态处理；重复完成不是错误。
     }
+    this.options.normalizer.clearRun(runId);
   }
 
   private clearTimer(runId: string): void {

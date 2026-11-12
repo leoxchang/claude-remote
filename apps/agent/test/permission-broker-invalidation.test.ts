@@ -50,10 +50,12 @@ describe('PermissionBroker completed-allow reentry', () => {
     expect(harness.store.getById('approval_1')?.status).toBe('approved_once');
     expect(harness.events.requestedEvents).toHaveLength(1);
     expect(harness.events.resolvedEvents).toHaveLength(1);
-    expect(harness.events.errors).toContainEqual({
-      code: 'APPROVAL_DUPLICATE_AFTER_RESOLUTION',
-      message: DENIAL_MESSAGES.duplicateAfterResolution,
-    });
+    expect(harness.events.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'APPROVAL_DUPLICATE_AFTER_RESOLUTION',
+        message: DENIAL_MESSAGES.duplicateAfterResolution,
+      }),
+    );
     expect(harness.store.globalPendingCount()).toBe(0);
   });
 

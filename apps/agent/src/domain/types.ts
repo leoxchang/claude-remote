@@ -12,6 +12,7 @@ export const RUN_STATUSES = [
   'queued',
   'starting',
   'running',
+  'waiting_approval',
   'cancelling',
   'succeeded',
   'failed',
@@ -23,7 +24,12 @@ export const RUN_STATUSES = [
 export type RunStatus = (typeof RUN_STATUSES)[number];
 
 /** 会话公开状态；按 lifecycle/activeRun/queue 派生。 */
-export type SessionStatus = 'idle' | 'queued' | 'running' | 'archived';
+export type SessionStatus =
+  | 'idle'
+  | 'queued'
+  | 'running'
+  | 'waiting_approval'
+  | 'archived';
 
 /** 会话生命周期；归档后只读。 */
 export type SessionLifecycle = 'active' | 'archived';
@@ -57,11 +63,15 @@ export interface RunRecord {
   runId: string;
   sessionId: string;
   workspaceId: string;
+  /** 发起该 run 的已认证设备；审批只能由同一设备响应。 */
+  deviceId: string;
   commandId: string;
   traceId: string;
   /** 只在 queued 与执行期间保留；终态必须置为 null。 */
   text: string | null;
   status: RunStatus;
+  /** 当前 pending 审批数；waiting_approval 时大于 0。 */
+  pendingApprovalCount: number;
   enqueueOrder: number;
   enqueuedAt: number;
   startedAt: number | null;

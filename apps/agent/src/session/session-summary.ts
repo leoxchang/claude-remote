@@ -1,4 +1,5 @@
 import {
+  RunStatus,
   SessionLifecycle,
   SessionRecord,
   SessionStatus,
@@ -13,6 +14,7 @@ export interface SessionSummary {
   status: SessionStatus;
   activeRunId: string | null;
   queuedCount: number;
+  pendingApprovalCount: number;
   createdAt: number;
   lastActivityAt: number;
 }
@@ -23,17 +25,21 @@ export function computeSessionStatus(record: SessionRecord): SessionStatus {
     record.lifecycle,
     record.activeRun !== null,
     record.queue.length,
+    record.activeRun?.status ?? null,
   );
 }
 
-/** 由 lifecycle、活跃 run 与队列长度派生状态。 */
+/** 由 lifecycle、活跃 run、队列长度与活跃 run 状态派生状态。 */
 export function computeStatus(
   lifecycle: SessionLifecycle,
   hasActiveRun: boolean,
   queuedCount: number,
+  activeRunStatus: RunStatus | null = null,
 ): SessionStatus {
   if (lifecycle === 'archived') return 'archived';
-  if (hasActiveRun) return 'running';
+  if (hasActiveRun) {
+    return activeRunStatus === 'waiting_approval' ? 'waiting_approval' : 'running';
+  }
   if (queuedCount > 0) return 'queued';
   return 'idle';
 }
@@ -48,6 +54,7 @@ export function toSessionSummary(record: SessionRecord): SessionSummary {
     status: computeSessionStatus(record),
     activeRunId: record.activeRun?.runId ?? null,
     queuedCount: record.queue.length,
+    pendingApprovalCount: record.activeRun?.pendingApprovalCount ?? 0,
     createdAt: record.createdAt,
     lastActivityAt: record.lastActivityAt,
   };

@@ -51,6 +51,7 @@ export interface AgentOperations {
     text: string,
     commandId: string,
     traceId: string,
+    deviceId: string,
   ): Promise<PromptAccepted>;
   cancelRun(sessionId: string, runId: string): Promise<CancelAccepted>;
   removeQueuedRun(sessionId: string, runId: string): Promise<QueueRemoved>;
@@ -125,12 +126,19 @@ export class AgentOperationsImpl implements AgentOperations {
     text: string,
     commandId: string,
     traceId: string,
+    deviceId: string,
   ): Promise<PromptAccepted> {
     const session = this.deps.sessions.get(sessionId);
     if (workspaceId !== undefined && workspaceId !== session.workspaceId) {
       throw new AgentError('WORKSPACE_NOT_ALLOWED');
     }
-    return this.deps.runs.sendPrompt(sessionId, text, commandId, traceId);
+    return this.deps.runs.sendPrompt(
+      sessionId,
+      text,
+      commandId,
+      traceId,
+      deviceId,
+    );
   }
 
   cancelRun(sessionId: string, runId: string): Promise<CancelAccepted> {

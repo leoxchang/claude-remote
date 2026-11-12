@@ -159,6 +159,9 @@ export interface ApprovalAuditRecord {
 /** 发给 App 的安全审批摘要；不含正文。 */
 export interface ApprovalSummary {
   approvalId: string;
+  workspaceId: string;
+  sessionId: string;
+  runId: string;
   toolUseID: string;
   toolName: string;
   agentID: string | null;
@@ -181,10 +184,12 @@ export interface ApprovalResolvedNotice {
   responseCommandId: string | null;
 }
 
-/** 只能出现安全字段的错误通知。 */
+/** 只能出现安全字段的错误通知；已知上下文时附带关联 ID。 */
 export interface ApprovalSafeError {
   code: string;
   message: string;
+  sessionId?: string;
+  runId?: string;
 }
 
 /** 工具请求被拒绝/取消的事件载荷；用于补一次 tool.completed。 */

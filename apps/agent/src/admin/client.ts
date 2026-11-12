@@ -67,6 +67,17 @@ export class AdminClient {
     );
   }
 
+  workspaceSetApproval(
+    workspaceId: string,
+    mode: 'deny' | 'allow_once',
+  ): Promise<WorkspaceSummary> {
+    return this.request<WorkspaceSummary>(
+      'POST',
+      '/admin/v1/workspaces/set-approval',
+      { workspaceId, mode },
+    );
+  }
+
   private request<T>(
     method: 'GET' | 'POST',
     path: string,

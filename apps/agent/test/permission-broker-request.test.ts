@@ -55,10 +55,12 @@ describe('PermissionBroker request creation', () => {
     expect(conflicting).not.toBe(first);
     expect(harness.events.requestedEvents).toHaveLength(1);
     expect(harness.store.globalPendingCount()).toBe(1);
-    expect(harness.events.errors).toContainEqual({
-      code: 'INTERNAL_ERROR',
-      message: DENIAL_MESSAGES.conflict,
-    });
+    expect(harness.events.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'INTERNAL_ERROR',
+        message: DENIAL_MESSAGES.conflict,
+      }),
+    );
     return expect(conflicting).resolves.toMatchObject({ behavior: 'deny' });
   });
 
@@ -86,10 +88,12 @@ describe('PermissionBroker request creation', () => {
     });
     expect(harness.events.requestedEvents).toHaveLength(8);
     expect(harness.store.pendingCount('run_1')).toBe(8);
-    expect(harness.events.errors).toContainEqual({
-      code: 'APPROVAL_CAPACITY_EXCEEDED',
-      message: DENIAL_MESSAGES.capacity,
-    });
+    expect(harness.events.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'APPROVAL_CAPACITY_EXCEEDED',
+        message: DENIAL_MESSAGES.capacity,
+      }),
+    );
   });
 
   it('enforces the global pending limit at 16', async () => {
@@ -219,10 +223,12 @@ describe('PermissionBroker pre-creation denials', () => {
 
     await harness.broker.request('run_1', request());
 
-    expect(harness.events.errors).toContainEqual({
-      code: 'PERMISSION_REQUIRED',
-      message: DENIAL_MESSAGES.workspaceDisabled,
-    });
+    expect(harness.events.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'PERMISSION_REQUIRED',
+        message: DENIAL_MESSAGES.workspaceDisabled,
+      }),
+    );
   });
 });
 
