@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,6 +25,14 @@ function enumerationPrompt(marker: string): string {
   return [
     'Do not use any tools.',
     'Output the integers from 1 to 200, one per line.',
+    `After the last integer, output exactly this line: ${marker}`,
+  ].join('\n');
+}
+
+function longEnumerationPrompt(marker: string): string {
+  return [
+    'Do not use any tools.',
+    'Output the integers from 1 to 2000, one per line.',
     `After the last integer, output exactly this line: ${marker}`,
   ].join('\n');
 }
@@ -69,7 +77,8 @@ interface Harness {
 }
 
 async function buildHarness(cwd: string[]): Promise<Harness> {
-  const workspaces = cwd.map((path, index) => ({
+  const roots = await Promise.all(cwd.map((path) => realpath(path)));
+  const workspaces = roots.map((path, index) => ({
     workspaceId: `ws_${index}`,
     displayName: `Fixture ${index}`,
     rootPath: path,
@@ -123,6 +132,21 @@ function journalText(journal: EventJournal, sessionId: string): string {
     .filter((event) => event.type === 'message.delta')
     .map((event) => String((event.payload as Record<string, unknown>)['text'] ?? ''))
     .join('');
+}
+
+/** 等到 run 出现文本或已进入终态；避免 firstDelta 永不 resolve 时挂死。 */
+async function waitForProgress(
+  run: { summary(): { deltaCount: number; terminalAt: number | null } },
+  label: string,
+  timeoutMs = 180_000,
+): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const summary = run.summary();
+    if (summary.deltaCount > 0 || summary.terminalAt !== null) return;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`run ${label} made no progress`);
 }
 
 describe('S02 real SDK regression', () => {
@@ -239,16 +263,18 @@ describe('S02 real SDK regression', () => {
         const runA = startLiveRun(adapter, {
           label: 'cancel-a',
           cwd: first,
-          prompt: enumerationPrompt(CROSS_A),
+          prompt: longEnumerationPrompt(CROSS_A),
           marker: CROSS_A,
         });
+        await waitForProgress(runA, 'a');
         const runB = startLiveRun(adapter, {
           label: 'cancel-b',
           cwd: second,
           prompt: enumerationPrompt(CROSS_B),
           marker: CROSS_B,
         });
-        await Promise.all([runA.firstDelta, runB.firstDelta]);
+        await waitForProgress(runB, 'b');
+        expect(runA.summary().terminalAt).toBeNull();
 
         await runA.interrupt();
         expect(await runA.terminal).toBe('cancelled');

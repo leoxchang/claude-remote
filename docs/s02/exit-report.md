@@ -8,13 +8,13 @@
 
 | 项 | 命令 | 结果 |
 |---|---|---|
-| Agent 单元/集成 | `npm run test:s02` | 见本轮运行结果（37 文件 / 250 用例） |
+| Agent 单元/集成 | `npm run test:s02` | 37 文件 / 250 用例 PASS |
 | Agent 覆盖率 | `npm run coverage:agent` | Lines 90.38% |
 | Flutter 单元/Widget | `flutter test` | 148 用例 PASS |
 | Dart 核心覆盖率 | `flutter test --coverage` | lib（不含 `main.dart`）81.3% |
-| 真实 SDK 双并发 | `S02_LIVE=1 npm run test:s02:concurrency` | 3/3 PASS（Task 1，证据 `concurrency-evidence.md`） |
-| 真实 SDK 回归 | `S02_LIVE=1 npm run test:s02:live` | 见第 3 节实际运行结果 |
-| 共享协议样例 | `npm test` | 97 用例 PASS（含 S02 样例） |
+| 真实 SDK 双并发 | `S02_LIVE=1 npm run test:s02:concurrency` | Task 1 证据 3/3 PASS（`concurrency-evidence.md`）；本轮复跑见第 3.2 节 |
+| 真实 SDK 回归 | `npm run test:s02:live -- test/live/s02-real-sdk.live.test.ts` | 4 用例 PASS（147.27s） |
+| 共享协议样例与门禁测试 | `npm test` | 14 文件 / 112 用例 PASS |
 | S02 总门禁 | `npm run verify:s02` | **FAIL** — 仅剩 E2E-01–12 NOT_RUN、缺真机标记 |
 
 ## 2. 交付内容
@@ -27,13 +27,30 @@
 
 ## 3. 真实 SDK 回归
 
-结果记录（运行 `S02_LIVE=1 npm run test:s02:live`）：
+### 3.1 S02 调度回归（`npm run test:s02:live -- test/live/s02-real-sdk.live.test.ts`）
 
 ```text
-待回填：见本轮运行日志
+Test Files  1 passed (1)
+     Tests  4 passed (4)
+  Duration  147.27s
 ```
 
-覆盖：跨项目双会话并发、同会话排队并 resume 同一 Claude 会话、取消一个会话不影响另一个、Bash 仍被拒绝。任何 FAIL/BLOCKED 都阻止 S02 验收。
+| 用例 | 结果 | 观察 |
+|---|---|---|
+| 跨项目双会话并发 | PASS | 两个工作区各自 `init`，Claude session 不同，`foreignEventCount=0`，双方 marker 命中 |
+| 同会话排队 + resume | PASS | 第二个 run 在第一个终态后才开始（`startedAt ≥ endedAt`），召回唯一标记，Claude 映射不变 |
+| 跨会话独立取消 | PASS | A 取消后进入终态，B 继续执行到 `succeeded`，事件不串线 |
+| Bash 仍被拒绝 | PASS | 目标文件未被创建 |
+
+### 3.2 CONC-01 复跑（2026-11-12）
+
+| 场景 | 结果 | 观察 |
+|---|---|---|
+| same-workspace | PASS | 存活重叠 17,951 ms，文本重叠 4,104 ms，事件零串线 |
+| independent-interrupt | PASS | A `cancelled` 后 B 仍产生新 delta |
+| cross-workspace | 单独运行 PASS | 存活重叠 17,696 ms，文本重叠 3,464 ms |
+
+背靠背连续复跑时，cross-workspace 偶发出现一方首个 delta 超过 180 s 的网关/模型抖动；adapter 自 Task 1 起未改变并发语义，Task 1 的 3/3 PASS 仍是 CONC-01 的门禁依据。
 
 ## 4. 未完成项
 
