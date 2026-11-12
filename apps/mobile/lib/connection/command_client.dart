@@ -34,6 +34,7 @@ final class CommandRequest<T> {
     required this.decode,
     this.sessionId,
     this.runId,
+    this.workspaceId,
     this.payload = const <String, dynamic>{},
   });
 
@@ -42,6 +43,7 @@ final class CommandRequest<T> {
   final String type;
   final String? sessionId;
   final String? runId;
+  final String? workspaceId;
   final JsonMap payload;
   final T Function(JsonMap data) decode;
 
@@ -56,6 +58,7 @@ final class CommandRequest<T> {
       traceId: traceId,
       sessionId: sessionId,
       runId: runId,
+      workspaceId: workspaceId,
     );
   }
 }

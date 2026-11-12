@@ -8,6 +8,13 @@ const Set<String> _commandTypes = {
   'prompt.send',
   'run.cancel',
   'session.snapshot',
+  'workspace.list',
+  'session.create',
+  'session.list',
+  'session.resume',
+  'session.rename',
+  'session.archive',
+  'queue.remove',
 };
 
 const Set<String> _eventTypes = {
@@ -17,6 +24,8 @@ const Set<String> _eventTypes = {
   'tool.started',
   'tool.output',
   'tool.completed',
+  'run.queued',
+  'run.started',
   'run.completed',
 };
 
@@ -94,7 +103,7 @@ abstract final class ProtocolDecoder {
       throw const ProtocolDecodeException('INVALID_MESSAGE', 'sessionId');
     }
     final runId = _optionalString(root, 'runId');
-    if (type == 'run.cancel' && runId == null) {
+    if ((type == 'run.cancel' || type == 'queue.remove') && runId == null) {
       throw const ProtocolDecodeException('INVALID_MESSAGE', 'runId');
     }
     return CommandMessage(
@@ -106,6 +115,7 @@ abstract final class ProtocolDecoder {
       traceId: traceId,
       sessionId: sessionId,
       runId: runId,
+      workspaceId: _optionalString(root, 'workspaceId'),
     );
   }
 

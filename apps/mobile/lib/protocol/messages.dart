@@ -11,12 +11,14 @@ final class CommandMessage extends ProtocolMessage {
     required this.traceId,
     this.sessionId,
     this.runId,
+    this.workspaceId,
   });
 
   final String commandId;
   final String traceId;
   final String? sessionId;
   final String? runId;
+  final String? workspaceId;
 
   @override
   Map<String, Object?> toWire() {
@@ -29,6 +31,7 @@ final class CommandMessage extends ProtocolMessage {
       'traceId': traceId,
       if (sessionId != null) 'sessionId': sessionId,
       if (runId != null) 'runId': runId,
+      if (workspaceId != null) 'workspaceId': workspaceId,
       'payload': payload,
     };
   }
