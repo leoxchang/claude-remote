@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../data/providers.dart' show credentialProvider;
+import '../workspaces/workspace_page.dart';
 import 'pairing_controller.dart';
 
 /// 注入式扫码器；单元/Widget 测试用它替代真实相机。
@@ -14,7 +15,7 @@ class PairingPage extends ConsumerWidget {
   const PairingPage({
     super.key,
     this.scannerBuilder,
-    this.pairedRoute = '/chat',
+    this.pairedRoute = WorkspacePage.routeName,
   });
 
   static const String routeName = '/pairing';

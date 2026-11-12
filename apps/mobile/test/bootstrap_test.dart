@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:claude_remote/data/providers.dart';
 import 'package:claude_remote/features/chat/chat_page.dart';
 import 'package:claude_remote/features/pairing/pairing_page.dart';
+import 'package:claude_remote/features/workspaces/workspace_page.dart';
 import 'package:claude_remote/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,7 +52,7 @@ void main() {
     expect(app.initialRoute, StartPage.routeName);
     expect(
       app.routes?.keys.toSet(),
-      {StartPage.routeName, PairingPage.routeName, ChatPage.routeName},
+      {StartPage.routeName, PairingPage.routeName, WorkspacePage.routeName, ChatPage.routeName},
     );
   });
 }

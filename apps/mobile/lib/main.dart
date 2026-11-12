@@ -4,12 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'data/providers.dart';
 import 'features/chat/chat_page.dart';
 import 'features/pairing/pairing_page.dart';
+import 'features/workspaces/workspace_page.dart';
 
 void main() {
   runApp(const ProviderScope(child: ClaudeRemoteApp()));
 }
 
-/// S01 两页应用：有凭证进聊天页，否则进配对页。
+/// 有凭证进项目列表，否则进配对页；聊天页由会话列表进入。
 class ClaudeRemoteApp extends StatelessWidget {
   const ClaudeRemoteApp({super.key});
 
@@ -21,6 +22,7 @@ class ClaudeRemoteApp extends StatelessWidget {
       routes: {
         StartPage.routeName: (_) => const StartPage(),
         PairingPage.routeName: (_) => const PairingPage(),
+        WorkspacePage.routeName: (_) => const WorkspacePage(),
         ChatPage.routeName: (_) => const ChatPage(),
       },
     );
@@ -40,7 +42,7 @@ class StartPage extends ConsumerWidget {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const PairingPage(),
-      data: (value) => value == null ? const PairingPage() : const ChatPage(),
+      data: (value) => value == null ? const PairingPage() : const WorkspacePage(),
     );
   }
 }
