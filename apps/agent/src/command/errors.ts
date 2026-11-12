@@ -9,6 +9,7 @@ export class AgentError extends Error {
     readonly code: AgentErrorCode,
     message: string = code,
     readonly retryable: boolean = false,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AgentError';

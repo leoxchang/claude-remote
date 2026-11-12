@@ -161,6 +161,19 @@ export class SessionRegistry {
     return listSessions([...this.sessions.values()], input);
   }
 
+  /** 当前全部会话副本；调度器扫描用。 */
+  all(): SessionRecord[] {
+    return [...this.sessions.values()].map(cloneSession);
+  }
+
+  /** 返回持有该 run 的 sessionId；未知 run 返回 null。 */
+  findRunOwner(runId: string): string | null {
+    for (const record of this.sessions.values()) {
+      if (record.runsById.has(runId)) return record.sessionId;
+    }
+    return null;
+  }
+
   private failRun(record: SessionRecord, runId: string): SessionRecord {
     const now = this.now();
     const mark = (run: RunRecord): RunRecord => ({
