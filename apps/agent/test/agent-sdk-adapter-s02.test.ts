@@ -7,6 +7,7 @@ import {
 } from '../src/adapter/agent-sdk-adapter.js';
 import { ManagedRunStart } from '../src/adapter/managed-run-driver.js';
 import { AdapterEvent } from '../src/events/adapter-events.js';
+import { denyAllPermissionGate } from './permission-gate-fakes.js';
 
 interface FakeQuery {
   close: ReturnType<typeof vi.fn>;
@@ -49,6 +50,7 @@ function input(overrides: Partial<ManagedRunStart> = {}): ManagedRunStart {
     adapterGeneration: 3,
     text: 'hello',
     cwd: '/tmp/s02-fixture',
+    permissionBroker: denyAllPermissionGate(),
     onEvent: () => undefined,
     ...overrides,
   };
@@ -83,8 +85,8 @@ describe('AgentSdkAdapter as ManagedRunDriver', () => {
     expect(calls[0]?.options).toMatchObject({
       cwd: '/tmp/s02-fixture',
       permissionMode: 'default',
-      hooks: { PreToolUse: expect.any(Array) },
     });
+    expect(calls[0]?.options.hooks).toBeUndefined();
     expect(handle.resumeEvents).toBeTypeOf('function');
   });
 

@@ -1,4 +1,16 @@
+import {
+  PermissionResult,
+  SdkPermissionRequest,
+} from '../approval/approval-types.js';
 import { AdapterEvent } from '../events/adapter-events.js';
+
+/** Adapter 需要的权限门面；由 PermissionBroker 实现。 */
+export interface PermissionGate {
+  request(
+    runId: string,
+    request: SdkPermissionRequest,
+  ): Promise<PermissionResult>;
+}
 
 /** 启动一次受管 run 的全部输入；句柄必须同步返回。 */
 export interface ManagedRunStart {
@@ -9,6 +21,7 @@ export interface ManagedRunStart {
   adapterGeneration: number;
   text: string;
   cwd: string;
+  permissionBroker: PermissionGate;
   onEvent: (event: AdapterEvent) => void;
 }
 

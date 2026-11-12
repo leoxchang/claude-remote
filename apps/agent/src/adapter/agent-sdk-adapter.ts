@@ -1,4 +1,5 @@
 import {
+  CanUseTool,
   Options,
   Query,
   SDKMessage,
@@ -6,6 +7,7 @@ import {
   query,
 } from '@anthropic-ai/claude-agent-sdk';
 
+import { SdkPermissionRequest } from '../approval/approval-types.js';
 import { AdapterEvent } from '../events/adapter-events.js';
 import {
   ManagedRunDriver,
@@ -15,29 +17,6 @@ import {
 
 /** S00 验证过的完整设置来源。 */
 const SETTING_SOURCES = ['user', 'project', 'local'] as const;
-
-/** S01 没有手机审批；需要人工决策的工具一律拒绝。 */
-const DENIAL_MESSAGE = 'Mobile approval is not available in S01';
-
-/**
- * 用户设置里的 allow 规则会让工具跳过 canUseTool，
- * 因此再用 PreToolUse hook 在工具执行前强制拒绝。
- */
-async function denyBeforeToolUse(): Promise<{
-  hookSpecificOutput: {
-    hookEventName: 'PreToolUse';
-    permissionDecision: 'deny';
-    permissionDecisionReason: string;
-  };
-}> {
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'deny',
-      permissionDecisionReason: DENIAL_MESSAGE,
-    },
-  };
-}
 
 /** 注入 SDK 的 query 工厂，便于测试。 */
 export interface QueryFactoryParams {
@@ -78,14 +57,11 @@ export class AgentSdkAdapter implements ManagedRunDriver {
       settingSources: [...SETTING_SOURCES],
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       tools: { type: 'preset', preset: 'claude_code' },
-      canUseTool: async () => ({
-        behavior: 'deny',
-        message: DENIAL_MESSAGE,
-        interrupt: false,
-      }),
-      hooks: {
-        PreToolUse: [{ hooks: [denyBeforeToolUse] }],
-      },
+      canUseTool: (toolName, toolInput, toolOptions) =>
+        input.permissionBroker.request(
+          input.runId,
+          mapPermissionRequest(toolName, toolInput, toolOptions),
+        ),
       ...(input.claudeSessionId === null
         ? {}
         : { resume: input.claudeSessionId }),
@@ -296,6 +272,40 @@ export class AgentSdkAdapter implements ManagedRunDriver {
       });
     }
   }
+}
+
+/** 把 SDK 回调字段复制为本地快照；不读取回调之外的上下文。 */
+function mapPermissionRequest(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  options: Parameters<CanUseTool>[2],
+): SdkPermissionRequest {
+  return {
+    toolName,
+    input: toolInput,
+    signal: options.signal,
+    toolUseID: options.toolUseID,
+    requestId: options.requestId,
+    ...(options.agentID === undefined ? {} : { agentID: options.agentID }),
+    ...(options.decisionReason === undefined
+      ? {}
+      : { decisionReason: options.decisionReason }),
+    ...(options.defaultToNo === undefined
+      ? {}
+      : { defaultToNo: options.defaultToNo }),
+    ...(options.suppressAlwaysAllowRule === undefined
+      ? {}
+      : { suppressAlwaysAllowRule: options.suppressAlwaysAllowRule }),
+    ...(options.blockedPath === undefined
+      ? {}
+      : { blockedPath: options.blockedPath }),
+    ...(options.mcpServer === undefined
+      ? {}
+      : { mcpServer: options.mcpServer }),
+    ...(options.suggestions === undefined
+      ? {}
+      : { suggestions: options.suggestions }),
+  };
 }
 
 async function* singleMessage(text: string): AsyncGenerator<SDKUserMessage> {

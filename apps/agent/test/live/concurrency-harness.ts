@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { AgentSdkAdapter } from '../../src/adapter/agent-sdk-adapter.js';
 import { AdapterEvent } from '../../src/events/adapter-events.js';
+import { denyAllPermissionGate } from '../permission-gate-fakes.js';
 
 /** 一次真实 query 的终态；pending 表示尚未收到 runResult。 */
 export type LiveTerminalStatus =
@@ -106,6 +107,7 @@ export function startLiveRun(
     runId,
     text: options.prompt,
     cwd: options.cwd,
+    permissionBroker: denyAllPermissionGate(),
     onEvent: (event) => {
       if (event.sessionId !== sessionId || event.runId !== runId) {
         state.foreignEventCount += 1;

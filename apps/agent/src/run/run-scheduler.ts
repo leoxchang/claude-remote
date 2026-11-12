@@ -2,6 +2,7 @@ import { AdapterRegistry } from '../adapter/adapter-registry.js';
 import {
   ManagedRunDriver,
   ManagedRunHandle,
+  PermissionGate,
 } from '../adapter/managed-run-driver.js';
 import { AgentError } from '../command/errors.js';
 import { RunRecord, SessionRecord, TerminalRunStatus } from '../domain/types.js';
@@ -14,6 +15,17 @@ import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { MAX_ACTIVE_RUNS, MAX_GLOBAL_QUEUED_RUNS } from './run-limits.js';
 
 const RUN_ID_BYTES = 9;
+
+/** 未装配 Broker 时的保守门面：一律拒绝，不创建审批。 */
+const UNAVAILABLE_PERMISSION_GATE: PermissionGate = {
+  request: (_runId, request) =>
+    Promise.resolve({
+      behavior: 'deny',
+      message: 'Mobile approval is not available',
+      interrupt: false,
+      toolUseID: request.toolUseID,
+    }),
+};
 
 /** prompt.send 的首次结果。 */
 export interface PromptAccepted {
@@ -51,6 +63,7 @@ export interface RunSchedulerOptions {
   journal: EventJournal;
   driver: ManagedRunDriver;
   registry?: AdapterRegistry;
+  permissionBroker?: PermissionGate;
   now?: () => number;
   generateRunId?: () => string;
   onEvent?: (
@@ -74,6 +87,7 @@ const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
  */
 export class RunScheduler {
   private readonly registry: AdapterRegistry;
+  private readonly permissionBroker: PermissionGate;
   private readonly sessions: SessionRegistry;
   private readonly now: () => number;
   private eventHandler:
@@ -84,6 +98,8 @@ export class RunScheduler {
 
   constructor(private readonly options: RunSchedulerOptions) {
     this.registry = options.registry ?? new AdapterRegistry();
+    this.permissionBroker =
+      options.permissionBroker ?? UNAVAILABLE_PERMISSION_GATE;
     this.sessions = options.sessions;
     this.now = options.now ?? Date.now;
     this.eventHandler = options.onEvent ?? null;
@@ -428,6 +444,7 @@ export class RunScheduler {
         adapterGeneration: generation,
         text: starting.text ?? '',
         cwd: workspace.rootPath,
+        permissionBroker: this.permissionBroker,
         onEvent: (event) => {
           this.eventHandler?.(event, { runId: starting.runId, generation });
         },

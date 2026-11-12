@@ -34,6 +34,8 @@ export class EventNormalizer {
   private pending: PendingDelta | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly startedTools = new Set<string>();
+  private readonly completedTools = new Set<string>();
+  private readonly deniedOutcomes = new Map<string, 'denied' | 'cancelled'>();
   private readonly deltaSeq = new Map<string, number>();
   private readonly outputSeq = new Map<string, number>();
 
@@ -58,22 +60,32 @@ export class EventNormalizer {
       case 'assistantCompleted':
         this.handleCompleted(event);
         break;
-      case 'toolStarted':
-        this.startedTools.add(event.toolUseId);
+      case 'toolStarted': {
+        const key = toolKey(event);
+        this.startedTools.add(key);
         this.append(event, 'tool.started', this.toolStartedPayload(event));
+        const denied = this.deniedOutcomes.get(key);
+        if (denied !== undefined) {
+          this.deniedOutcomes.delete(key);
+          this.appendManagedOutcome({
+            sessionId: event.sessionId,
+            runId: event.runId,
+            toolUseId: event.toolUseId,
+            outcome: denied,
+          });
+        }
         break;
+      }
       case 'toolOutput':
         this.append(event, 'tool.output', this.toolOutputPayload(event));
         break;
-      case 'toolCompleted':
-        this.startedTools.delete(event.toolUseId);
-        this.append(event, 'tool.completed', {
-          toolUseId: event.toolUseId,
-          status: event.status,
-          isError: event.isError,
-          summary: truncateUtf8(event.summary, TOOL_SUMMARY_BYTES).text,
-        });
+      case 'toolCompleted': {
+        const key = toolKey(event);
+        if (this.completedTools.has(key)) break;
+        this.startedTools.delete(key);
+        this.appendToolCompleted(event);
         break;
+      }
       case 'permissionDenied':
         this.handlePermissionDenied(event);
         break;
@@ -200,32 +212,72 @@ export class EventNormalizer {
   private handlePermissionDenied(
     event: Extract<AdapterEvent, { kind: 'permissionDenied' }>,
   ): void {
-    this.journal.append({
-      sessionId: event.sessionId,
-      type: 'error',
-      payload: {
-        error: {
-          code: 'PERMISSION_REQUIRED',
-          message: 'Mobile approval is not available in S01',
-          toolName: event.toolName,
-        },
-      },
-      runId: event.runId,
-    });
-    if (event.toolUseId !== undefined && this.startedTools.has(event.toolUseId)) {
-      this.startedTools.delete(event.toolUseId);
-      this.journal.append({
+    if (event.toolUseId === undefined) return;
+    const key = `${event.runId}\u0000${event.toolUseId}`;
+    if (this.startedTools.has(key)) {
+      this.appendManagedOutcome({
         sessionId: event.sessionId,
-        type: 'tool.completed',
-        payload: {
-          toolUseId: event.toolUseId,
-          status: 'denied',
-          isError: true,
-          summary: 'denied: mobile approval is not available',
-        },
         runId: event.runId,
+        toolUseId: event.toolUseId,
+        outcome: event.outcome,
       });
+      return;
     }
+    this.deniedOutcomes.set(key, event.outcome);
+  }
+
+  /** 清理 run 的短期工具状态；run 关闭后不再复用。 */
+  clearRun(runId: string): void {
+    const prefix = `${runId}\u0000`;
+    for (const key of [...this.startedTools]) {
+      if (key.startsWith(prefix)) this.startedTools.delete(key);
+    }
+    for (const key of [...this.completedTools]) {
+      if (key.startsWith(prefix)) this.completedTools.delete(key);
+    }
+    for (const key of [...this.deniedOutcomes.keys()]) {
+      if (key.startsWith(prefix)) this.deniedOutcomes.delete(key);
+    }
+  }
+
+  private appendToolCompleted(
+    event: Extract<AdapterEvent, { kind: 'toolCompleted' }>,
+  ): void {
+    this.completedTools.add(`${event.runId}\u0000${event.toolUseId}`);
+    this.append(event, 'tool.completed', {
+      toolUseId: event.toolUseId,
+      status: event.status,
+      isError: event.isError,
+      summary: truncateUtf8(event.summary, TOOL_SUMMARY_BYTES).text,
+    });
+  }
+
+  /** 补一次且只补一次 denied/cancelled 完成事件。 */
+  private appendManagedOutcome(input: {
+    sessionId: string;
+    runId: string;
+    toolUseId: string;
+    outcome: 'denied' | 'cancelled';
+  }): void {
+    const key = `${input.runId}\u0000${input.toolUseId}`;
+    if (this.completedTools.has(key)) return;
+    this.completedTools.add(key);
+    this.startedTools.delete(key);
+    this.deniedOutcomes.delete(key);
+    this.journal.append({
+      sessionId: input.sessionId,
+      runId: input.runId,
+      type: 'tool.completed',
+      payload: {
+        toolUseId: input.toolUseId,
+        status: input.outcome,
+        isError: true,
+        summary:
+          input.outcome === 'denied'
+            ? 'denied by approval'
+            : 'cancelled by approval',
+      },
+    });
   }
 
   private append(
@@ -240,4 +292,9 @@ export class EventNormalizer {
       runId: event.runId,
     });
   }
+}
+
+/** run 维度工具键；同一 toolUseId 在不同 run 中互不影响。 */
+function toolKey(event: { runId: string; toolUseId: string }): string {
+  return `${event.runId}\u0000${event.toolUseId}`;
 }

@@ -49,6 +49,7 @@ export type AdapterEvent =
       runId: string;
       toolUseId?: string;
       toolName: string;
+      outcome: 'denied' | 'cancelled';
     }
   | {
       kind: 'runResult';

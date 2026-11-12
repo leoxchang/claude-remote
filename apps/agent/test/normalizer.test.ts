@@ -237,6 +237,7 @@ describe('EventNormalizer lifecycle', () => {
       runId: RUN,
       toolUseId: 'toolu_1',
       toolName: 'Bash',
+      outcome: 'denied',
     });
 
     const completions = payloadOf(journal, 'tool.completed');

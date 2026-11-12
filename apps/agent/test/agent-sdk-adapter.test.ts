@@ -1,12 +1,17 @@
 import { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AgentSdkAdapter, QueryFactoryParams } from '../src/adapter/agent-sdk-adapter.js';
 import {
-  AgentSdkAdapter,
-  QueryFactoryParams,
-} from '../src/adapter/agent-sdk-adapter.js';
-import { ManagedRunStart } from '../src/adapter/managed-run-driver.js';
+  ManagedRunStart,
+  PermissionGate,
+} from '../src/adapter/managed-run-driver.js';
+import {
+  PermissionResult,
+  SdkPermissionRequest,
+} from '../src/approval/approval-types.js';
 import { AdapterEvent } from '../src/events/adapter-events.js';
+import { denyAllPermissionGate } from './permission-gate-fakes.js';
 
 interface FakeQuery {
   messages: unknown[];
@@ -52,6 +57,7 @@ const input = (overrides: Partial<ManagedRunStart> = {}): ManagedRunStart => ({
   adapterGeneration: 1,
   text: 'hello',
   cwd: '/tmp/s01-fixture',
+  permissionBroker: denyAllPermissionGate(),
   onEvent: () => undefined,
   ...overrides,
 });
@@ -105,20 +111,57 @@ describe('AgentSdkAdapter options', () => {
     expect(calls[1]?.options.resume).toBe('claude_01');
   });
 
-  it('denies permission requests without updated permissions', async () => {
+  it('delegates permission requests to the injected gate without wrapping', async () => {
+    let resolveResult: (result: PermissionResult) => void = () => undefined;
+    const shared = new Promise<PermissionResult>((resolve) => {
+      resolveResult = resolve;
+    });
+    const seen: Array<{ runId: string; request: SdkPermissionRequest }> = [];
+    const gate: PermissionGate = {
+      request: (runId, request) => {
+        seen.push({ runId, request });
+        return shared;
+      },
+    };
     const { adapter, calls } = adapterWith([]);
-    start(adapter, input());
+    start(adapter, input({ permissionBroker: gate }));
+    const options = {
+      signal: new AbortController().signal,
+      requestId: 'req_1',
+      toolUseID: 'toolu_1',
+    } as never;
 
-    const result = await calls[0]?.options.canUseTool?.(
+    const first = calls[0]?.options.canUseTool?.(
       'Bash',
       { command: 'printf hi' },
-      { signal: new AbortController().signal } as never,
+      options,
+    );
+    const second = calls[0]?.options.canUseTool?.(
+      'Bash',
+      { command: 'printf hi' },
+      options,
     );
 
-    expect(result).toEqual({
+    expect(first).toBe(second);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.runId).toBe('run_01');
+    expect(seen[0]?.request).toMatchObject({
+      toolName: 'Bash',
+      requestId: 'req_1',
+      toolUseID: 'toolu_1',
+      input: { command: 'printf hi' },
+    });
+    resolveResult({
       behavior: 'deny',
-      message: 'Mobile approval is not available in S01',
+      message: 'default policy denies',
       interrupt: false,
+      toolUseID: 'toolu_1',
+    });
+    await expect(first).resolves.toEqual({
+      behavior: 'deny',
+      message: 'default policy denies',
+      interrupt: false,
+      toolUseID: 'toolu_1',
     });
   });
 });
@@ -308,31 +351,12 @@ describe('AgentSdkAdapter edge mapping', () => {
 });
 
 describe('AgentSdkAdapter tool denial', () => {
-  it('denies every tool through a PreToolUse hook', async () => {
+  it('does not install a PreToolUse deny hook in S03', () => {
     const { adapter, calls } = adapterWith([]);
 
     start(adapter, input());
 
-    const matcher = calls[0]?.options.hooks?.PreToolUse?.[0];
-    const hook = matcher?.hooks[0];
-    expect(hook).toBeDefined();
-
-    const output = await hook?.(
-      {
-        hook_event_name: 'PreToolUse',
-        tool_name: 'Bash',
-        tool_input: { command: 'touch /tmp/should-not-run' },
-        tool_use_id: 'toolu_deny',
-      } as never,
-      undefined,
-      { signal: new AbortController().signal },
-    );
-
-    expect(output).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-      },
-    });
+    expect(calls[0]?.options.hooks).toBeUndefined();
+    expect(calls[0]?.options.permissionMode).toBe('default');
   });
 });

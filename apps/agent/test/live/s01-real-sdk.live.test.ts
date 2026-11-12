@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AgentSdkAdapter } from '../../src/adapter/agent-sdk-adapter.js';
 import { AdapterEvent } from '../../src/events/adapter-events.js';
+import { denyAllPermissionGate } from '../permission-gate-fakes.js';
 
 const TERMINAL_TIMEOUT_MS = 300_000;
 const RESUME_MARKER = 'S01_RESUME_MARKER_71C4';
@@ -48,6 +49,7 @@ async function runOnce(
     runId: `run_${Date.now()}`,
     text: options.text,
     cwd: options.cwd,
+    permissionBroker: denyAllPermissionGate(),
     onEvent: (event: AdapterEvent) => {
       if (event.kind === 'init') claudeSessionId = event.claudeSessionId;
       if (event.kind === 'textDelta') {
