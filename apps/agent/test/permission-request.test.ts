@@ -46,6 +46,24 @@ describe('clonePermissionInput', () => {
     );
   });
 
+  it('rejects prototype-mutating keys before they can reach Runtime', () => {
+    const marker = {} as Record<string, unknown>;
+    const protoPayload = JSON.parse(
+      '{"__proto__":{"polluted":true}}',
+    ) as Record<string, unknown>;
+
+    expect(() => clonePermissionInput(protoPayload)).toThrow(
+      'APPROVAL_CONTENT_UNAVAILABLE',
+    );
+    expect(marker['polluted']).toBeUndefined();
+
+    for (const key of ['constructor', 'prototype']) {
+      expect(() => clonePermissionInput({ [key]: { x: 1 } })).toThrow(
+        'APPROVAL_CONTENT_UNAVAILABLE',
+      );
+    }
+  });
+
   it('rejects values that cannot be represented safely as JSON', () => {
     const cycle: Record<string, unknown> = {};
     cycle['self'] = cycle;

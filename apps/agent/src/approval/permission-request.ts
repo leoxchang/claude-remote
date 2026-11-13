@@ -12,6 +12,13 @@ import {
 /** 克隆允许的最大嵌套深度；超过视为不可安全序列化。 */
 const MAX_CLONE_DEPTH = 32;
 
+/** 会改变对象原型链的键；任何工具输入都没有合法用途。 */
+const PROTOTYPE_MUTATING_KEYS: ReadonlySet<string> = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
+
 /** 严格克隆 SDK 输入为不可变 JSON；拒绝任何不可 JSON 序列化的值。 */
 export function clonePermissionInput(
   input: Record<string, unknown>,
@@ -107,7 +114,16 @@ function cloneValue(
     }
     const cloned: Record<string, JsonValue> = {};
     for (const key of Object.keys(value)) {
-      cloned[key] = cloneValue(value[key], seen, depth + 1);
+      if (PROTOTYPE_MUTATING_KEYS.has(key)) {
+        throw new AgentError('APPROVAL_CONTENT_UNAVAILABLE');
+      }
+      // defineProperty 不经过任何 setter，保证审阅内容与执行输入逐字节一致。
+      Object.defineProperty(cloned, key, {
+        value: cloneValue(value[key], seen, depth + 1),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     Object.freeze(cloned);
     return cloned;
