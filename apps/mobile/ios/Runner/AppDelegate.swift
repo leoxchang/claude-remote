@@ -15,5 +15,8 @@ import UIKit
     S04StoreProtection.register(
       messenger: engineBridge.applicationRegistrar.messenger()
     )
+    AudioInterruptionBridge.register(
+      messenger: engineBridge.applicationRegistrar.messenger()
+    )
   }
 }

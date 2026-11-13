@@ -151,6 +151,12 @@ final class ChatController extends Notifier<ChatState> {
   @override
   ChatState build() => const ChatState();
 
+  /// 当前附加的会话；语音草稿归属判断使用。
+  String? get attachedSessionId => _sessionId;
+
+  /// 当前编辑中的草稿文本。
+  String get currentDraft => state.draft;
+
   /// 启动时注入持久 outbox；prompt.send 先落库再发送。
   void attachPersistentCommands(PersistentCommandCoordinator coordinator) {
     _persistentCommands = coordinator;
@@ -199,6 +205,11 @@ final class ChatController extends Notifier<ChatState> {
 
   void updateDraft(String draft) {
     state = state.copyWith(draft: draft, error: null);
+  }
+
+  /// 语音错误的安全提示；不改变草稿与发送能力。
+  void showVoiceError(String safeMessage) {
+    state = state.copyWith(error: safeMessage);
   }
 
   /// 应用一条时间线事件；队列与 activeRun 同步更新。

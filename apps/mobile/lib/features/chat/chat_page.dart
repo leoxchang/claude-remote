@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../connection/chat_session_runtime.dart';
 import '../../data/providers.dart';
 import '../../protocol/s03_messages.dart';
+import '../../voice/voice_input_controller.dart';
+import '../../voice/voice_ui_state.dart';
 import '../approvals/approval_controller.dart';
 import '../approvals/approval_detail_page.dart';
 import '../recovery/recovery_page.dart';
@@ -15,6 +17,9 @@ import 'widgets/message_list.dart';
 import 'widgets/pending_approval_card.dart';
 import 'widgets/queue_panel.dart';
 import 'widgets/run_controls.dart';
+import 'voice_draft_banner.dart';
+import 'voice_input_button.dart';
+import 'voice_recording_panel.dart';
 
 /// S01 唯一聊天页：时间线、停止控制和 composer。
 class ChatPage extends ConsumerStatefulWidget {
@@ -72,6 +77,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final approvals = ref.watch(approvalControllerProvider).value;
     final recovery = ref.watch(recoveryControllerProvider).value;
     final sessionId = controller.sessionId;
+    ref.watch(voiceInterruptionProvider);
+    final voice = ref.watch(voiceInputControllerProvider).value;
+    Widget composer({required bool enabled}) {
+      return Composer(
+        controller: _text,
+        enabled: enabled,
+        label: state.queueMode ? '排队' : '发送',
+        onChanged: controller.updateDraft,
+        onSend: () async {
+          await controller.sendText();
+          if (!mounted) return;
+          if (ref.read(chatControllerProvider).draft.isEmpty) {
+            _text.clear();
+          }
+        },
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Claude Remote'),
@@ -124,22 +146,70 @@ class _ChatPageState extends ConsumerState<ChatPage>
             cancelling: state.cancelling,
             onStop: controller.cancelActiveRun,
           ),
-          Composer(
-            controller: _text,
-            enabled: state.canSend,
-            label: state.queueMode ? '排队' : '发送',
-            onChanged: controller.updateDraft,
-            onSend: () async {
-              await controller.sendText();
-              if (!mounted) return;
-              if (ref.read(chatControllerProvider).draft.isEmpty) {
-                _text.clear();
-              }
-            },
-          ),
+          if (voice == null || sessionId == null)
+            composer(enabled: state.canSend)
+          else
+            StreamBuilder<VoiceUiState>(
+              stream: voice.states,
+              initialData: voice.state,
+              builder: (context, snapshot) {
+                final voiceState = snapshot.data ?? const VoiceIdle();
+                final locked =
+                    voice.holdsOriginSession &&
+                    voice.originSessionId == sessionId;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (voiceState is VoiceRecording)
+                      VoiceRecordingPanel(recording: voiceState),
+                    if (voiceState is VoiceFinalizing)
+                      const _Banner(message: '正在完成识别…'),
+                    if (voiceState is VoiceErrorState)
+                      _ErrorBar(message: voiceErrorMessage(voiceState)),
+                    if (locked)
+                      const _Banner(message: '正在录音，完成后可编辑'),
+                    if (voice.pendingVoiceDraftId != null)
+                      VoiceDraftBanner(
+                        message: voice.pendingVoiceSessionId == sessionId
+                            ? '本次语音已追加到当前草稿'
+                            : '语音草稿已写入会话 ${voice.pendingVoiceSessionId}',
+                        onDiscard: () =>
+                            unawaited(voice.discardVoiceDraft()),
+                      ),
+                    composer(enabled: state.canSend && !locked),
+                    VoiceInputButton(
+                      state: voiceState,
+                      enabled: state.canSend,
+                      onPress: () => unawaited(voice.press()),
+                      onRelease: () => unawaited(voice.release()),
+                      onCancel: () =>
+                          unawaited(voice.cancel(VoiceCancelReason.user)),
+                    ),
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
+  }
+}
+
+/// 语音错误只显示固定安全文案。
+String voiceErrorMessage(VoiceErrorState state) {
+  switch (state.code) {
+    case 'ASR_PERMISSION_DENIED':
+      return '未获得麦克风权限，可继续文字输入';
+    case 'ASR_MIC_UNAVAILABLE':
+      return '麦克风不可用，可继续文字输入';
+    case 'ASR_INTERRUPTED':
+      return '录音被中断，请重新按住说话';
+    case 'ASR_NOT_CONFIGURED':
+      return '语音识别未配置，可继续文字输入';
+    case 'ASR_DRAFT_CONFLICT':
+      return '草稿已被修改，请手动确认是否追加';
+    default:
+      return '语音识别失败：${state.safeMessage}';
   }
 }
 

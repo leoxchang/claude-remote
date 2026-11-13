@@ -133,6 +133,13 @@ class SessionListController extends Notifier<SessionListState> {
   }
 
   Future<void> archive(String sessionId) async {
+    final voice = ref.read(voiceInputControllerProvider).value;
+    if (voice != null &&
+        voice.holdsOriginSession &&
+        voice.originSessionId == sessionId) {
+      state = state.copyWith(error: 'SESSION_BUSY');
+      return;
+    }
     await _run(
       (client) => client.execute(
         S02Commands.sessionArchive(

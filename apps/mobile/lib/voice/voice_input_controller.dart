@@ -38,12 +38,17 @@ final class VoiceInputController {
     required VoiceDraftAccess access,
     SpeechVad? vad,
     PcmPacketizer? packetizer,
+    this.onPendingDraftChanged,
   }) : _clientFactory = clientFactory,
        _capture = capture,
        _drafts = drafts,
        _access = access,
        _vad = vad ?? SpeechVad(),
        _packetizer = packetizer ?? PcmPacketizer();
+
+  /// final 写入或取消后通知 Composer 绑定/解绑 voice draft。
+  final void Function(String? voiceDraftId, String? sessionId)?
+  onPendingDraftChanged;
 
   final VoiceAsrClientFactory _clientFactory;
   final VoiceAudioCapture _capture;
@@ -81,6 +86,11 @@ final class VoiceInputController {
 
   String? get originSessionId => _originSessionId;
   String? get asrStreamId => _asrStreamId;
+
+  /// 尚未被普通 Composer 发送的 voice draft。
+  String? get pendingVoiceDraftId => _pendingVoiceDraftId;
+  String? get pendingVoiceSessionId =>
+      _pendingVoiceDraftId == null ? null : _originSessionId;
 
   /// 用户按下麦克风；权限与连接期间松手会直接取消。
   Future<void> press() async {
@@ -174,6 +184,7 @@ final class VoiceInputController {
     await _drafts.restoreOriginal(id);
     _pendingVoiceDraftId = null;
     _access.setDraft(origin, _originalDraft ?? '');
+    onPendingDraftChanged?.call(null, null);
   }
 
   void dismissError() {
@@ -310,6 +321,7 @@ final class VoiceInputController {
       );
       _pendingVoiceDraftId = voiceDraftId;
       _access.setDraft(origin, draft.combinedDraft);
+      onPendingDraftChanged?.call(voiceDraftId, origin);
       await _cleanup();
       _setState(const VoiceIdle());
     } on VoiceDraftConflict {

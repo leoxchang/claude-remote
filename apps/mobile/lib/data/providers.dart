@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../connection/chat_session_runtime.dart';
@@ -14,6 +15,10 @@ import '../protocol/s04_messages.dart';
 import '../protocol/decoder.dart';
 import '../protocol/envelope.dart';
 import '../protocol/messages.dart';
+import '../voice/voice_asr_client.dart';
+import '../voice/voice_audio_capture.dart';
+import '../voice/voice_input_controller.dart';
+import '../voice/voice_interruption_bridge.dart';
 import 'recovery_providers.dart';
 import '../features/approvals/approval_command_coordinator.dart';
 import '../features/approvals/approval_content_api.dart';
@@ -350,3 +355,70 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
     approvals: approvals,
   );
 });
+/// 语音输入控制器；未配对或存储不可用时返回 null，文字输入不受影响。
+final voiceInputControllerProvider =
+    FutureProvider<VoiceInputController?>((ref) async {
+      final credential = await ref.watch(credentialProvider.future);
+      if (credential == null) return null;
+      final store = await ref.watch(recoveryStoreProvider.future);
+      final chat = ref.read(chatControllerProvider.notifier);
+      final controller = VoiceInputController(
+        clientFactory: IoVoiceAsrClientFactory(credential: credential),
+        capture: RecordVoiceAudioCapture(),
+        drafts: store.voiceDrafts,
+        access: _ChatVoiceDraftAccess(chat),
+        onPendingDraftChanged: (voiceDraftId, sessionId) => chat
+            .setPendingVoiceDraft(voiceDraftId, sessionId: sessionId),
+      );
+      ref.onDispose(controller.dispose);
+      return controller;
+    });
+
+/// 音频中断与退后台都取消当前流；结束后不自动恢复。
+final voiceInterruptionProvider = Provider<void>((ref) {
+  final bridge = VoiceInterruptionBridge();
+  final subscription = bridge.events.listen((event) {
+    if (event != VoiceInterruption.began) return;
+    final controller = ref.read(voiceInputControllerProvider).value;
+    if (controller != null) {
+      unawaited(controller.cancel(VoiceCancelReason.interruption));
+    }
+  });
+  final lifecycle = AppLifecycleListener(
+    onHide: () => _cancelVoice(ref, VoiceCancelReason.background),
+    onPause: () => _cancelVoice(ref, VoiceCancelReason.background),
+  );
+  ref.onDispose(() {
+    lifecycle.dispose();
+    unawaited(subscription.cancel());
+  });
+});
+
+void _cancelVoice(Ref ref, VoiceCancelReason reason) {
+  final controller = ref.read(voiceInputControllerProvider).value;
+  if (controller != null) unawaited(controller.cancel(reason));
+}
+
+/// ChatController 的草稿适配；只暴露当前会话。
+final class _ChatVoiceDraftAccess implements VoiceDraftAccess {
+  _ChatVoiceDraftAccess(this._chat);
+
+  final ChatController _chat;
+
+  @override
+  String get selectedSessionId => _chat.sessionId ?? '';
+
+  @override
+  String draftOf(String sessionId) =>
+      sessionId == _chat.sessionId ? _chat.currentDraft : '';
+
+  @override
+  void setDraft(String sessionId, String text) {
+    if (sessionId == _chat.sessionId) _chat.updateDraft(text);
+  }
+
+  @override
+  void showVoiceError(String code, String safeMessage) {
+    _chat.showVoiceError(safeMessage);
+  }
+}
