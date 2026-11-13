@@ -30,10 +30,10 @@ class FileChangeApprovalView extends StatelessWidget {
         const SizedBox(height: 12),
         if (toolName == 'Write' || toolName == 'NotebookEdit') ...[
           const Text('将写入的内容', style: TextStyle(fontWeight: FontWeight.bold)),
-          for (final line in newText.split('\n'))
+          for (final (index, line) in newText.split('\n').indexed)
             SelectableText(
               line,
-              key: const Key('writtenContentLine'),
+              key: ValueKey('writtenContentLine-$index'),
               style: const TextStyle(fontFamily: 'monospace'),
             ),
         ] else

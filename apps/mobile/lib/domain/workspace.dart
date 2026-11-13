@@ -51,6 +51,7 @@ final class SchedulerSummary {
   final int activeRunCount;
   final int queuedRunCount;
   final int maxQueuedRuns;
+  final int pendingApprovalCount;
 }
 
 /// `workspace.list` 的结果。

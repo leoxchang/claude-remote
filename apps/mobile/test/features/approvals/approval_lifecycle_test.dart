@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'approval_test_support.dart';
 
-interface class ControllerHarness {
+abstract interface class ControllerHarness {
   ApprovalController get controller;
   FakeTransport get transport;
   FakeExecutor get executor;
@@ -40,7 +40,7 @@ ControllerHarness harness({bool Function()? isOnline}) {
       'resolvedAt': 1762432860000,
     });
   final api = ApprovalContentApi(
-    credentials: credentialStore(),
+    credentials: pairedCredentialStore(),
     transport: transport,
   );
   late final ApprovalController controller;

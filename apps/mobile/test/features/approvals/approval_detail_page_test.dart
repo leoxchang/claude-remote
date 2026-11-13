@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:claude_remote/features/approvals/approval_content_api.dart';
 import 'package:claude_remote/features/approvals/approval_detail_page.dart';
-import 'package:claude_remote/protocol/s03_messages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'approval_test_support.dart';
 import 'approval_ui_support.dart';
 
 Future<void> pumpDetail(WidgetTester tester, UiHarness harness) async {

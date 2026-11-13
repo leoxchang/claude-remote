@@ -35,7 +35,16 @@ final approvalCommandClientProvider = Provider<CommandClient>(
 );
 
 /// 连接就绪状态；审批只在线时允许提交。
-final approvalOnlineProvider = StateProvider<bool>((ref) => false);
+final approvalOnlineProvider = NotifierProvider<ApprovalOnlineNotifier, bool>(
+  ApprovalOnlineNotifier.new,
+);
+
+final class ApprovalOnlineNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void setOnline(bool value) => state = value;
+}
 
 /// 审批控制器；只在已配对时存在。
 final approvalControllerProvider = FutureProvider<ApprovalController?>((ref) async {
@@ -89,8 +98,9 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
     },
     onStatus: (status) {
       chat.setConnection(status);
-      ref.read(approvalOnlineProvider.notifier).state =
-          status == ConnectionStatus.ready;
+      ref
+          .read(approvalOnlineProvider.notifier)
+          .setOnline(status == ConnectionStatus.ready);
     },
     onAgentInstanceChanged: (previous, next) {
       if (previous != null && previous != next) {

@@ -10,7 +10,7 @@ import {
   parseChecklist,
   verifyGate,
 } from '../verify-gate.js';
-import { checkSecrets } from '../check-secrets.js';
+import { checkSecrets, isGeneratedFile } from '../check-secrets.js';
 
 interface Overrides {
   perm00?: GateStatus;
@@ -126,6 +126,20 @@ describe('S03 evidence parsers', () => {
     expect(hasRealSdkEvidence('sdkEvidence: REAL\nPERM-00: NOT_RUN')).toBe(
       false,
     );
+  });
+
+  it('accepts Markdown-bold evidence markers used by the checklist', () => {
+    const markdown = [
+      '**sdkEvidence:** REAL（PERM-00）',
+      '**PERM-00:** PASS（6/6）',
+    ].join('\n');
+
+    expect(hasRealSdkEvidence(markdown)).toBe(true);
+  });
+
+  it('skips gitignored Flutter build output when scanning for secrets', () => {
+    expect(isGeneratedFile('flutter_export_environment.sh')).toBe(true);
+    expect(isGeneratedFile('main.ts')).toBe(false);
   });
 
   it('rejects leaked approval bodies, tokens and private paths', () => {

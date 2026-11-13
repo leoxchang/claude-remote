@@ -83,7 +83,7 @@ UiHarness uiHarness({
   controller = ApprovalController(
     loader: ApprovalContentLoader(
       ApprovalContentApi(
-        credentials: credentialStore(),
+        credentials: pairedCredentialStore(),
         transport: transport,
       ),
     ),

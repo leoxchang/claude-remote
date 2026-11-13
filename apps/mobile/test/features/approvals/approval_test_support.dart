@@ -10,7 +10,9 @@ import 'package:crypto/crypto.dart';
 
 /// 内存 Keychain。
 final class MemoryVault implements KeyValueVault {
-  final Map<String, String> values = <String, String>{};
+  MemoryVault([Map<String, String>? seed]) : values = <String, String>{...?seed};
+
+  final Map<String, String> values;
 
   @override
   Future<String?> read(String key) async => values[key];
@@ -31,16 +33,19 @@ CredentialStore credentialStore() {
   return store;
 }
 
-Future<CredentialStore> pairedCredentialStore() async {
-  final store = credentialStore();
-  await store.save(
-    const DeviceCredential(
-      deviceId: 'device_01',
-      deviceToken: 'token',
-      baseUrl: 'https://macbook.example-tailnet.ts.net',
-    ),
+/// 已配对的内存 Keychain；审批内容接口要求有效设备凭证。
+CredentialStore pairedCredentialStore() {
+  return CredentialStore(
+    MemoryVault(<String, String>{
+      CredentialStore.credentialKey: jsonEncode(
+        const DeviceCredential(
+          deviceId: 'device_01',
+          deviceToken: 'token',
+          baseUrl: 'https://macbook.example-tailnet.ts.net',
+        ).toJson(),
+      ),
+    }),
   );
-  return store;
 }
 
 /// 拆分 UTF-8 文本为不超过 maxBytes 的块，不切断字符。
@@ -114,8 +119,10 @@ ApprovalSummary summaryFor(
 
 /// 可编程 HTTP 传输；按 chunkIndex 返回预置块，其余 404。
 final class FakeTransport implements ApprovalContentTransport {
-  FakeTransport({Map<int, ApprovalTransportResponse>? chunks})
-    : chunks = chunks ?? <int, ApprovalTransportResponse>{};
+  FakeTransport({
+    Map<int, ApprovalTransportResponse>? chunks,
+    this.onRequest,
+  }) : chunks = chunks ?? <int, ApprovalTransportResponse>{};
 
   final Map<int, ApprovalTransportResponse> chunks;
   final List<Uri> requested = <Uri>[];

@@ -68,7 +68,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final state = ref.watch(chatControllerProvider);
     final controller = ref.read(chatControllerProvider.notifier);
     final timeline = state.timeline;
-    final approvals = ref.watch(approvalControllerProvider).valueOrNull;
+    final approvals = ref.watch(approvalControllerProvider).value;
     final sessionId = controller.sessionId;
     return Scaffold(
       appBar: AppBar(title: const Text('Claude Remote')),

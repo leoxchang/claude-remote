@@ -7,7 +7,7 @@ import 'approval_test_support.dart';
 ApprovalContentLoader loaderFor(FakeTransport transport) {
   return ApprovalContentLoader(
     ApprovalContentApi(
-      credentials: credentialStore(),
+      credentials: pairedCredentialStore(),
       transport: transport,
     ),
   );
@@ -94,6 +94,7 @@ void main() {
 
   test('rejects a hash mismatch even when descriptors agree', () async {
     final json = approvalJson();
+    final tampered = approvalJson(command: 'echo S03_ALPHB');
     final summary = summaryFor(json);
     final transport = FakeTransport(
       chunks: <int, ApprovalTransportResponse>{
@@ -103,7 +104,7 @@ void main() {
           chunkCount: 1,
           byteLength: summary.content.byteLength,
           sha256: summary.content.sha256,
-          text: '$json ',
+          text: tampered,
         ),
       },
     );
@@ -194,7 +195,7 @@ void main() {
     final json = approvalJson();
     final summary = summaryFor(json);
     final expired = FakeTransport(
-      onRequest: (index) => const ApprovalTransportResponse(
+      onRequest: (index) async => const ApprovalTransportResponse(
         statusCode: 410,
         body: '{"error":{"code":"APPROVAL_EXPIRED","message":"expired"}}',
       ),

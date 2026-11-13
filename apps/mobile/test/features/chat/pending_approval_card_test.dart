@@ -3,8 +3,6 @@ import 'package:claude_remote/protocol/s03_messages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../approvals/approval_test_support.dart';
-
 ApprovalSummary cardSummary({String? agentId}) {
   return ApprovalSummary(
     approvalId: 'approval_01',

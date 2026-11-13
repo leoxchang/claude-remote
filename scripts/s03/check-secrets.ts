@@ -53,6 +53,13 @@ const TEXT_EXTENSIONS = new Set([
   '.sh',
 ]);
 
+const GENERATED_FILES = new Set(['flutter_export_environment.sh']);
+
+/** 构建工具生成、已被 gitignore 的文件；其中的本机路径不算泄漏。 */
+export function isGeneratedFile(name: string): boolean {
+  return GENERATED_FILES.has(name);
+}
+
 /** 扫描单个文本，返回所有命中。 */
 export function scanText(file: string, text: string): SecretFinding[] {
   const findings: SecretFinding[] = [];
@@ -83,6 +90,7 @@ export function scanTree(root: string): SecretFinding[] {
       continue;
     }
     if (entry.name.endsWith('.test.ts')) continue;
+    if (isGeneratedFile(entry.name)) continue;
     if (!TEXT_EXTENSIONS.has(extensionOf(entry.name))) continue;
     const path = join(root, entry.name);
     findings.push(

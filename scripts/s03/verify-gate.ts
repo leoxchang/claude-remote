@@ -114,9 +114,12 @@ export function isFunnelDisabled(markdown: string): boolean {
   return /funnelEnabled:\s*false/i.test(markdown);
 }
 
-/** 真实 SDK 证据必须同时标出 REAL 且 PERM-00 PASS。 */
+/** 真实 SDK 证据必须同时标出 REAL 且 PERM-00 PASS；允许 Markdown 加粗标记。 */
 export function hasRealSdkEvidence(markdown: string): boolean {
-  return /sdkEvidence:\s*REAL/i.test(markdown) && /PERM-00.*PASS/i.test(markdown);
+  return (
+    /sdkEvidence:\s*\**\s*REAL/i.test(markdown) &&
+    /PERM-00:?\**\s*PASS/i.test(markdown)
+  );
 }
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));

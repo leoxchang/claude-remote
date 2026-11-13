@@ -26,12 +26,7 @@ class ApprovalDetailPage extends StatelessWidget {
       appBar: AppBar(title: Text('${summary.toolName} 审批')),
       body: ListenableBuilder(
         listenable: controller,
-        builder: (context, _) {
-          if (controller.masked) {
-            return const ApprovalPrivacyMask();
-          }
-          return _body(context);
-        },
+        builder: (context, _) => _body(context),
       ),
     );
   }
@@ -56,7 +51,12 @@ class ApprovalDetailPage extends StatelessWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const Divider(height: 32),
-        if (state == ApprovalActionState.unknown)
+        if (controller.masked)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: ApprovalPrivacyMask(),
+          )
+        else if (state == ApprovalActionState.unknown)
           const Text(
             'Mac 已重启，旧审批失效，执行结果未知',
             key: Key('approvalUnknown'),
@@ -113,6 +113,7 @@ class ApprovalDetailPage extends StatelessWidget {
         key: Key('approvalContentError'),
       );
     }
+    if (state == ApprovalActionState.resolved) return const SizedBox.shrink();
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 24),
       child: Center(child: CircularProgressIndicator()),

@@ -1,6 +1,6 @@
 # S03 退出报告
 
-**日期：** 2026-11-12
+**日期：** 2026-11-12（自动化验证复跑：2026-11-13）
 **结论：** **BLOCKED** — 实现与自动化测试完成，但真机 E2E-01–12 未执行，S03 不得验收，不进入 S04。
 
 ## 1. 交付内容
@@ -20,12 +20,15 @@
 
 | 检查 | 结果 |
 |---|---|
-| `npm run test:s03`（Agent） | 全通过（含 S03 协议、Broker、调度、集成与重启） |
-| `npm run coverage:agent` | statements 89.67% / branches 82.64% / functions 92.95% / lines 91.18% |
-| `cd apps/mobile && flutter test --coverage` | 全通过；覆盖率见第 4 节 |
+| `npx tsc -p apps/agent/tsconfig.json --noEmit` / `npx tsc -p tsconfig.json --noEmit` | 均无错误 |
+| `npm run test:s03`（Agent） | 通过：56 文件 / 363 测试（含 S03 协议、Broker、调度、集成与重启） |
+| `npx vitest run`（根套件） | 通过：16 文件 / 125 测试 |
+| `npm run coverage:agent` | statements 89.68% / branches 82.66% / functions 92.95% / lines 91.2% |
+| `cd apps/mobile && dart analyze lib test` | 无 error/warning（仅一条与本次改动无关的既有 info） |
+| `cd apps/mobile && flutter test --coverage` | 通过：195 测试；Dart 行覆盖率 81.4%（2004/2462） |
 | `S03_LIVE=1 npm run test:s03:perm00` | PASS 6/6 |
-| `S03_LIVE=1 npm run test:s03:live` | 本环境未能执行（见第 3 节），状态 BLOCKED |
-| `npm run verify:s03` | FAIL：E2E-01–12 NOT_RUN、realDevice 缺失、S02 门禁未 PASS |
+| `S03_LIVE=1 npm run test:s03:live` | PASS 4/4（真实 SDK 允许/拒绝/过期/双会话，145s） |
+| `npm run verify:s03` | FAIL：仅 E2E-01–12 NOT_RUN、realDevice 缺失、S02 门禁未 PASS；PERM-00、覆盖率、secrets、Funnel 检查均通过 |
 
 ## 3. 未完成项
 
@@ -33,15 +36,14 @@
 |---|---|---|
 | E2E-01–12 | NOT_RUN | Tailscale HTTPS Certificates 未启用、Serve 未配置、iPhone 未接入 |
 | S01/S02 上游验收 | BLOCKED | 同样缺真机 E2E；S03 的硬门禁要求上游 PASS |
-| S03 真实 SDK 回归 | BLOCKED | 需要真实网关与真机链路；本地 120s 过期与双会话场景已由 `test:s03:live` 就绪 |
-| `verify:s03` | FAIL | 由以上三项直接导致；门禁按设计拒绝放行 |
+| `verify:s03` | FAIL | 由以上两项直接导致；门禁按设计拒绝放行 |
 
 解除步骤见 `e2e-checklist.md` 的「解除条件」。
 
 ## 4. 覆盖率与测量口径
 
 - Agent 覆盖率来自 `apps/agent/coverage/lcov.info`（v8）。
-- Dart 覆盖率来自 `apps/mobile/coverage/lcov.info`；核心审批逻辑位于 `features/approvals` 与 `domain/app_state.dart`。
+- Dart 覆盖率来自 `apps/mobile/coverage/lcov.info`；核心审批逻辑位于 `features/approvals` 与 `domain/app_state.dart`。2026-11-13 实测行覆盖率 81.4%（2004/2462），Agent 行覆盖率 91.2%（1928/2114），均高于 80% 门槛。
 - Mock 只覆盖确定性竞争与协议形状；PERM-00 与 E2E 使用固定版本真实 SDK（0.3.319 / Claude Code 2.1.319）。
 
 ## 5. 已知限制（S03 设计内）
