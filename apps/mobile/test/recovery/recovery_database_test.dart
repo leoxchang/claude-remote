@@ -41,7 +41,7 @@ void main() {
         'drafts',
       ]),
     );
-    expect(recoverySchemaVersion, 1);
+    expect(recoverySchemaVersion, 2);
   });
 
   test('enforces one active execution intent per session', () async {

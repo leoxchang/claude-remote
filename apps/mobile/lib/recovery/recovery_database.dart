@@ -4,8 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// RecoveryStore 的 v1 schema；只保存 outbox、游标、缓存和草稿。
-const int recoverySchemaVersion = 1;
+/// RecoveryStore 的 v2 schema；v1 数据全部保留，仅新增 voice_drafts。
+const int recoverySchemaVersion = 2;
 
 /// 单个 App 本地数据库；文件位于 Application Support，永不使用 Documents。
 final class RecoveryDatabase {
@@ -85,8 +85,31 @@ final class RecoveryDatabase {
               updatedAt INTEGER NOT NULL
             )
           ''');
+          await _createVoiceDrafts(db);
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) await _createVoiceDrafts(db);
         },
       ),
     );
   }
+}
+
+/// v2 增量：只新增 voice_drafts 与索引，不重建既有表。
+Future<void> _createVoiceDrafts(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS voice_drafts (
+      voiceDraftId TEXT PRIMARY KEY,
+      asrStreamId TEXT NOT NULL,
+      originSessionId TEXT NOT NULL,
+      originalDraft TEXT NOT NULL,
+      combinedDraft TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status = 'pending'),
+      createdAt INTEGER NOT NULL
+    )
+  ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS voice_drafts_session
+    ON voice_drafts (originSessionId, status)
+  ''');
 }

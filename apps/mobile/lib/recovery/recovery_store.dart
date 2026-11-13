@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import 'cache_repository.dart';
 import 'outbox_repository.dart';
 import 'recovery_database.dart';
+import '../voice/voice_draft_repository.dart';
 
 final class SyncCursor {
   const SyncCursor({
@@ -26,6 +27,7 @@ final class RecoveryStore {
     this.db,
     this.outbox,
     this.cache,
+    this.voiceDrafts,
   );
 
   static Future<RecoveryStore> open({
@@ -36,12 +38,18 @@ final class RecoveryStore {
       factory: factory,
       supportDirectory: supportDirectory,
     );
-    return RecoveryStore._(db, OutboxRepository(db), CacheRepository(db));
+    return RecoveryStore._(
+      db,
+      OutboxRepository(db),
+      CacheRepository(db),
+      VoiceDraftRepository(db),
+    );
   }
 
   final Database db;
   final OutboxRepository outbox;
   final CacheRepository cache;
+  final VoiceDraftRepository voiceDrafts;
 
   Future<SyncCursor?> readCursor(String sessionId) async {
     final rows = await db.query(
@@ -104,6 +112,7 @@ final class RecoveryStore {
     await cache.clearAll();
     await db.delete('sync_cursors');
     await db.delete('drafts');
+    await db.delete('voice_drafts');
   }
 
   Future<void> close() => db.close();
