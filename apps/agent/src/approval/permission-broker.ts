@@ -56,6 +56,7 @@ export const DENIAL_MESSAGES = {
   policyDisabled: 'Mobile approval was disabled for this workspace',
   deviceRevoked: 'Device is no longer authorized',
   agentShutdown: 'Agent is shutting down',
+  storageUnavailable: 'Storage is unavailable',
 } as const;
 
 const APPROVAL_ID_BYTES = 9;
