@@ -69,6 +69,23 @@ export class SessionRepository {
     return row === undefined ? undefined : { ...row };
   }
 
+  /** 项目下的会话摘要数据；按创建时间倒序。 */
+  listByWorkspace(
+    workspaceId: string,
+    includeArchived: boolean,
+  ): StoredSession[] {
+    const rows = this.uow.connectionRef
+      .prepare(
+        `SELECT sessionId, workspaceId, claudeSessionId, title, lifecycle, status,
+                lastSeq, retentionFloor, createdAt, lastActivityAt, archivedAt
+         FROM sessions
+         WHERE workspaceId = ? ${includeArchived ? '' : "AND lifecycle = 'active'"}
+         ORDER BY createdAt DESC, sessionId DESC`,
+      )
+      .all(workspaceId) as SessionRow[];
+    return rows.map((row) => ({ ...row }));
+  }
+
   update(record: StoredSession): void {
     this.write((tx) =>
       tx

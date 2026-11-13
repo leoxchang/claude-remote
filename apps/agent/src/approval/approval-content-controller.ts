@@ -1,6 +1,11 @@
 import { AgentError } from '../command/errors.js';
 import { ApprovalChunkResponse } from './approval-types.js';
-import { ApprovalStore } from './approval-store.js';
+import { ApprovalRecord } from './approval-types.js';
+
+/** 内容读取只需要按 ID 取安全记录。 */
+export interface ApprovalContentPort {
+  getById(approvalId: string): ApprovalRecord | null;
+}
 
 /** 每设备内容读取窗口。 */
 export const CONTENT_RATE_WINDOW_MS = 60_000;
@@ -35,7 +40,7 @@ export class ApprovalContentRateLimiter {
 
 /** 内容读取依赖；settleExpired 必须同步生效。 */
 export interface ApprovalContentControllerOptions {
-  store: ApprovalStore;
+  store: ApprovalContentPort;
   settleExpired?: (approvalId: string) => void;
   rateLimiter?: ApprovalContentRateLimiter;
   clock?: { monotonicNow(): number };
@@ -48,7 +53,7 @@ export interface ApprovalContentControllerOptions {
  * 不写 Journal、不占 seq、不进入命令幂等表。
  */
 export class ApprovalContentController {
-  private readonly store: ApprovalStore;
+  private readonly store: ApprovalContentPort;
   private readonly settleExpired: (approvalId: string) => void;
   private readonly rateLimiter: ApprovalContentRateLimiter;
   private readonly clock: { monotonicNow(): number };

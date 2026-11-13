@@ -13,7 +13,8 @@ import {
   PairingInput,
   PairingService,
 } from '../pairing/pairing-service.js';
-import { DeviceStore } from '../store/device-store.js';
+import { RunPromptController } from '../run/run-prompt-controller.js';
+import { DeviceStorePort } from '../store/device-store.js';
 import { authenticateRequest, authenticateUpgrade } from './authenticate.js';
 
 /** 手机接口只监听 localhost；由运行时显式 listen。 */
@@ -35,11 +36,13 @@ const PAIRING_HTTP_STATUS: Record<PairingErrorCode, number> = {
 /** 手机接口依赖；连接建立后交给 Task 5 的连接层。 */
 export interface PhoneServerDependencies {
   pairingService: PairingService;
-  deviceStore: DeviceStore;
+  deviceStore: DeviceStorePort;
   workspace: { workspaceId: string; displayName: string };
   onConnection: (socket: WebSocket, device: DeviceRecord) => void;
   /** 审批内容读取；未装配时该路由返回 APPROVAL_NOT_FOUND。 */
   approvalContent?: ApprovalContentController;
+  /** run prompt 读取；未装配时该路由返回 RUN_NOT_FOUND。 */
+  runPrompt?: RunPromptController;
 }
 
 /** 内容 endpoint 的稳定状态映射。 */
@@ -134,6 +137,39 @@ export async function createPhoneServer(
     } catch (error: unknown) {
       if (error instanceof AgentError) {
         const status = CONTENT_HTTP_STATUS[error.code] ?? 409;
+        return sendError(reply, status, error.code);
+      }
+      throw error;
+    }
+  });
+
+  app.get('/v1/runs/:runId/prompt', async (request, reply) => {
+    reply.header('cache-control', 'no-store');
+    const device = await authenticateRequest(
+      request.headers as Record<string, unknown>,
+      deps.deviceStore,
+    ).catch(() => null);
+    if (device === null) {
+      return sendError(reply, 401, 'UNAUTHENTICATED');
+    }
+    if (deps.runPrompt === undefined) {
+      return sendError(reply, 404, 'RUN_NOT_FOUND');
+    }
+    const params = request.params as { runId?: unknown };
+    const runId = params.runId;
+    if (typeof runId !== 'string' || runId.length === 0) {
+      return sendError(reply, 400, 'INVALID_MESSAGE');
+    }
+    try {
+      return deps.runPrompt.read(runId, device.deviceId);
+    } catch (error: unknown) {
+      if (error instanceof AgentError) {
+        const status =
+          error.code === 'FORBIDDEN'
+            ? 403
+            : error.code === 'RUN_NOT_RECOVERABLE'
+              ? 409
+              : 404;
         return sendError(reply, status, error.code);
       }
       throw error;

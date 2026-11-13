@@ -9,7 +9,7 @@ import {
 import { RunRepository, StoredRun } from '../storage/repositories/run-repository.js';
 import { SessionRepository } from '../storage/repositories/session-repository.js';
 import { WorkspaceRepository } from '../storage/repositories/workspace-repository.js';
-import { SqliteTransaction } from '../storage/unit-of-work.js';
+import { nextEnqueueOrder } from './enqueue-order.js';
 import { randomBase64Url } from '../security/random.js';
 
 /** prompt 正文上限：16 KiB UTF-8。 */
@@ -19,7 +19,6 @@ export const MAX_PROMPT_BYTES = 16 * 1024;
 export const PROMPT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const RUN_ID_BYTES = 9;
-const NEXT_ENQUEUE_ORDER = 'nextEnqueueOrder';
 
 export interface PromptAdmissionDeps {
   executor: PersistentCommandExecutor;
@@ -154,16 +153,4 @@ export class PromptAdmission {
     if (!execution.duplicate) this.onAccepted?.(execution.result);
     return execution;
   }
-}
-
-function nextEnqueueOrder(tx: SqliteTransaction): number {
-  const row = tx
-    .prepare('SELECT value FROM scheduler_meta WHERE key = ?')
-    .get(NEXT_ENQUEUE_ORDER) as { value: string } | undefined;
-  const next = Number(row?.value ?? '0') + 1;
-  tx.prepare(
-    `INSERT INTO scheduler_meta (key, value) VALUES (?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run(NEXT_ENQUEUE_ORDER, String(next));
-  return next;
 }

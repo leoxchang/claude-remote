@@ -1,5 +1,5 @@
 import { DeviceRecord } from '../domain/types.js';
-import { DeviceStore } from '../store/device-store.js';
+import { DeviceStorePort } from '../store/device-store.js';
 
 /** 升级前鉴权失败只有一个对外码，避免泄露设备是否存在。 */
 export type AuthenticationErrorCode = 'UNAUTHENTICATED';
@@ -23,7 +23,7 @@ const BEARER_PREFIX = 'bearer ';
  */
 export async function authenticateRequest(
   headers: Record<string, unknown>,
-  store: DeviceStore,
+  store: DeviceStorePort,
 ): Promise<DeviceRecord> {
   const raw = headers['authorization'];
   if (typeof raw !== 'string' || !raw.toLowerCase().startsWith(BEARER_PREFIX)) {
@@ -46,7 +46,7 @@ export async function authenticateRequest(
 /** WSS 升级前鉴权；与 HTTP 请求共用同一 Bearer 规则。 */
 export async function authenticateUpgrade(
   headers: Record<string, unknown>,
-  store: DeviceStore,
+  store: DeviceStorePort,
 ): Promise<DeviceRecord> {
   return authenticateRequest(headers, store);
 }

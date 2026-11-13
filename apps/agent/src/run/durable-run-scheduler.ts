@@ -212,6 +212,49 @@ export class DurableRunScheduler {
     });
   }
 
+  /** 审批的 run 绑定；非活跃或路径失效时 fail closed。 */
+  approvalContext(
+    runId: string,
+  ): {
+    context: {
+      workspaceId: string;
+      sessionId: string;
+      runId: string;
+      deviceId: string;
+      workingDirectory: string;
+    };
+    acceptingApprovals: boolean;
+  } | null {
+    const run = this.runs.get(runId);
+    if (run === undefined) return null;
+    if (
+      !ACTIVE_STATUSES.includes(run.status) &&
+      run.status !== 'waiting_approval'
+    ) {
+      return null;
+    }
+    const workspace = this.workspaces.get(run.workspaceId);
+    if (workspace === undefined) return null;
+    try {
+      assertWorkspacePathCurrent(workspace);
+    } catch {
+      return null;
+    }
+    return {
+      context: {
+        workspaceId: run.workspaceId,
+        sessionId: run.sessionId,
+        runId: run.runId,
+        deviceId: run.deviceId,
+        workingDirectory: workspace.rootPath,
+      },
+      acceptingApprovals:
+        run.status === 'starting' ||
+        run.status === 'running' ||
+        run.status === 'waiting_approval',
+    };
+  }
+
   /** 更新 pending 审批数与等待状态。 */
   setPendingApprovalCount(runId: string, count: number): void {
     this.uow.immediate((tx) => {
@@ -316,7 +359,7 @@ export class DurableRunScheduler {
     this.drain();
   }
 
-  /** 从排队的 run 中移除；recovery_required 由 Task 10 扩展。 */
+  /** 移除 queued 或丢弃 recovery_required；从不调用 interrupt。 */
   removeQueued(runId: string): {
     sessionId: string;
     runId: string;
@@ -326,6 +369,10 @@ export class DurableRunScheduler {
     const result = this.uow.immediate((tx) => {
       const run = this.runs.get(runId);
       if (run === undefined) throw new AgentError('RUN_NOT_FOUND');
+      if (run.status === 'recovery_required') {
+        this.terminateWithin(tx, run, 'cancelled', 'recovery_discarded');
+        return { sessionId: run.sessionId, runId, status: 'cancelled' as const };
+      }
       if (run.status !== 'queued') throw new AgentError('RUN_NOT_QUEUED');
       this.terminateWithin(tx, run, 'cancelled', 'queue_removed');
       return { sessionId: run.sessionId, runId, status: 'cancelled' as const };

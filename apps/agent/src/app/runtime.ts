@@ -6,16 +6,36 @@ import {
   writeConfigV3Atomic,
 } from '../config/config-v3.js';
 import {
+  AgentConfigV4,
+  readConfigV4IfExists,
+  resolveDatabasePath,
+} from '../config/config-v4.js';
+import {
   migrateConfigV1ToV2,
   writeConfigV2Atomic,
 } from '../config/config-v2.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from '../config/paths.js';
 import { AgentConfig, AgentConfigV2 } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
+import { AgentDatabase } from '../storage/database.js';
+import { InstanceLock, InstanceLockHandle } from '../storage/instance-lock.js';
+import {
+  migrateV3Sources,
+  sha256Text,
+  SourceHashes,
+} from '../storage/config-v4-migration.js';
+import { ApprovalRepository } from '../storage/repositories/approval-repository.js';
+import { RunRepository } from '../storage/repositories/run-repository.js';
+import { SessionRepository } from '../storage/repositories/session-repository.js';
+import { RecoveryReport, StartupRecovery } from '../storage/startup-recovery.js';
+import { DurableEventJournal } from '../events/durable-event-journal.js';
 import { PHONE_LISTEN } from '../transport/phone-server.js';
 import { AgentOperations } from './agent-operations.js';
+import { wireDurableAgent } from './durable-wire.js';
 import { AgentLogger, createFileLogger } from './logger.js';
 import { wireAgent } from './wire.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** agentInstanceId 的随机字节数；每次启动重新生成。 */
 const AGENT_INSTANCE_BYTES = 9;
@@ -80,6 +100,127 @@ export async function createAgentRuntime(
       return started ? wiring.address() : null;
     },
   };
+}
+
+/**
+ * S04 运行时：加锁 → 打开/迁移/integrity → 启动修复 → 装配 → 监听。
+ *
+ * 迁移、修复或 integrity 任一步失败时不开放端口、不创建 Scheduler。
+ */
+export async function createDurableAgentRuntime(
+  driver: ManagedRunDriver,
+  options: AgentRuntimeOptions = {},
+): Promise<AgentRuntime & { recovery: RecoveryReport }> {
+  const configDir = options.configDir ?? DEFAULT_CONFIG_DIR;
+  const paths = resolveAgentPaths(configDir);
+  const logger =
+    options.logger ?? createFileLogger(resolveAgentPaths(configDir).logFile);
+  const agentInstanceId =
+    options.agentInstanceId ?? `agent_${randomBase64Url(AGENT_INSTANCE_BYTES)}`;
+  const raw = await readJsonFileIfExists(paths.agentFile);
+  if (raw === undefined) {
+    throw new Error('agent.json not found; run init first');
+  }
+  const existingV4 = readConfigV4IfExists(configDir);
+  const desktopId =
+    existingV4?.desktopId ?? migrateConfigV2ToV3(raw).desktopId;
+  const databasePath =
+    existingV4 === null
+      ? join(configDir, 'agent.sqlite3')
+      : resolveDatabasePath(configDir, existingV4);
+  let lock: InstanceLockHandle | null = null;
+  let database: AgentDatabase | null = null;
+  try {
+    lock = InstanceLock.acquire({
+      lockPath: join(configDir, 'agent.lock'),
+      desktopId,
+      databasePath,
+    });
+    database = AgentDatabase.open(databasePath);
+    const config = ensureV4Config(configDir, existingV4, database);
+    const journal = new DurableEventJournal(database.uow);
+    const recovery = new StartupRecovery({
+      uow: database.uow,
+      journal,
+      runs: new RunRepository(database.uow),
+      sessions: new SessionRepository(database.uow),
+      approvals: new ApprovalRepository(database.uow),
+    });
+    const report = recovery.repair({ agentInstanceId });
+    const wiring = wireDurableAgent({
+      config,
+      database,
+      driver,
+      configDir,
+      logger,
+      agentInstanceId,
+    });
+    const runtimeDatabase = database;
+    const runtimeLock = lock;
+    let started = false;
+    return {
+      operations: wiring.operations,
+      agentInstanceId,
+      recovery: report,
+      async start() {
+        if (started) return;
+        await wiring.start(
+          options.phoneListen ?? {
+            host: PHONE_LISTEN.host,
+            port: PHONE_LISTEN.port,
+          },
+        );
+        started = true;
+      },
+      async close() {
+        await wiring.close();
+        runtimeDatabase.close();
+        runtimeLock.release();
+        started = false;
+      },
+      address() {
+        return started ? wiring.address() : null;
+      },
+    };
+  } catch (error: unknown) {
+    database?.close();
+    lock?.release();
+    throw error;
+  }
+}
+
+function ensureV4Config(
+  configDir: string,
+  existingV4: AgentConfigV4 | null,
+  database: AgentDatabase,
+): AgentConfigV4 {
+  const state = database.connection
+    .prepare('SELECT migrationState FROM schema_meta WHERE id = 1')
+    .get() as { migrationState?: string } | undefined;
+  if (existingV4 !== null) {
+    if (state?.migrationState !== 'completed') {
+      throw new Error('STORAGE_MIGRATION_CONFLICT');
+    }
+    return existingV4;
+  }
+  const paths = resolveAgentPaths(configDir);
+  const hashes: SourceHashes = {
+    config: sha256Text(readFileSync(paths.agentFile, 'utf8')),
+    devices: existsSync(paths.devicesFile)
+      ? sha256Text(readFileSync(paths.devicesFile, 'utf8'))
+      : null,
+  };
+  migrateV3Sources({
+    configDir,
+    uow: database.uow,
+    sourceHashes: hashes,
+    now: Date.now(),
+  });
+  const migrated = readConfigV4IfExists(configDir);
+  if (migrated === null) {
+    throw new Error('STORAGE_MIGRATION_CONFLICT');
+  }
+  return migrated;
 }
 
 /**

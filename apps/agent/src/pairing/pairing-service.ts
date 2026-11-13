@@ -1,5 +1,5 @@
 import { randomBase64Url, sha256Base64Url, TOKEN_BYTES } from '../security/random.js';
-import { DeviceStore } from '../store/device-store.js';
+import { DeviceStorePort } from '../store/device-store.js';
 
 /** 配对二维码与配对请求的有效期。 */
 export const PAIRING_TTL_MS = 5 * 60 * 1000;
@@ -58,7 +58,7 @@ export class PairingError extends Error {
 
 /** 构造配对服务的依赖。 */
 export interface PairingServiceOptions {
-  deviceStore: DeviceStore;
+  deviceStore: DeviceStorePort;
   desktopId: string;
   baseUrl: string;
   now?: () => number;
@@ -76,7 +76,7 @@ interface PendingPairing {
 
 /** 一次性配对：内存保存单个 pending 请求，成功后只落盘令牌哈希。 */
 export class PairingService {
-  private readonly deviceStore: DeviceStore;
+  private readonly deviceStore: DeviceStorePort;
   private readonly desktopId: string;
   private readonly baseUrl: string;
   private readonly now: () => number;

@@ -5,7 +5,7 @@ import { request } from 'node:http';
 import { chmod } from 'node:fs/promises';
 
 import { PairingService } from '../pairing/pairing-service.js';
-import { DeviceStore } from '../store/device-store.js';
+import { DeviceStorePort } from '../store/device-store.js';
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { registerAdminRoutes } from './routes.js';
 
@@ -27,7 +27,7 @@ export interface AdminStatus {
 export interface AdminDependencies {
   socketPath: string;
   pairingService: PairingService;
-  deviceStore: DeviceStore;
+  deviceStore: DeviceStorePort;
   workspaces?: WorkspaceManager;
   getStatus: () => AdminStatus;
   onRevoke: (deviceId: string) => void;

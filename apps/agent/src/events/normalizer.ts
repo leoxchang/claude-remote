@@ -1,6 +1,6 @@
 import { JsonObject } from '../domain/types.js';
 import { AdapterEvent, TimelineEvent } from './adapter-events.js';
-import { EventJournal } from './journal.js';
+import { JournalAppendInput } from './journal.js';
 import { truncateUtf8 } from './utf8.js';
 
 /** delta 合并的默认时间窗口。 */
@@ -21,6 +21,11 @@ export const TOOL_OUTPUT_BYTES = 32 * 1024;
 /** 工具完成摘要的字节上限。 */
 export const TOOL_SUMMARY_BYTES = 4 * 1024;
 
+/** Normalizer 只需要同步 append；内存与持久日志都满足。 */
+export interface EventAppendPort {
+  append(input: JournalAppendInput): TimelineEvent;
+}
+
 interface PendingDelta {
   sessionId: string;
   runId: string;
@@ -39,7 +44,7 @@ export class EventNormalizer {
   private readonly deltaSeq = new Map<string, number>();
   private readonly outputSeq = new Map<string, number>();
 
-  constructor(private readonly journal: EventJournal) {}
+  constructor(private readonly journal: EventAppendPort) {}
 
   /** 消费一个 adapter 事件。 */
   consume(event: AdapterEvent): void {
