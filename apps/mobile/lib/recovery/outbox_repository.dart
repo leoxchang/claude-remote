@@ -76,7 +76,12 @@ final class OutboxRepository {
   };
 
   Future<void> insert(OutboxCommand command) {
-    return db.insert('outbox_commands', {
+    return db.transaction((txn) => insertWithin(txn, command));
+  }
+
+  /// 在调用方事务内插入；用于草稿消费等同事务场景。
+  Future<void> insertWithin(Transaction txn, OutboxCommand command) {
+    return txn.insert('outbox_commands', {
       'commandId': command.commandId,
       'sessionId': command.sessionId,
       'type': command.type,

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:sqflite/sqflite.dart';
+
 import '../data/agent_socket.dart' show JsonMap;
 import '../recovery/outbox_command.dart';
 import '../recovery/outbox_repository.dart';
@@ -69,6 +71,7 @@ final class PersistentCommandCoordinator {
     required String sessionId,
     required String type,
     required Map<String, Object?> payload,
+    FutureOr<void> Function(Transaction txn)? withinTransaction,
   }) async {
     final existing = await _outbox.find(commandId);
     if (existing == null) {
@@ -78,24 +81,30 @@ final class PersistentCommandCoordinator {
           throw const CommandFailure('SESSION_BUSY');
         }
       }
-      await _outbox.insert(
-        OutboxCommand(
+      final command = OutboxCommand(
+        commandId: commandId,
+        sessionId: sessionId,
+        type: type,
+        payloadJson: PersistedCommandSnapshot(
           commandId: commandId,
           sessionId: sessionId,
           type: type,
-          payloadJson: PersistedCommandSnapshot(
-            commandId: commandId,
-            sessionId: sessionId,
-            type: type,
-            payload: payload,
-            agentInstanceId: _agentInstanceId,
-          ).payloadJson,
+          payload: payload,
           agentInstanceId: _agentInstanceId,
-          state: OutboxState.persisted,
-          createdAt: _now,
-          updatedAt: _now,
-        ),
+        ).payloadJson,
+        agentInstanceId: _agentInstanceId,
+        state: OutboxState.persisted,
+        createdAt: _now,
+        updatedAt: _now,
       );
+      if (withinTransaction == null) {
+        await _outbox.insert(command);
+      } else {
+        await _outbox.db.transaction((txn) async {
+          await _outbox.insertWithin(txn, command);
+          await withinTransaction(txn);
+        });
+      }
     } else if (existing.state == OutboxState.confirmationRequired) {
       throw const CommandFailure('CONFIRMATION_REQUIRED');
     }

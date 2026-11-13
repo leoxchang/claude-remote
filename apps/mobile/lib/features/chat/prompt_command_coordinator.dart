@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:sqflite/sqflite.dart';
+
 import '../../connection/command_client.dart';
 import '../../protocol/s02_messages.dart';
 import '../../connection/persistent_command_coordinator.dart';
@@ -39,6 +41,10 @@ final class PromptCommandCoordinator {
   final Map<String, Timer> _retryTimers = <String, Timer>{};
   final Map<String, String> _unknownReasons = <String, String>{};
 
+  /// 语音草稿消费回调；同一 commandId 的重试沿用。
+  final Map<String, FutureOr<void> Function(Transaction txn)>
+  _withinTransaction = <String, FutureOr<void> Function(Transaction txn)>{};
+
   /// 该会话没有未确认 prompt 时才允许发送新命令。
   bool canSend(String sessionId) => !_pending.containsKey(sessionId);
 
@@ -55,13 +61,19 @@ final class PromptCommandCoordinator {
   }
 
   /// 发送一条 prompt；同一会话同时只允许一条。
-  Future<PromptAccepted> send(CommandRequest<PromptAccepted> request) async {
+  Future<PromptAccepted> send(
+    CommandRequest<PromptAccepted> request, {
+    FutureOr<void> Function(Transaction txn)? withinTransaction,
+  }) async {
     final sessionId = request.sessionId;
     if (sessionId == null) {
       throw const CommandFailure('INVALID_REQUEST');
     }
     if (!canSend(sessionId)) {
       throw const CommandFailure('PROMPT_PENDING');
+    }
+    if (withinTransaction != null) {
+      _withinTransaction[sessionId] = withinTransaction;
     }
     _pending[sessionId] = request;
     return _execute(sessionId, request);
@@ -105,6 +117,7 @@ final class PromptCommandCoordinator {
           sessionId: sessionId,
           type: request.type,
           payload: request.payload,
+          withinTransaction: _withinTransaction[sessionId],
         );
         try {
           result = request.decode(wire);
@@ -117,6 +130,7 @@ final class PromptCommandCoordinator {
       }
       _pending.remove(sessionId);
       _unknownReasons.remove(sessionId);
+      _withinTransaction.remove(sessionId);
       _cancelTimer(sessionId);
       return result;
     } on CommandTimeout {
@@ -126,6 +140,7 @@ final class PromptCommandCoordinator {
     } on CommandFailure {
       _pending.remove(sessionId);
       _unknownReasons.remove(sessionId);
+      _withinTransaction.remove(sessionId);
       _cancelTimer(sessionId);
       rethrow;
     }

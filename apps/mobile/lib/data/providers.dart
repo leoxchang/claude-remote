@@ -276,6 +276,7 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
   final sync = await ref.watch(sessionSyncCoordinatorProvider.future);
   final recoveryStore = await ref.watch(recoveryStoreProvider.future);
   if (persistent != null) chat.attachPersistentCommands(persistent);
+  chat.attachVoiceDrafts(recoveryStore.voiceDrafts);
   late final ConnectionController connection;
   connection = ConnectionController(
     socketFactory: createSocket,

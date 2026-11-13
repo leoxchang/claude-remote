@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sqflite/sqflite.dart';
+
 import '../../connection/command_client.dart';
 import '../../connection/connection_controller.dart';
 import '../../connection/persistent_command_coordinator.dart';
@@ -12,6 +14,7 @@ import '../../domain/session.dart';
 import '../../domain/timeline.dart';
 import '../../protocol/messages.dart';
 import '../../protocol/s02_messages.dart';
+import '../../voice/voice_draft_repository.dart';
 import 'prompt_command_coordinator.dart';
 
 /// S01 单条 prompt 的 UTF-8 字节上限。
@@ -140,6 +143,9 @@ final class ChatController extends Notifier<ChatState> {
   String? _sessionId;
   PromptCommandCoordinator? _coordinator;
   PersistentCommandCoordinator? _persistentCommands;
+  VoiceDraftStore? _voiceDrafts;
+  String? _pendingVoiceDraftId;
+  String? _pendingVoiceDraftSessionId;
   int _sequence = 0;
 
   @override
@@ -149,6 +155,17 @@ final class ChatController extends Notifier<ChatState> {
   void attachPersistentCommands(PersistentCommandCoordinator coordinator) {
     _persistentCommands = coordinator;
     _coordinator = null;
+  }
+
+  /// 语音草稿与 Composer 的桥；未装配时普通文字发送不受影响。
+  void attachVoiceDrafts(VoiceDraftStore drafts) {
+    _voiceDrafts = drafts;
+  }
+
+  /// final 写入草稿后标记待消费的 voice draft；发送成功才清空。
+  void setPendingVoiceDraft(String? voiceDraftId, {String? sessionId}) {
+    _pendingVoiceDraftId = voiceDraftId;
+    _pendingVoiceDraftSessionId = voiceDraftId == null ? null : sessionId;
   }
 
   /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
@@ -302,7 +319,15 @@ final class ChatController extends Notifier<ChatState> {
           persistent: _persistentCommands,
         );
     state = state.copyWith(composer: ComposerStatus.sending, error: null);
-    await _executePrompt(coordinator, sessionId, request, text);
+    await _executePrompt(
+      coordinator,
+      sessionId,
+      request,
+      text,
+      voiceDraftId: _pendingVoiceDraftSessionId == sessionId
+          ? _pendingVoiceDraftId
+          : null,
+    );
   }
 
   /// 结果未知时用同一 commandId 重试，不生成新命令。
@@ -409,10 +434,22 @@ final class ChatController extends Notifier<ChatState> {
     PromptCommandCoordinator coordinator,
     String sessionId,
     CommandRequest<PromptAccepted> request,
-    String text,
-  ) async {
+    String text, {
+    String? voiceDraftId,
+  }) async {
+    final drafts = _voiceDrafts;
+    final hook = voiceDraftId == null || drafts == null
+        ? null
+        : (Transaction txn) => drafts.deleteWithin(txn, voiceDraftId);
     try {
-      final accepted = await coordinator.send(request);
+      final accepted = await coordinator.send(
+        request,
+        withinTransaction: hook,
+      );
+      if (voiceDraftId != null) {
+        _pendingVoiceDraftId = null;
+        _pendingVoiceDraftSessionId = null;
+      }
       _applyAccepted(accepted, previewText: text);
     } on CommandFailure catch (error) {
       state = state.copyWith(

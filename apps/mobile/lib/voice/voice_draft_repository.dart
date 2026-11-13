@@ -26,6 +26,9 @@ abstract interface class VoiceDraftStore {
     String combinedDraft,
   );
   Future<void> restoreOriginal(String voiceDraftId);
+
+  /// 在调用方事务内删除；用于 outbox 入队与草稿消费同事务。
+  Future<void> deleteWithin(Transaction txn, String voiceDraftId);
 }
 
 /// final 文本写入 drafts 与 voice_drafts 的同一事务入口。
@@ -129,6 +132,7 @@ final class VoiceDraftRepository implements VoiceDraftStore {
   }
 
   /// 在调用方事务内删除；用于 outbox 入队与草稿消费同事务。
+  @override
   Future<void> deleteWithin(Transaction txn, String voiceDraftId) {
     return txn.delete(
       'voice_drafts',

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite/sqflite.dart';
 
 import 'package:claude_remote/voice/voice_asr_client.dart';
 import 'package:claude_remote/voice/voice_audio_capture.dart';
@@ -138,6 +139,9 @@ class FakeDrafts implements VoiceDraftStore {
   Future<void> restoreOriginal(String voiceDraftId) async {
     restored.add(voiceDraftId);
   }
+
+  @override
+  Future<void> deleteWithin(Transaction txn, String voiceDraftId) async {}
 }
 
 class FakeAccess implements VoiceDraftAccess {
@@ -396,5 +400,28 @@ void main() {
     await settle(tester);
     expect((h.controller.state as VoiceErrorState).code, 'ASR_INTERRUPTED');
     expect(h.connection.cancels, 1);
+  });
+
+  testWidgets('persists edits and can restore the original draft', (
+    tester,
+  ) async {
+    final h = Harness();
+    await h.press(tester);
+    h.started();
+    await tester.pump();
+    unawaited(h.controller.release());
+    await settle(tester);
+    h.finalText(1, '识别文本。');
+    await settle(tester);
+
+    unawaited(h.controller.updateCombinedDraft('识别文本，编辑。'));
+    await settle(tester);
+    expect(h.drafts.updates, ['识别文本，编辑。']);
+    expect(h.access.drafts['session_1'], '识别文本，编辑。');
+
+    unawaited(h.controller.discardVoiceDraft());
+    await settle(tester);
+    expect(h.drafts.restored, ['vd_1']);
+    expect(h.access.drafts['session_1'], '原草稿');
   });
 }
