@@ -16,7 +16,12 @@ export interface JournalAppendInput {
   approvalId?: string;
 }
 
-/** 内存事件日志：先分配 eventId/seq，再通知订阅者。 */
+/**
+ * 内存事件日志：先分配 eventId/seq，再通知订阅者。
+ *
+ * @deprecated S04 起运行时只 wiring DurableEventJournal；本类仅保留给
+ * S01–S03 的历史测试，不得双写或双读。
+ */
 export class EventJournal {
   private readonly eventsBySession = new Map<string, TimelineEvent[]>();
   private readonly seqBySession = new Map<string, number>();
