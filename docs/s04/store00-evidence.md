@@ -1,6 +1,10 @@
 # STORE-00 证据
 
 **日期：** 2026-11-13
+**STORE-00 Mac:** PASS
+**dataProtection:** false
+**IPHONE:** BLOCKED
+
 **结论：** Mac 部分 **PASS（4/4）**；物理 iPhone 部分 **BLOCKED**（无设备连接）。按用户批准的口径，Mac 存储能力作为后续 Task 2–18 的硬门禁，iPhone Data Protection 在真机验收时补测；S04 不得宣称整体验收通过。
 
 ## 1. 环境
