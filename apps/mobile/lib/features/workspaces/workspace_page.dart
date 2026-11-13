@@ -76,7 +76,9 @@ class _WorkspacePageState extends ConsumerState<WorkspacePage> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              '全局执行槽 ${scheduler.activeRunCount}/${scheduler.maxActiveRuns}',
+              '全局执行槽 ${scheduler.activeRunCount}/${scheduler.maxActiveRuns}'
+              '${scheduler.pendingApprovalCount > 0 ? ' · 待审批 ${scheduler.pendingApprovalCount}' : ''}',
+              key: const Key('globalSchedulerSummary'),
             ),
           ),
         ],

@@ -28,6 +28,7 @@ final class SchedulerSummary {
     required this.activeRunCount,
     required this.queuedRunCount,
     required this.maxQueuedRuns,
+    this.pendingApprovalCount = 0,
   });
 
   factory SchedulerSummary.fromWire(Map<String, Object?> wire) {
@@ -40,6 +41,9 @@ final class SchedulerSummary {
       activeRunCount: activeRunCount is int ? activeRunCount : 0,
       queuedRunCount: queuedRunCount is int ? queuedRunCount : 0,
       maxQueuedRuns: maxQueuedRuns is int ? maxQueuedRuns : 100,
+      pendingApprovalCount: wire['pendingApprovalCount'] is int
+          ? wire['pendingApprovalCount'] as int
+          : 0,
     );
   }
 

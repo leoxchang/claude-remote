@@ -5,9 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../connection/chat_session_runtime.dart';
 import '../../data/providers.dart';
+import '../../protocol/s03_messages.dart';
+import '../approvals/approval_controller.dart';
+import '../approvals/approval_detail_page.dart';
 import 'chat_controller.dart';
 import 'widgets/composer.dart';
 import 'widgets/message_list.dart';
+import 'widgets/pending_approval_card.dart';
 import 'widgets/queue_panel.dart';
 import 'widgets/run_controls.dart';
 
@@ -64,6 +68,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final state = ref.watch(chatControllerProvider);
     final controller = ref.read(chatControllerProvider.notifier);
     final timeline = state.timeline;
+    final approvals = ref.watch(approvalControllerProvider).valueOrNull;
+    final sessionId = controller.sessionId;
     return Scaffold(
       appBar: AppBar(title: const Text('Claude Remote')),
       body: Column(
@@ -77,6 +83,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
               tools: timeline?.tools ?? const [],
             ),
           ),
+          if (approvals != null && sessionId != null)
+            _ApprovalCards(controller: approvals, sessionId: sessionId),
           if (state.composer == ComposerStatus.unknown)
             TextButton(
               onPressed: controller.retryUnknownCommand,
@@ -139,6 +147,43 @@ class _ErrorBar extends StatelessWidget {
       color: Theme.of(context).colorScheme.errorContainer,
       padding: const EdgeInsets.all(8),
       child: Text(message, textAlign: TextAlign.center),
+    );
+  }
+}
+
+/// 当前会话的待审批卡片；点击进入详情，不改变会话选择。
+class _ApprovalCards extends StatelessWidget {
+  const _ApprovalCards({required this.controller, required this.sessionId});
+
+  final ApprovalController controller;
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final pending = controller.pendingForSession(sessionId);
+        if (pending.isEmpty) return const SizedBox.shrink();
+        return Column(
+          children: [
+            for (final summary in pending)
+              PendingApprovalCard(
+                approval: summary,
+                onTap: () => _open(context, summary),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _open(BuildContext context, ApprovalSummary summary) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ApprovalDetailPage(controller: controller, summary: summary),
+      ),
     );
   }
 }

@@ -100,23 +100,33 @@ class _SessionPageState extends ConsumerState<SessionPage> {
       title: Text(session.title),
       subtitle: Text(_statusLabel(session)),
       onTap: session.isArchived ? null : () => _openChat(session.sessionId),
-      trailing: session.isArchived
-          ? null
-          : PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'rename') unawaited(_rename(session));
-                if (value == 'archive') unawaited(_archive(session.sessionId));
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem<String>(value: 'rename', child: Text('重命名')),
-                PopupMenuItem<String>(value: 'archive', child: Text('归档')),
-              ],
-            ),
+      trailing: session.pendingApprovalCount > 0
+          ? Badge(
+              key: Key('approvalBadge_${session.sessionId}'),
+              label: Text('${session.pendingApprovalCount}'),
+              child: const Icon(Icons.gpp_maybe_outlined),
+            )
+          : session.isArchived
+              ? null
+              : PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'rename') unawaited(_rename(session));
+                    if (value == 'archive')
+                      unawaited(_archive(session.sessionId));
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem<String>(value: 'rename', child: Text('重命名')),
+                    PopupMenuItem<String>(value: 'archive', child: Text('归档')),
+                  ],
+                ),
     );
   }
 
   String _statusLabel(SessionSummary session) {
     if (session.isArchived) return '已归档';
+    if (session.status == 'waiting_approval') {
+      return '等待审批 ${session.pendingApprovalCount}';
+    }
     if (session.status == 'running') return '运行中';
     if (session.status == 'queued') return '排队 ${session.queuedCount}';
     return '空闲';
