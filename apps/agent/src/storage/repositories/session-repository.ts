@@ -69,6 +69,18 @@ export class SessionRepository {
     return row === undefined ? undefined : { ...row };
   }
 
+  /** 全部会话；清理任务使用。 */
+  listAll(): StoredSession[] {
+    const rows = this.uow.connectionRef
+      .prepare(
+        `SELECT sessionId, workspaceId, claudeSessionId, title, lifecycle, status,
+                lastSeq, retentionFloor, createdAt, lastActivityAt, archivedAt
+         FROM sessions ORDER BY createdAt`,
+      )
+      .all() as SessionRow[];
+    return rows.map((row) => ({ ...row }));
+  }
+
   /** 项目下的会话摘要数据；按创建时间倒序。 */
   listByWorkspace(
     workspaceId: string,

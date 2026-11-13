@@ -11,6 +11,7 @@ import { SessionRepository } from '../storage/repositories/session-repository.js
 import { WorkspaceRepository } from '../storage/repositories/workspace-repository.js';
 import { nextEnqueueOrder } from './enqueue-order.js';
 import { randomBase64Url } from '../security/random.js';
+import { StorageHealth } from '../storage/storage-health.js';
 
 /** prompt 正文上限：16 KiB UTF-8。 */
 export const MAX_PROMPT_BYTES = 16 * 1024;
@@ -28,6 +29,7 @@ export interface PromptAdmissionDeps {
   generateRunId?: () => string;
   /** commit 后仅通知 Scheduler drain；绝不在这里启动 driver。 */
   onAccepted?: (accepted: PromptAccepted) => void;
+  health?: StorageHealth;
 }
 
 export interface SendPromptInput {
@@ -51,6 +53,7 @@ export class PromptAdmission {
   private readonly workspaces: WorkspaceRepository;
   private readonly generateRunId: () => string;
   private readonly onAccepted: ((accepted: PromptAccepted) => void) | null;
+  private readonly health: StorageHealth | null;
 
   constructor(deps: PromptAdmissionDeps) {
     this.executor = deps.executor;
@@ -60,9 +63,13 @@ export class PromptAdmission {
     this.generateRunId =
       deps.generateRunId ?? (() => `run_${randomBase64Url(RUN_ID_BYTES)}`);
     this.onAccepted = deps.onAccepted ?? null;
+    this.health = deps.health ?? null;
   }
 
   send(input: SendPromptInput): CommandExecution<PromptAccepted> {
+    if (this.health !== null && !this.health.isAvailable()) {
+      throw new AgentError('STORAGE_LIMITED');
+    }
     if (input.identity.type !== 'prompt.send') {
       throw new AgentError('INVALID_MESSAGE');
     }

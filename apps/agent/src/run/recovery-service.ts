@@ -10,6 +10,7 @@ import { RunRepository } from '../storage/repositories/run-repository.js';
 import { SessionRepository } from '../storage/repositories/session-repository.js';
 import { WorkspaceRepository } from '../storage/repositories/workspace-repository.js';
 import { nextEnqueueOrder } from './enqueue-order.js';
+import { StorageHealth } from '../storage/storage-health.js';
 
 export interface RequeueInput {
   identity: CommandIdentity;
@@ -26,6 +27,7 @@ export interface RecoveryServiceDeps {
   sessions: SessionRepository;
   workspaces: WorkspaceRepository;
   onAccepted?: (accepted: PromptAccepted) => void;
+  health?: StorageHealth;
 }
 
 /**
@@ -39,6 +41,7 @@ export class RecoveryService {
   private readonly sessions: SessionRepository;
   private readonly workspaces: WorkspaceRepository;
   private readonly onAccepted: ((accepted: PromptAccepted) => void) | null;
+  private readonly health: StorageHealth | null;
 
   constructor(deps: RecoveryServiceDeps) {
     this.executor = deps.executor;
@@ -46,9 +49,13 @@ export class RecoveryService {
     this.sessions = deps.sessions;
     this.workspaces = deps.workspaces;
     this.onAccepted = deps.onAccepted ?? null;
+    this.health = deps.health ?? null;
   }
 
   requeue(input: RequeueInput): CommandExecution<PromptAccepted> {
+    if (this.health !== null && !this.health.isAvailable()) {
+      throw new AgentError('STORAGE_LIMITED');
+    }
     if (input.identity.type !== 'run.requeue') {
       throw new AgentError('INVALID_MESSAGE');
     }

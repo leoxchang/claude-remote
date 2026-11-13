@@ -108,7 +108,7 @@ describe('durable runtime startup', () => {
               eventTailMayBeIncomplete, enqueuedAt)
            VALUES ('run_recover', ?, 'ws_1', 'device_1', 'cmd_r', 'trace_r',
                    'recovery_required', 'prompt', ?, 1, 1, 0, 0, 0, ?)`,
-        ).run(created.sessionId, NOW + 1000, NOW);
+        ).run(created.sessionId, Date.now() + 86_400_000, NOW);
       });
     } finally {
       db.close();

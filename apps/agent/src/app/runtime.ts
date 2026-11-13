@@ -18,6 +18,8 @@ import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from '../config/paths.js';
 import { AgentConfig, AgentConfigV2 } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
 import { AgentDatabase } from '../storage/database.js';
+import { RetentionService } from '../storage/retention-service.js';
+import { StorageHealth } from '../storage/storage-health.js';
 import { InstanceLock, InstanceLockHandle } from '../storage/instance-lock.js';
 import {
   migrateV3Sources,
@@ -29,6 +31,7 @@ import { RunRepository } from '../storage/repositories/run-repository.js';
 import { SessionRepository } from '../storage/repositories/session-repository.js';
 import { RecoveryReport, StartupRecovery } from '../storage/startup-recovery.js';
 import { DurableEventJournal } from '../events/durable-event-journal.js';
+import { RecoveryService } from '../run/recovery-service.js';
 import { PHONE_LISTEN } from '../transport/phone-server.js';
 import { AgentOperations } from './agent-operations.js';
 import { wireDurableAgent } from './durable-wire.js';
@@ -110,7 +113,14 @@ export async function createAgentRuntime(
 export async function createDurableAgentRuntime(
   driver: ManagedRunDriver,
   options: AgentRuntimeOptions = {},
-): Promise<AgentRuntime & { recovery: RecoveryReport }> {
+): Promise<
+    AgentRuntime & {
+      recovery: RecoveryReport;
+      recoveryService: RecoveryService;
+      retention: RetentionService;
+      health: StorageHealth;
+    }
+  > {
   const configDir = options.configDir ?? DEFAULT_CONFIG_DIR;
   const paths = resolveAgentPaths(configDir);
   const logger =
@@ -155,13 +165,19 @@ export async function createDurableAgentRuntime(
       logger,
       agentInstanceId,
     });
+    wiring.retention.runOnce(Date.now());
+    wiring.retention.evaluateCapacity(runtimeLiveBytes(database));
     const runtimeDatabase = database;
     const runtimeLock = lock;
     let started = false;
+    let retentionTimer: ReturnType<typeof setInterval> | null = null;
     return {
       operations: wiring.operations,
       agentInstanceId,
       recovery: report,
+      recoveryService: wiring.recovery,
+      retention: wiring.retention,
+      health: wiring.health,
       async start() {
         if (started) return;
         await wiring.start(
@@ -171,8 +187,16 @@ export async function createDurableAgentRuntime(
           },
         );
         started = true;
+        retentionTimer = setInterval(() => {
+          wiring.retention.runOnce(Date.now());
+          wiring.retention.evaluateCapacity(runtimeLiveBytes(runtimeDatabase));
+        }, 15 * 60 * 1000);
       },
       async close() {
+        if (retentionTimer !== null) {
+          clearInterval(retentionTimer);
+          retentionTimer = null;
+        }
         await wiring.close();
         runtimeDatabase.close();
         runtimeLock.release();
@@ -187,6 +211,10 @@ export async function createDurableAgentRuntime(
     lock?.release();
     throw error;
   }
+}
+
+function runtimeLiveBytes(database: AgentDatabase): number {
+  return database.liveBytes();
 }
 
 function ensureV4Config(

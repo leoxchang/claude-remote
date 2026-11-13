@@ -27,6 +27,8 @@ import { RunRepository } from '../storage/repositories/run-repository.js';
 import { SessionRepository } from '../storage/repositories/session-repository.js';
 import { SqliteWorkspaceRepository } from '../storage/repositories/workspace-repository.js';
 import { StorageHealth } from '../storage/storage-health.js';
+import { RetentionService } from '../storage/retention-service.js';
+import { CommandRepository } from '../storage/repositories/command-repository.js';
 import { ConnectionManager } from '../transport/connection-manager.js';
 import {
   createPhoneServer,
@@ -59,6 +61,8 @@ export interface DurableWireOptions {
 export interface DurableWiring {
   operations: DurableAgentOperations;
   recovery: RecoveryService;
+  retention: RetentionService;
+  health: StorageHealth;
   start(listen?: { host: string; port: number }): Promise<void>;
   close(): Promise<void>;
   address(): { host: string; port: number } | null;
@@ -155,6 +159,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     runs,
     workspaces: workspacesRepository,
     onAccepted: () => scheduler.drain(),
+    health,
   });
   const recovery = new RecoveryService({
     executor,
@@ -162,6 +167,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     sessions,
     workspaces: workspacesRepository,
     onAccepted: () => scheduler.drain(),
+    health,
   });
   const runPrompt = new RunPromptController({ runs, devices: deviceStore });
   const snapshots = new SnapshotService({
@@ -171,6 +177,15 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     runs,
     approvals: approvalStore,
     uow,
+  });
+  const retention = new RetentionService({
+    uow,
+    journal,
+    runs,
+    sessions,
+    commands: new CommandRepository(uow),
+    snapshots,
+    health,
   });
   const syncService = new SessionSyncService({
     executor,
@@ -256,6 +271,8 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
   return {
     operations,
     recovery,
+    retention,
+    health,
     async start(listen = { host: PHONE_LISTEN.host, port: PHONE_LISTEN.port }) {
       adminServer = await createAdminServer({
         socketPath: paths.socketPath,
