@@ -40,10 +40,9 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
 
   @override
   Widget build(BuildContext context) {
-    final disabled =
-        !widget.enabled ||
-        widget.state is VoiceConnecting ||
-        widget.state is VoiceFinalizing;
+    // 只有 idle 才能开始；按住期间的 up/cancel 必须始终保留，
+    // 否则状态切到 connecting 后松手会丢失。
+    final canPress = widget.enabled && widget.state is VoiceIdle;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -70,52 +69,49 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
           ),
         Listener(
           key: const ValueKey('voice-hold'),
-          onPointerDown: disabled
-              ? null
-              : (_) {
+          onPointerDown: canPress
+              ? (_) {
                   setState(() {
                     _holding = true;
                     _cancelReady = false;
                     _dragUp = 0;
                   });
                   widget.onPress();
-                },
-          onPointerMove: disabled
-              ? null
-              : (event) {
-                  _dragUp += event.delta.dy;
-                  final ready = _dragUp < -_cancelThreshold;
-                  if (ready != _cancelReady) {
-                    setState(() => _cancelReady = ready);
-                  }
-                },
-          onPointerUp: disabled
-              ? null
-              : (_) {
-                  final cancelled = _cancelReady;
-                  setState(() {
-                    _holding = false;
-                    _cancelReady = false;
-                    _dragUp = 0;
-                  });
-                  if (cancelled) {
-                    widget.onCancel();
-                  } else {
-                    widget.onRelease();
-                  }
-                },
-          onPointerCancel: disabled
-              ? null
-              : (_) {
-                  setState(() {
-                    _holding = false;
-                    _cancelReady = false;
-                    _dragUp = 0;
-                  });
-                  widget.onCancel();
-                },
+                }
+              : null,
+          onPointerMove: (event) {
+            if (!_holding) return;
+            _dragUp += event.delta.dy;
+            final ready = _dragUp < -_cancelThreshold;
+            if (ready != _cancelReady) {
+              setState(() => _cancelReady = ready);
+            }
+          },
+          onPointerUp: (_) {
+            if (!_holding) return;
+            final cancelled = _cancelReady;
+            setState(() {
+              _holding = false;
+              _cancelReady = false;
+              _dragUp = 0;
+            });
+            if (cancelled) {
+              widget.onCancel();
+            } else {
+              widget.onRelease();
+            }
+          },
+          onPointerCancel: (_) {
+            if (!_holding) return;
+            setState(() {
+              _holding = false;
+              _cancelReady = false;
+              _dragUp = 0;
+            });
+            widget.onCancel();
+          },
           child: FilledButton.tonalIcon(
-            onPressed: disabled ? null : () {},
+            onPressed: canPress ? () {} : null,
             icon: const Icon(Icons.mic),
             label: Text(_label),
           ),

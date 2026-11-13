@@ -95,6 +95,42 @@ void main() {
     expect(releases, 0);
   });
 
+  testWidgets('keeps pointer-up while state changes to connecting', (
+    tester,
+  ) async {
+    final state = ValueNotifier<VoiceUiState>(const VoiceIdle());
+    var releases = 0;
+    var cancels = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ValueListenableBuilder<VoiceUiState>(
+              valueListenable: state,
+              builder: (context, value, child) {
+                return VoiceInputButton(
+                  state: value,
+                  onPress: () => state.value = const VoiceConnecting(),
+                  onRelease: () => releases += 1,
+                  onCancel: () => cancels += 1,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('voice-hold'))),
+    );
+    await tester.pump();
+    expect(state.value, isA<VoiceConnecting>());
+    await gesture.up();
+    await tester.pump();
+    expect(releases, 1);
+    expect(cancels, 0);
+  });
+
   testWidgets('disabled button never starts recording', (tester) async {
     var presses = 0;
     await tester.pumpWidget(

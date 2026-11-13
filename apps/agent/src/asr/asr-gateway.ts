@@ -76,6 +76,7 @@ export class AsrGateway {
   private readonly manager: AsrStreamControl;
   private readonly now: () => number;
   private readonly startsByDevice = new Map<string, number[]>();
+  private readonly connections = new Set<ConnectionState>();
   private current: ConnectionState | null = null;
 
   constructor(options: AsrGatewayOptions) {
@@ -95,6 +96,12 @@ export class AsrGateway {
 
   closeAll(reason: string): void {
     this.manager.cancelAll(reason);
+    for (const state of [...this.connections]) {
+      const activeOwner = state === this.current && state.streamId !== null;
+      if (activeOwner) continue;
+      state.terminal = true;
+      this.closeSocket(state, reason);
+    }
   }
 
   private async handleConnection(
@@ -138,6 +145,7 @@ export class AsrGateway {
     }
     state.deviceId = device.deviceId;
     authenticated = true;
+    this.connections.add(state);
     for (const frame of pending) this.dispatch(state, frame.data, frame.isBinary);
   }
 
@@ -225,10 +233,12 @@ export class AsrGateway {
       return;
     }
     state.streamId = message.asrStreamId;
+    const previous = this.current;
     this.current = state;
     void this.manager
       .start({ deviceId: state.deviceId, asrStreamId: message.asrStreamId })
       .catch((error: unknown) => {
+        if (this.current === state) this.current = previous;
         if (state.terminal) return;
         const code = error instanceof AsrError ? error.code : 'ASR_CONNECTION_FAILED';
         this.failConnection(state, code, false);
@@ -251,8 +261,8 @@ export class AsrGateway {
       bytes.length % 2 !== 0 ||
       bytes.length > MAX_AUDIO_BYTES
     ) {
-      this.manager.cancel(state.streamId, 'ASR_INVALID_AUDIO');
       this.failConnection(state, 'ASR_INVALID_AUDIO', false);
+      this.manager.cancel(state.streamId, 'ASR_INVALID_AUDIO');
       return;
     }
     this.manager.write(state.streamId, bytes);
@@ -374,6 +384,7 @@ export class AsrGateway {
   private closeSocket(state: ConnectionState, reason: string): void {
     if (state.socketClosed) return;
     state.socketClosed = true;
+    this.connections.delete(state);
     state.socket.close(1000, reason);
     if (this.current === state) this.current = null;
   }
@@ -381,6 +392,7 @@ export class AsrGateway {
   private onSocketClosed(state: ConnectionState): void {
     if (state.socketClosed) return;
     state.socketClosed = true;
+    this.connections.delete(state);
     if (this.current === state) this.current = null;
     if (state.terminal) return;
     state.terminal = true;

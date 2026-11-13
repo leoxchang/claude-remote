@@ -67,8 +67,13 @@ class FakeProvider implements AsrProvider {
 
 class Client {
   readonly messages: Array<Record<string, unknown>> = [];
+  readonly closed: Promise<void>;
+  private resolveClosed: (() => void) | null = null;
 
   constructor(private readonly socket: WebSocket) {
+    this.closed = new Promise<void>((resolve) => {
+      this.resolveClosed = resolve;
+    });
     socket.on('message', (data) => {
       const raw = String(data);
       try {
@@ -78,6 +83,11 @@ class Client {
       } catch {
         this.messages.push({ type: raw });
       }
+    });
+    socket.on('close', () => {
+      const resolve = this.resolveClosed;
+      this.resolveClosed = null;
+      resolve?.();
     });
   }
 
@@ -334,6 +344,60 @@ describe('S05 agent ASR flow', () => {
       client.send(FINISH);
       await client.waitFor(isType('asr.final'));
       client.close();
+    } finally {
+      await dispose(created);
+    }
+  });
+
+  it('rejects a second stream without silencing the active one', async () => {
+    const created = await harness();
+    try {
+      const first = await created.connect();
+      first.send(START);
+      await first.waitFor(isType('asr.started'));
+
+      const second = await created.connect();
+      second.send({ ...START, messageId: 'msg_second', asrStreamId: 'asr_2' });
+      const error = await second.waitFor(isType('asr.error'));
+      expect(error['code']).toBe('ASR_BUSY');
+      await second.waitFor(isType('asr.closed'));
+
+      first.sendBinary(new Uint8Array([1, 2]));
+      first.send(FINISH);
+      const final = await first.waitFor(isType('asr.final'));
+      expect(final['text']).toBe('你好，世界。');
+      first.close();
+    } finally {
+      await dispose(created);
+    }
+  });
+
+  it('reports invalid audio as an error, not a cancellation', async () => {
+    const created = await harness();
+    try {
+      const client = await created.connect();
+      client.send(START);
+      await client.waitFor(isType('asr.started'));
+      client.sendBinary(new Uint8Array([1]));
+      const error = await client.waitFor(isType('asr.error'));
+      expect(error['code']).toBe('ASR_INVALID_AUDIO');
+      await client.waitFor(isType('asr.closed'));
+      expect(
+        client.messages.some(
+          (message) => message['reason'] === 'ASR_INVALID_AUDIO',
+        ),
+      ).toBe(false);
+    } finally {
+      await dispose(created);
+    }
+  });
+
+  it('closes idle audio connections on revoke', async () => {
+    const created = await harness();
+    try {
+      const client = await created.connect();
+      created.runtime.close('device_revoked');
+      await client.closed;
     } finally {
       await dispose(created);
     }

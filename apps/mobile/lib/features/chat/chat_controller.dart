@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../../domain/session.dart';
 import '../../domain/timeline.dart';
 import '../../protocol/messages.dart';
 import '../../protocol/s02_messages.dart';
+import '../../voice/composer_draft_store.dart';
 import '../../voice/voice_draft_repository.dart';
 import 'prompt_command_coordinator.dart';
 
@@ -45,6 +47,8 @@ final class ChatState {
     this.archived = false,
     this.slotsFull = false,
     this.cacheNotice = false,
+    this.pendingVoiceDraftId,
+    this.pendingVoiceSessionId,
   });
 
   final ConnectionStatus connection;
@@ -65,6 +69,10 @@ final class ChatState {
   /// 冷启动展示本地缓存时提示“可能不是最新”。
   final bool cacheNotice;
 
+  /// 尚未被普通发送消费的 voice draft。
+  final String? pendingVoiceDraftId;
+  final String? pendingVoiceSessionId;
+
   int get draftBytes => utf8.encode(draft).length;
 
   bool get busy => activeRunId != null;
@@ -81,6 +89,13 @@ final class ChatState {
       composer == ComposerStatus.idle &&
       draftBytes > 0 &&
       draftBytes <= maxPromptBytes;
+
+  /// 语音输入不要求已有草稿；只要求在线、未归档且 composer 空闲。
+  bool get canRecordVoice =>
+      connection == ConnectionStatus.ready &&
+      !syncing &&
+      !archived &&
+      composer == ComposerStatus.idle;
 
   ChatState copyWith({
     ConnectionStatus? connection,
@@ -99,6 +114,8 @@ final class ChatState {
     bool? archived,
     bool? slotsFull,
     bool? cacheNotice,
+    Object? pendingVoiceDraftId = _unset,
+    Object? pendingVoiceSessionId = _unset,
   }) {
     return ChatState(
       connection: connection ?? this.connection,
@@ -123,6 +140,12 @@ final class ChatState {
       archived: archived ?? this.archived,
       slotsFull: slotsFull ?? this.slotsFull,
       cacheNotice: cacheNotice ?? this.cacheNotice,
+      pendingVoiceDraftId: identical(pendingVoiceDraftId, _unset)
+          ? this.pendingVoiceDraftId
+          : pendingVoiceDraftId as String?,
+      pendingVoiceSessionId: identical(pendingVoiceSessionId, _unset)
+          ? this.pendingVoiceSessionId
+          : pendingVoiceSessionId as String?,
     );
   }
 
@@ -144,8 +167,8 @@ final class ChatController extends Notifier<ChatState> {
   PromptCommandCoordinator? _coordinator;
   PersistentCommandCoordinator? _persistentCommands;
   VoiceDraftStore? _voiceDrafts;
-  String? _pendingVoiceDraftId;
-  String? _pendingVoiceDraftSessionId;
+  ComposerDraftStore? _composerDrafts;
+  Future<void> _draftWrites = Future<void>.value();
   int _sequence = 0;
 
   @override
@@ -168,10 +191,30 @@ final class ChatController extends Notifier<ChatState> {
     _voiceDrafts = drafts;
   }
 
+  /// 普通 Composer 草稿持久化；用于重启恢复与 voice final 冲突检测。
+  void attachComposerDrafts(ComposerDraftStore drafts) {
+    _composerDrafts = drafts;
+  }
+
   /// final 写入草稿后标记待消费的 voice draft；发送成功才清空。
   void setPendingVoiceDraft(String? voiceDraftId, {String? sessionId}) {
-    _pendingVoiceDraftId = voiceDraftId;
-    _pendingVoiceDraftSessionId = voiceDraftId == null ? null : sessionId;
+    state = state.copyWith(
+      pendingVoiceDraftId: voiceDraftId,
+      pendingVoiceSessionId: voiceDraftId == null ? null : sessionId,
+    );
+  }
+
+  /// 恢复原草稿并删除 pending voice draft；不产生 prompt。
+  Future<void> discardPendingVoiceDraft() async {
+    final voiceDraftId = state.pendingVoiceDraftId;
+    final drafts = _voiceDrafts;
+    if (voiceDraftId == null || drafts == null) return;
+    final row = await drafts.find(voiceDraftId);
+    await drafts.restoreOriginal(voiceDraftId);
+    setPendingVoiceDraft(null);
+    if (row != null && row.originSessionId == _sessionId) {
+      updateDraft(row.originalDraft);
+    }
   }
 
   /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
@@ -180,6 +223,7 @@ final class ChatController extends Notifier<ChatState> {
     _sessionId = sessionId;
     _coordinator = null;
     state = ChatState(connection: state.connection);
+    unawaited(_restoreDraft(sessionId));
   }
 
   /// 当前本地会话；未附着时为 null。
@@ -205,6 +249,20 @@ final class ChatController extends Notifier<ChatState> {
 
   void updateDraft(String draft) {
     state = state.copyWith(draft: draft, error: null);
+    final store = _composerDrafts;
+    final sessionId = _sessionId;
+    final voiceDraftId = state.pendingVoiceDraftId;
+    final voiceSessionId = state.pendingVoiceSessionId;
+    final voiceDrafts = _voiceDrafts;
+    if (store == null || sessionId == null) return;
+    _draftWrites = _draftWrites.then((_) async {
+      await store.saveDraft(sessionId, draft);
+      if (voiceDraftId != null &&
+          voiceSessionId == sessionId &&
+          voiceDrafts != null) {
+        await voiceDrafts.updateCombinedDraft(voiceDraftId, draft);
+      }
+    });
   }
 
   /// 语音错误的安全提示；不改变草稿与发送能力。
@@ -335,8 +393,8 @@ final class ChatController extends Notifier<ChatState> {
       sessionId,
       request,
       text,
-      voiceDraftId: _pendingVoiceDraftSessionId == sessionId
-          ? _pendingVoiceDraftId
+      voiceDraftId: state.pendingVoiceSessionId == sessionId
+          ? state.pendingVoiceDraftId
           : null,
     );
   }
@@ -441,6 +499,27 @@ final class ChatController extends Notifier<ChatState> {
     );
   }
 
+  Future<void> _restoreDraft(String sessionId) async {
+    final store = _composerDrafts;
+    if (store != null) {
+      final text = await store.readDraft(sessionId);
+      if (_sessionId != sessionId) return;
+      if (text != null && text.isNotEmpty && state.draft.isEmpty) {
+        state = state.copyWith(draft: text);
+      }
+    }
+    final drafts = _voiceDrafts;
+    if (drafts == null) return;
+    final pending = await drafts.pendingForSession(sessionId);
+    if (_sessionId != sessionId) return;
+    if (pending.isEmpty) return;
+    final latest = pending.last;
+    state = state.copyWith(
+      pendingVoiceDraftId: latest.voiceDraftId,
+      pendingVoiceSessionId: sessionId,
+    );
+  }
+
   Future<void> _executePrompt(
     PromptCommandCoordinator coordinator,
     String sessionId,
@@ -458,8 +537,11 @@ final class ChatController extends Notifier<ChatState> {
         withinTransaction: hook,
       );
       if (voiceDraftId != null) {
-        _pendingVoiceDraftId = null;
-        _pendingVoiceDraftSessionId = null;
+        setPendingVoiceDraft(null);
+      }
+      final store = _composerDrafts;
+      if (store != null) {
+        _draftWrites = _draftWrites.then((_) => store.clearDraft(sessionId));
       }
       _applyAccepted(accepted, previewText: text);
     } on CommandFailure catch (error) {

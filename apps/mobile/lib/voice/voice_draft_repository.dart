@@ -29,6 +29,9 @@ abstract interface class VoiceDraftStore {
 
   /// 在调用方事务内删除；用于 outbox 入队与草稿消费同事务。
   Future<void> deleteWithin(Transaction txn, String voiceDraftId);
+
+  Future<VoiceDraft?> find(String voiceDraftId);
+  Future<List<VoiceDraft>> pendingForSession(String sessionId);
 }
 
 /// final 文本写入 drafts 与 voice_drafts 的同一事务入口。
@@ -141,6 +144,7 @@ final class VoiceDraftRepository implements VoiceDraftStore {
     );
   }
 
+  @override
   Future<VoiceDraft?> find(String voiceDraftId) async {
     final rows = await _db.query(
       'voice_drafts',
@@ -152,6 +156,7 @@ final class VoiceDraftRepository implements VoiceDraftStore {
     return VoiceDraft.fromRow(rows.first);
   }
 
+  @override
   Future<List<VoiceDraft>> pendingForSession(String sessionId) async {
     final rows = await _db.query(
       'voice_drafts',

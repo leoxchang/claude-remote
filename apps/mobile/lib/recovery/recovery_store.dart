@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import 'cache_repository.dart';
 import 'outbox_repository.dart';
 import 'recovery_database.dart';
+import '../voice/composer_draft_store.dart';
 import '../voice/voice_draft_repository.dart';
 
 final class SyncCursor {
@@ -22,7 +23,7 @@ final class SyncCursor {
 /// App 本地持久化门面：outbox、游标、缓存与草稿。
 ///
 /// 不保存 deviceToken、审批正文或 run prompt 响应。
-final class RecoveryStore {
+final class RecoveryStore implements ComposerDraftStore {
   RecoveryStore._(
     this.db,
     this.outbox,

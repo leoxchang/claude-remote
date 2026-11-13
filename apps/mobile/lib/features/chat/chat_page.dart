@@ -79,10 +79,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final sessionId = controller.sessionId;
     ref.watch(voiceInterruptionProvider);
     final voice = ref.watch(voiceInputControllerProvider).value;
-    Widget composer({required bool enabled}) {
+    // 语音 final 写回 ChatState.draft 后同步到输入框，保持唯一文本来源。
+    if (_text.text != state.draft) {
+      _text.value = TextEditingValue(
+        text: state.draft,
+        selection: TextSelection.collapsed(offset: state.draft.length),
+      );
+    }
+    Widget composer({required bool enabled, bool readOnly = false}) {
       return Composer(
         controller: _text,
         enabled: enabled,
+        readOnly: readOnly,
         label: state.queueMode ? '排队' : '发送',
         onChanged: controller.updateDraft,
         onSend: () async {
@@ -168,18 +176,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       _ErrorBar(message: voiceErrorMessage(voiceState)),
                     if (locked)
                       const _Banner(message: '正在录音，完成后可编辑'),
-                    if (voice.pendingVoiceDraftId != null)
+                    if (state.pendingVoiceDraftId != null)
                       VoiceDraftBanner(
-                        message: voice.pendingVoiceSessionId == sessionId
+                        message: state.pendingVoiceSessionId == sessionId
                             ? '本次语音已追加到当前草稿'
-                            : '语音草稿已写入会话 ${voice.pendingVoiceSessionId}',
+                            : '语音草稿已写入会话 ${state.pendingVoiceSessionId}',
                         onDiscard: () =>
-                            unawaited(voice.discardVoiceDraft()),
+                            unawaited(controller.discardPendingVoiceDraft()),
                       ),
-                    composer(enabled: state.canSend && !locked),
+                    composer(
+                      enabled: state.canSend && !locked,
+                      readOnly: locked,
+                    ),
                     VoiceInputButton(
                       state: voiceState,
-                      enabled: state.canSend,
+                      enabled: state.canRecordVoice,
                       onPress: () => unawaited(voice.press()),
                       onRelease: () => unawaited(voice.release()),
                       onCancel: () =>

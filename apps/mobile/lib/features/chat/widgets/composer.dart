@@ -9,6 +9,7 @@ class Composer extends StatelessWidget {
     required this.onChanged,
     required this.onSend,
     this.label = '发送',
+    this.readOnly = false,
   });
 
   final TextEditingController controller;
@@ -16,6 +17,7 @@ class Composer extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
   final String label;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +30,7 @@ class Composer extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 onChanged: onChanged,
+                readOnly: readOnly,
                 minLines: 1,
                 maxLines: 5,
                 decoration: const InputDecoration(

@@ -2,12 +2,17 @@ import { Command } from 'commander';
 
 import { AgentSdkAdapter } from './adapter/agent-sdk-adapter.js';
 import { AdminClient } from './admin/client.js';
-import { createAgentRuntime } from './app/runtime.js';
+import { createDurableAgentRuntime } from './app/runtime.js';
 import { DEFAULT_CONFIG_DIR, resolveAgentPaths } from './config/paths.js';
 import { initializeConfig } from './config/initialize.js';
 import { loadConfigV3 } from './config/config-v3.js';
 import { renderPairingQr } from './pairing/qr.js';
 import { toSummary } from './workspace/workspace-types.js';
+
+/** CLI `start` 的唯一运行时：S04 持久化路径（含 `/ws/asr` 网关）。 */
+export function createStartRuntime(configDir: string) {
+  return createDurableAgentRuntime(new AgentSdkAdapter(), { configDir });
+}
 
 /** 构造 Agent CLI；运行中管理操作统一走本机 Unix socket。 */
 export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
@@ -45,10 +50,7 @@ export function createCli(configDir: string = DEFAULT_CONFIG_DIR): Command {
     .command('start')
     .description('start the agent in the foreground')
     .action(async () => {
-      const config = await loadConfigV3(configDir);
-      const runtime = await createAgentRuntime(config, new AgentSdkAdapter(), {
-        configDir,
-      });
+      const runtime = await createStartRuntime(configDir);
       await runtime.start();
       process.stdout.write('agent started\n');
       await new Promise<void>((resolve) => {

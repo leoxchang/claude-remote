@@ -6,7 +6,10 @@ import 'package:claude_remote/connection/persistent_command_coordinator.dart';
 import 'package:claude_remote/data/agent_socket.dart' show JsonMap;
 import 'package:claude_remote/data/providers.dart';
 import 'package:claude_remote/features/chat/chat_controller.dart';
+import 'package:claude_remote/features/chat/chat_page.dart';
 import 'package:claude_remote/recovery/recovery_store.dart';
+import 'package:claude_remote/voice/voice_draft.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -79,6 +82,115 @@ void main() {
       finalText: '识别文本。',
     );
   }
+
+  Future<void> seedPendingDraft() async {
+    await store.saveDraft('session_1', '原草稿');
+    await store.voiceDrafts.commitFinal(
+      voiceDraftId: 'vd_pending',
+      asrStreamId: 'asr_pending',
+      originSessionId: 'session_1',
+      originalDraft: '原草稿',
+      finalText: '识别文本。',
+    );
+  }
+
+  Future<void> waitFor(bool Function() predicate) async {
+    for (var attempt = 0; attempt < 100; attempt += 1) {
+      if (predicate()) return;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    fail('condition was not met');
+  }
+
+  test('recording does not require an existing draft', () {
+    const idle = ChatState(connection: ConnectionStatus.ready);
+    expect(idle.canRecordVoice, isTrue);
+    expect(idle.canSend, isFalse);
+    expect(
+      idle.copyWith(connection: ConnectionStatus.disconnected).canRecordVoice,
+      isFalse,
+    );
+    expect(idle.copyWith(archived: true).canRecordVoice, isFalse);
+  });
+
+  test('persists typed drafts and restores them on a fresh controller', () async {
+    controller().attachComposerDrafts(store);
+    controller().updateDraft('原草稿');
+    for (var attempt = 0; attempt < 100; attempt += 1) {
+      if (await store.readDraft('session_1') == '原草稿') break;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(await store.readDraft('session_1'), '原草稿');
+
+    final restored = ProviderContainer(
+      overrides: [
+        commandClientProvider.overrideWith((ref) async => client),
+      ],
+    );
+    addTearDown(restored.dispose);
+    final chat = restored.read(chatControllerProvider.notifier);
+    chat.attachComposerDrafts(store);
+    chat.attachSession('session_1');
+    await waitFor(() => chat.currentDraft == '原草稿');
+    expect(chat.currentDraft, '原草稿');
+  });
+
+  test('adopts and discards a pending voice draft after restart', () async {
+    await seedPendingDraft();
+    final restored = ProviderContainer(
+      overrides: [
+        commandClientProvider.overrideWith((ref) async => client),
+      ],
+    );
+    addTearDown(restored.dispose);
+    final chat = restored.read(chatControllerProvider.notifier);
+    chat.attachComposerDrafts(store);
+    chat.attachVoiceDrafts(store.voiceDrafts);
+    chat.attachSession('session_1');
+    await waitFor(() => chat.state.pendingVoiceDraftId != null);
+    expect(chat.state.pendingVoiceDraftId, 'vd_pending');
+    expect(chat.currentDraft, '原草稿\n识别文本。');
+
+    chat.updateDraft('原草稿\n识别文本，编辑。');
+    VoiceDraft? edited;
+    for (var attempt = 0; attempt < 100; attempt += 1) {
+      edited = await store.voiceDrafts.find('vd_pending');
+      if (edited?.combinedDraft == '原草稿\n识别文本，编辑。') break;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(edited?.combinedDraft, '原草稿\n识别文本，编辑。');
+
+    await chat.discardPendingVoiceDraft();
+    expect(chat.currentDraft, '原草稿');
+    for (var attempt = 0; attempt < 100; attempt += 1) {
+      if (await store.readDraft('session_1') == '原草稿') break;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(await store.readDraft('session_1'), '原草稿');
+    expect(await store.voiceDrafts.find('vd_pending'), isNull);
+    expect(chat.state.pendingVoiceDraftId, isNull);
+  });
+
+  testWidgets('shows a voice final inside the visible input field', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          commandClientProvider.overrideWith((ref) async => client),
+          chatSessionRuntimeProvider.overrideWith((ref) async => null),
+        ],
+        child: const MaterialApp(home: ChatPage()),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatPage)),
+    );
+    container.read(chatControllerProvider.notifier).updateDraft('识别文本');
+    await tester.pump();
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller?.text, '识别文本');
+  });
 
   test('sends the edited full draft and consumes the voice draft', () async {
     final commands = persistent();

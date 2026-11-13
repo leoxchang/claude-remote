@@ -142,6 +142,13 @@ class FakeDrafts implements VoiceDraftStore {
 
   @override
   Future<void> deleteWithin(Transaction txn, String voiceDraftId) async {}
+
+  @override
+  Future<VoiceDraft?> find(String voiceDraftId) async => null;
+
+  @override
+  Future<List<VoiceDraft>> pendingForSession(String sessionId) async =>
+      const <VoiceDraft>[];
 }
 
 class FakeAccess implements VoiceDraftAccess {
@@ -195,18 +202,28 @@ class Harness {
   }
 
   void started() {
-    connection.emit(const AsrStarted(asrStreamId: 'asr_1'));
+    connection.emit(
+      AsrStarted(asrStreamId: controller.asrStreamId!),
+    );
   }
 
   void partial(int sequence, String text) {
     connection.emit(
-      AsrPartial(asrStreamId: 'asr_1', sequence: sequence, text: text),
+      AsrPartial(
+        asrStreamId: controller.asrStreamId!,
+        sequence: sequence,
+        text: text,
+      ),
     );
   }
 
   void finalText(int sequence, String text) {
     connection.emit(
-      AsrFinal(asrStreamId: 'asr_1', sequence: sequence, text: text),
+      AsrFinal(
+        asrStreamId: controller.asrStreamId!,
+        sequence: sequence,
+        text: text,
+      ),
     );
   }
 }
@@ -340,7 +357,10 @@ void main() {
     h.started();
     await tester.pump();
     h.connection.emit(
-      const AsrClosed(asrStreamId: 'asr_1', reason: 'socket_closed'),
+      AsrClosed(
+        asrStreamId: h.controller.asrStreamId!,
+        reason: 'socket_closed',
+      ),
     );
     await settle(tester);
     expect(
@@ -355,8 +375,8 @@ void main() {
     h.started();
     await tester.pump();
     h.connection.emit(
-      const AsrServerError(
-        asrStreamId: 'asr_1',
+      AsrServerError(
+        asrStreamId: h.controller.asrStreamId!,
         code: 'ASR_FINAL_TIMEOUT',
         retryable: true,
         safeMessage: 'ASR_FINAL_TIMEOUT',
@@ -402,6 +422,23 @@ void main() {
     expect(h.connection.cancels, 1);
   });
 
+  testWidgets('treats closed after final as normal completion', (tester) async {
+    final h = Harness();
+    await h.press(tester);
+    h.started();
+    await tester.pump();
+    unawaited(h.controller.release());
+    await settle(tester);
+    h.finalText(1, '你好。');
+    h.connection.emit(
+      AsrClosed(asrStreamId: h.controller.asrStreamId!, reason: 'completed'),
+    );
+    await settle(tester);
+    expect(h.controller.state, isA<VoiceIdle>());
+    expect(h.drafts.committed.single.finalText, '你好。');
+    expect(h.access.drafts['session_1'], '原草稿\n你好。');
+  });
+
   testWidgets('persists edits and can restore the original draft', (
     tester,
   ) async {
@@ -421,7 +458,7 @@ void main() {
 
     unawaited(h.controller.discardVoiceDraft());
     await settle(tester);
-    expect(h.drafts.restored, ['vd_1']);
+    expect(h.drafts.restored, hasLength(1));
     expect(h.access.drafts['session_1'], '原草稿');
   });
 }

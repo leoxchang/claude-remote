@@ -38,6 +38,13 @@ class ThrowingDrafts implements VoiceDraftStore {
   ) async {
     throw UnimplementedError();
   }
+
+  @override
+  Future<VoiceDraft?> find(String voiceDraftId) async => null;
+
+  @override
+  Future<List<VoiceDraft>> pendingForSession(String sessionId) async =>
+      const <VoiceDraft>[];
 }
 
 void main() {

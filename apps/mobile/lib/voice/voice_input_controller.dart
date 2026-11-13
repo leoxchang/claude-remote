@@ -69,6 +69,7 @@ final class VoiceInputController {
   int _counter = 0;
   bool _fingerDown = false;
   bool _speechDetected = false;
+  bool _finalReceived = false;
   int _lastSequence = 0;
   Duration _elapsed = Duration.zero;
   String? _asrStreamId;
@@ -99,13 +100,15 @@ final class VoiceInputController {
     _generation += 1;
     final generation = _generation;
     _counter += 1;
-    _asrStreamId = 'asr_$_counter';
-    _voiceDraftId = 'vd_$_counter';
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    _asrStreamId = 'asr_${stamp}_$_counter';
+    _voiceDraftId = 'vd_${stamp}_$_counter';
     _originSessionId = _access.selectedSessionId;
     _originalDraft = _access.draftOf(_originSessionId!);
     _lastSequence = 0;
     _elapsed = Duration.zero;
     _speechDetected = false;
+    _finalReceived = false;
     _setState(const VoiceConnecting());
 
     final granted = await _capture.hasPermission();
@@ -195,6 +198,7 @@ final class VoiceInputController {
     _generation += 1;
     _fingerDown = false;
     unawaited(_cleanup());
+    unawaited(_capture.dispose());
     unawaited(_states.close());
   }
 
@@ -219,6 +223,7 @@ final class VoiceInputController {
       if (_state is! VoiceFinalizing || event.asrStreamId != _asrStreamId) {
         return;
       }
+      _finalReceived = true;
       unawaited(_commitFinal(event.text, generation));
       return;
     }
@@ -228,10 +233,13 @@ final class VoiceInputController {
       return;
     }
     if (event is AsrCancelled) {
+      if (_finalReceived) return;
       unawaited(cancel(VoiceCancelReason.agentRestarted));
       return;
     }
     if (event is AsrClosed) {
+      // final 之后的 closed 是正常完成，不能覆盖草稿提交。
+      if (_finalReceived) return;
       if (_state is VoiceIdle || _state is VoiceErrorState) return;
       unawaited(cancel(VoiceCancelReason.socketClosed));
     }
