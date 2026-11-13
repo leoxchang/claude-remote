@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { createAdminServer } from '../admin/server.js';
 import { ApprovalContentController } from '../approval/approval-content-controller.js';
+import { AsrRuntime, createAsrRuntime } from '../asr/asr-runtime.js';
 import { DurableApprovalStore } from '../approval/durable-approval-store.js';
 import { DurablePermissionBroker } from '../approval/durable-permission-broker.js';
 import { CommandRouter } from '../command/router.js';
@@ -30,6 +31,7 @@ import { StorageHealth } from '../storage/storage-health.js';
 import { RetentionService } from '../storage/retention-service.js';
 import { CommandRepository } from '../storage/repositories/command-repository.js';
 import { ConnectionManager } from '../transport/connection-manager.js';
+import { authenticateRequest } from '../transport/authenticate.js';
 import {
   createPhoneServer,
   PHONE_LISTEN,
@@ -56,6 +58,8 @@ export interface DurableWireOptions {
   configDir: string;
   logger: AgentLogger;
   agentInstanceId: string;
+  /** 进程环境；ASR Key 只在启动时读取。 */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface DurableWiring {
@@ -224,6 +228,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     desktopId: config.desktopId,
     baseUrl: config.tailscale.baseUrl,
     onDeviceReplaced: (deviceId) => {
+      asrRuntime?.close('device_revoked');
       connections.revoke(deviceId);
       broker.invalidateDevice(deviceId, 'device_revoked');
       logger.info('device.replaced', { deviceId });
@@ -267,6 +272,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
 
   let phoneServer: FastifyInstance | null = null;
   let adminServer: FastifyInstance | null = null;
+  let asrRuntime: AsrRuntime | null = null;
 
   return {
     operations,
@@ -286,6 +292,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
           activeDeviceId: deviceStore.active()?.deviceId ?? null,
         }),
         onRevoke: (deviceId) => {
+          asrRuntime?.close('device_revoked');
           connections.revoke(deviceId);
           broker.invalidateDevice(deviceId, 'device_revoked');
           logger.info('device.revoked', { deviceId });
@@ -309,6 +316,17 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
         approvalContent,
         runPrompt,
       });
+      asrRuntime = createAsrRuntime({
+        app: phoneServer,
+        env: options.env ?? process.env,
+        authenticate: async (request) => {
+          const device = await authenticateRequest(
+            request.headers as Record<string, unknown>,
+            deviceStore,
+          ).catch(() => null);
+          return device === null ? null : { deviceId: device.deviceId };
+        },
+      });
       await phoneServer.listen(listen);
       logger.info('agent.started', {
         desktopId: config.desktopId,
@@ -318,6 +336,8 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     },
     async close() {
       broker.invalidateAll('agent_shutdown');
+      asrRuntime?.close('agent_shutdown');
+      asrRuntime = null;
       if (phoneServer !== null) {
         await phoneServer.close();
         phoneServer = null;

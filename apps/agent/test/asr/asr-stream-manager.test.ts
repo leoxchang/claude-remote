@@ -13,12 +13,20 @@ import { AsrStreamManager } from '../../src/asr/asr-stream-manager.js';
 class FakeEvents implements AsyncIterable<AsrProviderEvent> {
   private readonly queue: AsrProviderEvent[] = [];
   private waiters: Array<() => void> = [];
+  private rejecters: Array<(error: unknown) => void> = [];
 
   push(event: AsrProviderEvent): void {
     this.queue.push(event);
     const waiters = this.waiters;
     this.waiters = [];
     for (const waiter of waiters) waiter();
+  }
+
+  fail(error: unknown): void {
+    const rejecters = this.rejecters;
+    this.rejecters = [];
+    this.waiters = [];
+    for (const reject of rejecters) reject(error);
   }
 
   async *[Symbol.asyncIterator](): AsyncGenerator<AsrProviderEvent> {
@@ -28,8 +36,9 @@ class FakeEvents implements AsyncIterable<AsrProviderEvent> {
         yield event;
         continue;
       }
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         this.waiters.push(resolve);
+        this.rejecters.push(reject);
       });
     }
   }
@@ -59,7 +68,7 @@ class FakeProvider implements AsrProvider {
     if (this.writeError !== null) throw this.writeError;
   }
 
-  writeError: AsrError | null = null;
+  writeError: unknown = null;
 
   finalize(): void {
     this.finalizeCalls += 1;
@@ -247,5 +256,62 @@ describe('AsrStreamManager', () => {
     await delay(10);
     expect(types(events)).toEqual(['asr.started', 'asr.error', 'asr.closed']);
     expect(manager.activeStreamId).toBeNull();
+  });
+
+  it('maps unexpected write errors to ASR_PROVIDER_ERROR', async () => {
+    const { provider, manager, events } = harness();
+    await manager.start({ deviceId: 'device_1', asrStreamId: 'asr_1' });
+    provider.writeError = new Error('boom');
+    manager.write('asr_1', new Uint8Array([1, 2]));
+    await delay(10);
+    const error = events.find((event) => event.type === 'asr.error');
+    expect(error).toEqual({
+      type: 'asr.error',
+      asrStreamId: 'asr_1',
+      code: 'ASR_PROVIDER_ERROR',
+      retryable: false,
+      safeMessage: 'ASR_PROVIDER_ERROR',
+    });
+  });
+
+  it('fails the stream when the provider event iterator throws', async () => {
+    const { provider, manager, events } = harness();
+    await manager.start({ deviceId: 'device_1', asrStreamId: 'asr_1' });
+    provider.events.fail(new Error('stream broke'));
+    await delay(10);
+    expect(types(events)).toEqual(['asr.started', 'asr.error', 'asr.closed']);
+    expect(manager.activeStreamId).toBeNull();
+  });
+
+  it('cancels a stream that is still connecting', async () => {
+    const { provider, manager, events } = harness();
+    const holder: {
+      resolve: ((handle: AsrProviderHandle) => void) | null;
+    } = { resolve: null };
+    provider.startImpl = () =>
+      new Promise<AsrProviderHandle>((resolve) => {
+        holder.resolve = resolve;
+      });
+    const pending = manager.start({
+      deviceId: 'device_1',
+      asrStreamId: 'asr_1',
+    });
+    await delay(5);
+    manager.cancel('asr_1', 'user');
+    holder.resolve?.({ asrStreamId: 'asr_1', events: provider.events });
+    await pending;
+    expect(types(events)).toEqual(['asr.cancelled', 'asr.closed']);
+    expect(provider.cancelCalls).toEqual(['cancelled']);
+  });
+
+  it('ignores writes and finishes for unknown streams', async () => {
+    const { provider, manager, events } = harness();
+    await manager.start({ deviceId: 'device_1', asrStreamId: 'asr_1' });
+    manager.write('asr_other', new Uint8Array([1, 2]));
+    manager.finish('asr_other');
+    manager.cancel('asr_other', 'user');
+    expect(provider.writes).toEqual([]);
+    expect(provider.finalizeCalls).toBe(0);
+    expect(types(events)).toEqual(['asr.started']);
   });
 });

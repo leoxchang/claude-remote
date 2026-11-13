@@ -15,12 +15,14 @@ class FakeSocket {
   readonly text: string[] = [];
   readonly binary: Uint8Array[] = [];
   closed = false;
+  throwOnSend = false;
   private readonly listeners = new Map<
     string,
     Array<(...args: unknown[]) => void>
   >();
 
   send(data: string | Uint8Array): void {
+    if (this.throwOnSend) throw new Error('socket closed');
     if (typeof data === 'string') this.text.push(data);
     else this.binary.push(data);
   }
@@ -124,12 +126,20 @@ interface Harness {
   }): FakeSocket;
 }
 
-function harness(): Harness {
+interface HarnessOptions {
+  clock?: () => number;
+  authenticateRejects?: boolean;
+}
+
+function harness(options: HarnessOptions = {}): Harness {
   const manager = new FakeManager();
   const app = new FakeApp();
   const authenticate = (
     request: FastifyRequest,
   ): Promise<{ deviceId: string } | null> => {
+    if (options.authenticateRejects === true) {
+      return Promise.reject(new Error('auth unavailable'));
+    }
     const deviceId = (request as unknown as { deviceId?: string | null })
       .deviceId;
     return Promise.resolve(
@@ -138,11 +148,10 @@ function harness(): Harness {
         : { deviceId },
     );
   };
-  const now = { value: 0 };
   const gateway = new AsrGateway({
     authenticate,
     manager,
-    now: () => now.value,
+    now: options.clock ?? (() => 0),
   });
   gateway.attach(app as unknown as FastifyInstance);
   const connect = (options: {
@@ -409,5 +418,83 @@ describe('AsrGateway', () => {
       'safeMessage',
       'type',
     ]);
+  });
+
+  it('ignores binary before start and after a terminal event', async () => {
+    const { connect, manager } = harness();
+    const socket = connect();
+    socket.receiveBinary(new Uint8Array([1, 2]));
+    await settle();
+    expect(socket.text).toEqual([]);
+    socket.receive(START);
+    await settle();
+    socket.receive({ ...FINISH, type: 'asr.cancel', messageId: 'msg_cancel' });
+    await settle();
+    const before = socket.messages().length;
+    socket.receiveBinary(new Uint8Array([1, 2]));
+    await settle();
+    expect(socket.messages().length).toBe(before);
+    expect(manager.writes).toHaveLength(0);
+  });
+
+  it('closes the connection when authentication throws', async () => {
+    const { connect } = harness({ authenticateRejects: true });
+    const socket = connect();
+    await settle();
+    expect(socket.closed).toBe(true);
+    expect(socket.text).toEqual([]);
+  });
+
+  it('accepts audio delivered as a buffer array', async () => {
+    const { connect, manager } = harness();
+    const socket = connect();
+    socket.receive(START);
+    await settle();
+    socket.emit('message', [Buffer.from([1, 2])], true);
+    await settle();
+    expect(manager.writes).toHaveLength(1);
+  });
+
+  it('rejects control frames that are not text', async () => {
+    const { connect } = harness();
+    const socket = connect();
+    socket.emit('message', 42, false);
+    await settle();
+    expect(socket.messages()[0]?.['code']).toBe('INVALID_MESSAGE');
+  });
+
+  it('survives a socket send failure without throwing', async () => {
+    const { connect, manager } = harness();
+    const socket = connect();
+    socket.throwOnSend = true;
+    socket.receive(START);
+    await settle();
+    expect(manager.starts).toEqual(['asr_1']);
+  });
+
+  it('allows a new start after the one-minute rate window', async () => {
+    let now = 0;
+    const { connect, manager } = harness({ clock: () => now });
+    for (let index = 0; index < 10; index += 1) {
+      const socket = connect();
+      socket.receive({
+        ...START,
+        messageId: `msg_${index}`,
+        asrStreamId: `asr_${index}`,
+      });
+      await settle();
+      socket.close();
+    }
+    now = 61_000;
+    const next = connect();
+    next.receive({ ...START, messageId: 'msg_next', asrStreamId: 'asr_next' });
+    await settle();
+    expect(manager.starts).toHaveLength(11);
+  });
+
+  it('closeAll without an active stream still delegates to the manager', () => {
+    const { gateway, manager } = harness();
+    gateway.closeAll('agent_shutdown');
+    expect(manager.cancels).toEqual(['all:agent_shutdown']);
   });
 });

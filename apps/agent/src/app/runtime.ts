@@ -59,6 +59,8 @@ export interface AgentRuntimeOptions {
   phoneListen?: { host: string; port: number };
   logger?: AgentLogger;
   agentInstanceId?: string;
+  /** 进程环境；ASR 配置只在启动时读取一次。 */
+  env?: NodeJS.ProcessEnv;
 }
 
 /** 组装一个 Agent 运行时；命令层与测试共用同一装配路径。 */
@@ -164,6 +166,7 @@ export async function createDurableAgentRuntime(
       configDir,
       logger,
       agentInstanceId,
+      ...(options.env === undefined ? {} : { env: options.env }),
     });
     wiring.retention.runOnce(Date.now());
     wiring.retention.evaluateCapacity(runtimeLiveBytes(database));

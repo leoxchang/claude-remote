@@ -156,4 +156,41 @@ describe('Doubao binary framing', () => {
       expect(text).not.toContain('Authorization');
     }
   });
+
+  it('rejects bad headers, unsupported compression and corrupt gzip', () => {
+    const valid = resultFrame('你好');
+    const wrongVersion = Uint8Array.from(valid);
+    wrongVersion[0] = 0x21;
+    expect(() => decodeServerFrame(wrongVersion)).toThrow(AsrError);
+    const zeroHeader = Uint8Array.from(valid);
+    zeroHeader[0] = 0x10;
+    expect(() => decodeServerFrame(zeroHeader)).toThrow(AsrError);
+    for (const compression of [0b0010, 0b0001]) {
+      const payload = Buffer.from('{}');
+      const body = Buffer.alloc(8 + payload.length);
+      body.writeInt32BE(1, 0);
+      body.writeUint32BE(payload.length, 4);
+      payload.copy(body, 8);
+      const frame = Buffer.concat([
+        Buffer.from([0x11, 0x91, compression, 0x00]),
+        body,
+      ]);
+      expect(() => decodeServerFrame(frame)).toThrow(AsrError);
+    }
+  });
+
+  it('returns empty snapshots for non-object or result-less payloads', () => {
+    const scalar = decodeServerFrame(
+      serverFrame({ messageType: MESSAGE_TYPE_FULL_SERVER_RESPONSE, json: 5 }),
+    );
+    expect(scalar.text).toBe('');
+    const noResult = decodeServerFrame(
+      serverFrame({
+        messageType: MESSAGE_TYPE_FULL_SERVER_RESPONSE,
+        json: { code: 0 },
+      }),
+    );
+    expect(noResult.utteranceDefinite).toBe(false);
+    expect(noResult.isLastPackage).toBe(false);
+  });
 });

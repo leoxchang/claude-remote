@@ -25,6 +25,7 @@ class FakeSocket implements WebSocketLike {
   bufferedAmount = 0;
   closed = false;
   closeCode: number | null = null;
+  throwOnSend = false;
 
   private readonly listeners = new Map<
     string,
@@ -32,6 +33,7 @@ class FakeSocket implements WebSocketLike {
   >();
 
   send(data: Uint8Array | string): void {
+    if (this.throwOnSend) throw new Error('socket closed');
     this.sent.push(data);
   }
 
@@ -294,4 +296,144 @@ describe('DoubaoAsrProvider', () => {
       { type: 'closed', reason: 'socket_closed' },
     ]);
   });
+
+  it('rejects invalid audio sizes with ASR_INVALID_AUDIO', async () => {
+    const cases = [
+      new Uint8Array([]),
+      new Uint8Array([1]),
+      new Uint8Array(6402),
+    ];
+    for (const audio of cases) {
+      const created = harness();
+      const handle = await startReady(created);
+      const collected = nextEvents(handle, 2);
+      created.provider.write(handle, audio);
+      const events = await collected;
+      expect(events).toEqual([
+        { type: 'error', code: 'ASR_INVALID_AUDIO', retryable: false },
+        { type: 'closed', reason: 'invalid_audio' },
+      ]);
+      expect(created.socket.closed).toBe(true);
+    }
+  });
+
+  it('ignores writes after finalize or cancel', async () => {
+    const finalized = harness();
+    const handle = await startReady(finalized);
+    finalized.provider.finalize(handle);
+    finalized.provider.write(handle, new Uint8Array([1, 2]));
+    expect(finalized.socket.sent.filter((e) => e instanceof Uint8Array)).toHaveLength(
+      2,
+    );
+
+    const cancelled = harness();
+    const second = await startReady(cancelled);
+    cancelled.provider.cancel(second, 'user');
+    cancelled.provider.write(second, new Uint8Array([1, 2]));
+    expect(cancelled.socket.sent.filter((e) => e instanceof Uint8Array)).toHaveLength(
+      1,
+    );
+  });
+
+  it('rejects unknown handles', async () => {
+    const created = harness();
+    const foreign = {
+      asrStreamId: 'asr_foreign',
+      events: emptyEvents(),
+    };
+    expect(() => created.provider.write(foreign, new Uint8Array([1, 2]))).toThrow(
+      AsrError,
+    );
+    expect(() => created.provider.finalize(foreign)).toThrow(AsrError);
+    expect(() => created.provider.cancel(foreign, 'user')).not.toThrow();
+  });
+
+  it('fails the handshake when the socket closes before open', async () => {
+    const created = harness();
+    const pending = created.provider.start({
+      asrStreamId: 'asr_1',
+      audio: { format: 'pcm-s16le', sampleRate: 16000, channels: 1 },
+    });
+    created.socket.close(1006, 'refused');
+    await expectAsrError(pending, 'ASR_CONNECTION_FAILED');
+  });
+
+  it('turns a non-binary message into a provider error', async () => {
+    const created = harness();
+    const handle = await startReady(created);
+    const collected = nextEvents(handle, 2);
+    created.socket.emit('message', 42);
+    const events = await collected;
+    expect(events[0]).toEqual({
+      type: 'error',
+      code: 'ASR_PROVIDER_ERROR',
+      retryable: true,
+    });
+  });
+
+  it('maps 550xxxxx provider errors to ASR_PROVIDER_OVERLOADED', async () => {
+    const created = harness();
+    const handle = await startReady(created);
+    const collected = nextEvents(handle, 1);
+    created.socket.deliver(errorFrame(55_000_123));
+    const events = await collected;
+    expect(events[0]).toEqual({
+      type: 'error',
+      code: 'ASR_PROVIDER_OVERLOADED',
+      retryable: true,
+    });
+  });
+
+  it('ignores acknowledgements and empty partial snapshots', async () => {
+    const created = harness();
+    const handle = await startReady(created);
+    created.socket.deliver(
+      serverFrame({ messageType: 0b1011, json: { code: 0 } }),
+    );
+    created.socket.deliver(response(''));
+    const collected = nextEvents(handle, 1);
+    created.socket.deliver(response('你好。', { last: true }));
+    expect(await collected).toEqual([{ type: 'final', text: '你好。' }]);
+  });
+
+  it('fails safely when sending the final frame throws', async () => {
+    const created = harness();
+    const handle = await startReady(created);
+    const collected = nextEvents(handle, 2);
+    created.socket.throwOnSend = true;
+    created.provider.finalize(handle);
+    const events = await collected;
+    expect(events[0]).toEqual({
+      type: 'error',
+      code: 'ASR_CONNECTION_FAILED',
+      retryable: true,
+    });
+  });
+
+  it('generates a unique request id when none is injected', async () => {
+    const opened: Array<Record<string, string>> = [];
+    const socket = new FakeSocket();
+    const provider = new DoubaoAsrProvider({
+      config: CONFIG,
+      openSocket: (_url: string, headers: Record<string, string>) => {
+        opened.push(headers);
+        return socket;
+      },
+    });
+    const pending = provider.start({
+      asrStreamId: 'asr_1',
+      audio: { format: 'pcm-s16le', sampleRate: 16000, channels: 1 },
+    });
+    socket.open();
+    await pending;
+    expect(opened[0]?.['X-Api-Request-Id']).toMatch(/^asr_[0-9a-f-]{36}$/);
+  });
 });
+
+function emptyEvents(): AsyncIterable<AsrProviderEvent> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      // 没有事件。
+    },
+  };
+}
