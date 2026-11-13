@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 
@@ -55,9 +56,20 @@ const TEXT_EXTENSIONS = new Set([
 
 const GENERATED_FILES = new Set(['flutter_export_environment.sh']);
 
-/** 构建工具生成、已被 gitignore 的文件；其中的本机路径不算泄漏。 */
-export function isGeneratedFile(name: string): boolean {
-  return GENERATED_FILES.has(name);
+/**
+ * 构建工具生成的 Flutter 环境文件；其中的本机路径是正常产物。
+ * 只有 git 确认已忽略时才跳过，被提交的同名文件仍要扫描。
+ */
+export function isIgnoredGeneratedFile(path: string): boolean {
+  if (!GENERATED_FILES.has(basename(path))) return false;
+  try {
+    execFileSync('git', ['check-ignore', '--quiet', '--', path], {
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 扫描单个文本，返回所有命中。 */
@@ -90,9 +102,9 @@ export function scanTree(root: string): SecretFinding[] {
       continue;
     }
     if (entry.name.endsWith('.test.ts')) continue;
-    if (isGeneratedFile(entry.name)) continue;
     if (!TEXT_EXTENSIONS.has(extensionOf(entry.name))) continue;
     const path = join(root, entry.name);
+    if (isIgnoredGeneratedFile(path)) continue;
     findings.push(
       ...scanText(relative(root, path) || path, readFileSync(path, 'utf8')),
     );

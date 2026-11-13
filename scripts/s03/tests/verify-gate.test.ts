@@ -1,3 +1,8 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -10,7 +15,7 @@ import {
   parseChecklist,
   verifyGate,
 } from '../verify-gate.js';
-import { checkSecrets, isGeneratedFile } from '../check-secrets.js';
+import { checkSecrets, isIgnoredGeneratedFile } from '../check-secrets.js';
 
 interface Overrides {
   perm00?: GateStatus;
@@ -137,9 +142,25 @@ describe('S03 evidence parsers', () => {
     expect(hasRealSdkEvidence(markdown)).toBe(true);
   });
 
-  it('skips gitignored Flutter build output when scanning for secrets', () => {
-    expect(isGeneratedFile('flutter_export_environment.sh')).toBe(true);
-    expect(isGeneratedFile('main.ts')).toBe(false);
+  it('skips only gitignored Flutter build output, never tracked files', async () => {
+    const repoRoot = new URL('../../../', import.meta.url);
+    const generated = fileURLToPath(
+      new URL(
+        'apps/mobile/ios/Flutter/flutter_export_environment.sh',
+        repoRoot,
+      ),
+    );
+    expect(isIgnoredGeneratedFile(generated)).toBe(true);
+    expect(
+      isIgnoredGeneratedFile(
+        fileURLToPath(new URL('scripts/s03/check-secrets.ts', repoRoot)),
+      ),
+    ).toBe(false);
+
+    const outside = await mkdtemp(join(tmpdir(), 's03-scan-'));
+    const sameName = join(outside, 'flutter_export_environment.sh');
+    await writeFile(sameName, 'export FLUTTER_ROOT=/Users/example/flutter\n');
+    expect(isIgnoredGeneratedFile(sameName)).toBe(false);
   });
 
   it('rejects leaked approval bodies, tokens and private paths', () => {
