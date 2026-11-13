@@ -118,6 +118,26 @@ export type AsrClientEvent =
   | { type: 'asr.cancelled'; asrStreamId: string; reason: string }
   | { type: 'asr.closed'; asrStreamId: string; reason: string };
 
+/** Provider 启动参数。 */
+export interface AsrProviderStart {
+  asrStreamId: string;
+  audio: AsrAudioFormat;
+}
+
+/** Provider 句柄；事件只在内存中流转。 */
+export interface AsrProviderHandle {
+  asrStreamId: string;
+  events: AsyncIterable<AsrProviderEvent>;
+}
+
+/** Provider 中立接口；Mac 内只允许一个豆包实现。 */
+export interface AsrProvider {
+  start(input: AsrProviderStart): Promise<AsrProviderHandle>;
+  write(handle: AsrProviderHandle, audio: Uint8Array): void;
+  finalize(handle: AsrProviderHandle): void;
+  cancel(handle: AsrProviderHandle, reason: string): void;
+}
+
 const SCHEMA_ID = 'https://s05.local/asr-messages.schema.json';
 
 const CONTROL_REFS = ['asr.start', 'asr.finish', 'asr.cancel'] as const;
