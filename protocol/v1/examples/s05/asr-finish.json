@@ -1,0 +1,8 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s05_finish",
+  "timestamp": 1762432801000,
+  "type": "asr.finish",
+  "asrStreamId": "asr_s05_01",
+  "payload": {}
+}

@@ -1,0 +1,5 @@
+{
+  "type": "asr.cancelled",
+  "asrStreamId": "asr_s05_01",
+  "reason": "user"
+}

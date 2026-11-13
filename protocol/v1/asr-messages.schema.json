@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://s05.local/asr-messages.schema.json",
+  "$defs": {
+    "asr.start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "timestamp",
+        "type",
+        "asrStreamId",
+        "payload"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "messageId": { "type": "string", "minLength": 1 },
+        "timestamp": { "type": "integer", "minimum": 0 },
+        "type": { "const": "asr.start" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["audio"],
+          "properties": {
+            "audio": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["format", "sampleRate", "channels"],
+              "properties": {
+                "format": { "const": "pcm-s16le" },
+                "sampleRate": { "const": 16000 },
+                "channels": { "const": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "asr.finish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "timestamp",
+        "type",
+        "asrStreamId",
+        "payload"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "messageId": { "type": "string", "minLength": 1 },
+        "timestamp": { "type": "integer", "minimum": 0 },
+        "type": { "const": "asr.finish" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "maxProperties": 0
+        }
+      }
+    },
+    "asr.cancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "timestamp",
+        "type",
+        "asrStreamId",
+        "payload"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "messageId": { "type": "string", "minLength": 1 },
+        "timestamp": { "type": "integer", "minimum": 0 },
+        "type": { "const": "asr.cancel" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "maxProperties": 0
+        }
+      }
+    },
+    "asr.started": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "asrStreamId"],
+      "properties": {
+        "type": { "const": "asr.started" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "asr.partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "asrStreamId", "sequence", "text"],
+      "properties": {
+        "type": { "const": "asr.partial" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string", "maxLength": 16384 }
+      }
+    },
+    "asr.final": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "asrStreamId", "sequence", "text"],
+      "properties": {
+        "type": { "const": "asr.final" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 16384 }
+      }
+    },
+    "asr.error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "asrStreamId",
+        "code",
+        "retryable",
+        "safeMessage"
+      ],
+      "properties": {
+        "type": { "const": "asr.error" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "code": {
+          "enum": [
+            "ASR_NOT_CONFIGURED",
+            "ASR_CONNECTION_FAILED",
+            "ASR_PROVIDER_UNAUTHENTICATED",
+            "ASR_PROVIDER_ERROR",
+            "ASR_BUSY",
+            "ASR_RATE_LIMITED",
+            "ASR_BACKPRESSURE",
+            "ASR_INVALID_AUDIO",
+            "ASR_STREAM_CONFLICT",
+            "ASR_RESULT_TOO_LARGE",
+            "ASR_FINAL_TIMEOUT",
+            "ASR_EMPTY_RESULT",
+            "ASR_PROVIDER_ENDED",
+            "ASR_PROVIDER_OVERLOADED",
+            "INVALID_MESSAGE"
+          ]
+        },
+        "retryable": { "type": "boolean" },
+        "safeMessage": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "asr.cancelled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "asrStreamId", "reason"],
+      "properties": {
+        "type": { "const": "asr.cancelled" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "asr.closed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "asrStreamId", "reason"],
+      "properties": {
+        "type": { "const": "asr.closed" },
+        "asrStreamId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    }
+  }
+}

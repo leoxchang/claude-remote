@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s05_start",
+  "timestamp": 1762432800000,
+  "type": "asr.start",
+  "asrStreamId": "asr_s05_01",
+  "payload": {
+    "audio": {
+      "format": "pcm-s16le",
+      "sampleRate": 16000,
+      "channels": 1
+    }
+  }
+}

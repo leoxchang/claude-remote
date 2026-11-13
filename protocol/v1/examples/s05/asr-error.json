@@ -1,0 +1,7 @@
+{
+  "type": "asr.error",
+  "asrStreamId": "asr_s05_01",
+  "code": "ASR_FINAL_TIMEOUT",
+  "retryable": true,
+  "safeMessage": "ASR_FINAL_TIMEOUT"
+}
