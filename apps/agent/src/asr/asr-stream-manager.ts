@@ -47,7 +47,7 @@ interface ActiveStream {
 /** 全局最多一个活跃流；新 start 不隐式取消旧流。 */
 export class AsrStreamManager {
   private readonly provider: AsrProvider;
-  private readonly onEvent: (event: AsrClientEvent) => void;
+  private listener: (event: AsrClientEvent) => void;
   private readonly connectTimeoutMs: number;
   private readonly finalTimeoutMs: number;
   private readonly maxRecordingMs: number;
@@ -55,7 +55,7 @@ export class AsrStreamManager {
 
   constructor(input: AsrStreamManagerInput) {
     this.provider = input.provider;
-    this.onEvent = input.onEvent;
+    this.listener = input.onEvent;
     this.connectTimeoutMs =
       input.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
     this.finalTimeoutMs = input.finalTimeoutMs ?? DEFAULT_FINAL_TIMEOUT_MS;
@@ -64,6 +64,11 @@ export class AsrStreamManager {
 
   get activeStreamId(): string | null {
     return this.active?.asrStreamId ?? null;
+  }
+
+  /** 由 Gateway 接管事件出口；仍只允许一个 sink。 */
+  setEventSink(listener: (event: AsrClientEvent) => void): void {
+    this.listener = listener;
   }
 
   async start(input: {
@@ -234,7 +239,7 @@ export class AsrStreamManager {
 
   private emit(event: AsrClientEvent): void {
     try {
-      this.onEvent(event);
+      this.listener(event);
     } catch {
       // 发送失败由连接层关闭；不改变管理器状态。
     }
