@@ -35,6 +35,7 @@ final class CommandRequest<T> {
     this.sessionId,
     this.runId,
     this.workspaceId,
+    this.approvalId,
     this.payload = const <String, dynamic>{},
   });
 
@@ -44,6 +45,7 @@ final class CommandRequest<T> {
   final String? sessionId;
   final String? runId;
   final String? workspaceId;
+  final String? approvalId;
   final JsonMap payload;
   final T Function(JsonMap data) decode;
 
@@ -59,12 +61,21 @@ final class CommandRequest<T> {
       sessionId: sessionId,
       runId: runId,
       workspaceId: workspaceId,
+      approvalId: approvalId,
     );
   }
 }
 
+/// 命令执行接口；测试可注入内存实现。
+abstract interface class CommandExecutor {
+  Future<T> execute<T>(
+    CommandRequest<T> request, {
+    Duration timeout = const Duration(seconds: 10),
+  });
+}
+
 /// 在单条连接上发送命令并按 commandId 匹配结果。
-final class CommandClient {
+final class CommandClient implements CommandExecutor {
   CommandClient([AgentSocket? socket]) {
     if (socket != null) _attach(socket);
   }
@@ -85,6 +96,7 @@ final class CommandClient {
     _subscription = socket.messages.listen(_onRaw);
   }
 
+  @override
   Future<T> execute<T>(
     CommandRequest<T> request, {
     Duration timeout = const Duration(seconds: 10),

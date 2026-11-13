@@ -39,6 +39,7 @@ dependencies:
   flutter_secure_storage: 11.2.0
   mobile_scanner: 7.5.0
   http: 1.6.0
+  crypto: 3.0.8
 
 dev_dependencies:
   flutter_test:

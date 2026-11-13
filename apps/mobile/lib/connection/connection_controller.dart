@@ -29,6 +29,7 @@ final class ConnectionController {
     this.onSocket,
     this.onStatus,
     this.onAgentInstanceChanged,
+    this.onLifecycleHook,
     Delay? delay,
     Duration Function()? jitter,
     this.connectTimeout = const Duration(seconds: 10),
@@ -45,6 +46,8 @@ final class ConnectionController {
   final void Function(AgentSocket socket)? onSocket;
   final void Function(ConnectionStatus status)? onStatus;
   final AgentInstanceHandler? onAgentInstanceChanged;
+  /// 生命周期联动；审批控制器据此遮罩并清空正文。
+  final void Function(AppLifecycleState state)? onLifecycleHook;
   final Duration connectTimeout;
   final Delay _delay;
   final Duration Function() _jitter;
@@ -79,6 +82,7 @@ final class ConnectionController {
 
   /// 退后台不发送 cancel，也不主动断开；回前台重新连接。
   void onLifecycle(AppLifecycleState state) {
+    onLifecycleHook?.call(state);
     final paused =
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
