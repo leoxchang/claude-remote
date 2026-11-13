@@ -20,6 +20,22 @@ String lastCommandType(FakeAgentSocket socket) {
   return decoded['type'] as String;
 }
 
+/// S04：queued 首次结果之后，只有 run.started 才让 run 变为活跃。
+void emitRunStarted(ChatController chat, String runId, {int seq = 1}) {
+  chat.mergeEvent(
+    TimelineEvent(
+      messageId: 'msg_started_$seq',
+      timestamp: 1,
+      type: 'run.started',
+      payload: const {'status': 'starting'},
+      eventId: 'event_started_$seq',
+      sessionId: 'session_01',
+      seq: seq,
+      runId: runId,
+    ),
+  );
+}
+
 void main() {
   late FakeAgentSocket socket;
   late CommandClient client;
@@ -92,9 +108,10 @@ void main() {
 
     expect(lastCommandType(socket), 'prompt.send');
     socket.emitMessage(
-      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
+      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'queued'}),
     );
     await future;
+    emitRunStarted(controller(), 'run_01');
 
     expect(state().draft, isEmpty);
     expect(state().activeRunId, 'run_01');
@@ -156,9 +173,10 @@ void main() {
     await pumpEventQueue();
     expect(lastCommandId(timeoutSocket), firstId);
     timeoutSocket.emitMessage(
-      commandResult(commandId: firstId, data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
+      commandResult(commandId: firstId, data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'queued'}),
     );
     await retry;
+    emitRunStarted(chat, 'run_01');
 
     expect(timeoutContainer.read(chatControllerProvider).busy, isTrue);
   });
@@ -168,9 +186,10 @@ void main() {
     final future = controller().sendText();
     await pumpEventQueue();
     socket.emitMessage(
-      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
+      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'queued'}),
     );
     await future;
+    emitRunStarted(controller(), 'run_01');
     expect(state().busy, isTrue);
 
     controller().mergeEvent(
@@ -178,10 +197,10 @@ void main() {
         messageId: 'msg_1',
         timestamp: 1,
         type: 'run.completed',
-        payload: {'status': 'succeeded'},
+        payload: const {'status': 'succeeded'},
         eventId: 'event_1',
         sessionId: 'session_01',
-        seq: 1,
+        seq: 2,
       ),
     );
 
@@ -194,9 +213,10 @@ void main() {
     final future = controller().sendText();
     await pumpEventQueue();
     socket.emitMessage(
-      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'starting'}),
+      commandResult(commandId: lastCommandId(socket), data: {'sessionId': 'session_01', 'runId': 'run_01', 'status': 'queued'}),
     );
     await future;
+    emitRunStarted(controller(), 'run_01');
 
     final cancel = controller().cancelActiveRun();
     await pumpEventQueue();
@@ -219,7 +239,7 @@ void main() {
         payload: {'status': 'cancelled'},
         eventId: 'event_2',
         sessionId: 'session_01',
-        seq: 1,
+        seq: 2,
       ),
     );
 

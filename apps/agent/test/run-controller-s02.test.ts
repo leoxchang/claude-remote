@@ -157,7 +157,7 @@ describe('ManagedRunController', () => {
       'trace_1',
       'device_1',
     );
-    expect(accepted.status).toBe('starting');
+    expect(accepted.status).toBe('queued');
 
     await harness.controller.cancel(harness.sessionId, accepted.runId);
     expect(await waitForTerminal(harness, harness.sessionId, accepted.runId)).toBe(

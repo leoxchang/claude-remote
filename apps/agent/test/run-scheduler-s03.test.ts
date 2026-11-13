@@ -112,7 +112,7 @@ describe('RunScheduler waiting_approval', () => {
     const session = harness.sessions.create({ workspaceId: harness.workspaceId });
     const accepted = enqueue(harness, session.sessionId);
 
-    expect(accepted.status).toBe('starting');
+    expect(accepted.status).toBe('queued');
     harness.scheduler.setPendingApprovalCount(accepted.runId, 1);
 
     let active = harness.sessions.get(session.sessionId).activeRun;

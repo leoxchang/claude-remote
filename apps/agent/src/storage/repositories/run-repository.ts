@@ -137,6 +137,22 @@ export class RunRepository {
     return rows.map(toStored);
   }
 
+  countByStatus(status: string): number {
+    const row = this.uow.connectionRef
+      .prepare('SELECT count(*) AS total FROM runs WHERE status = ?')
+      .get(status) as { total: number };
+    return row.total;
+  }
+
+  countBySessionStatus(sessionId: string, status: string): number {
+    const row = this.uow.connectionRef
+      .prepare(
+        'SELECT count(*) AS total FROM runs WHERE sessionId = ? AND status = ?',
+      )
+      .get(sessionId, status) as { total: number };
+    return row.total;
+  }
+
   private write<T>(fn: (tx: SqliteTransaction) => T): T {
     if (this.uow.inTransaction) return fn(this.uow.connectionRef);
     return this.uow.immediate(fn);

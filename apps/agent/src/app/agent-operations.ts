@@ -19,6 +19,7 @@ import {
   RunScheduler,
 } from '../run/run-scheduler.js';
 import { ManagedRunController } from '../run/run-controller.js';
+import { PromptAdmission } from '../run/prompt-admission.js';
 import { SessionListInput, SessionPage } from '../session/session-list.js';
 import { SessionRegistry } from '../session/session-registry.js';
 import { SessionSnapshotEvent } from '../session/session-controller.js';
@@ -82,6 +83,8 @@ export interface AgentOperationsDependencies {
   approvalBroker: PermissionBroker;
   approvalStore: ApprovalStore;
   currentEpoch: () => number;
+  /** S04：存在时 prompt.send 走持久 queued 接受，不再同步启动 driver。 */
+  promptAdmission?: PromptAdmission;
 }
 
 /** 把项目、会话、run 与快照组合成命令层可用的操作。 */
@@ -146,6 +149,23 @@ export class AgentOperationsImpl implements AgentOperations {
     const session = this.deps.sessions.get(sessionId);
     if (workspaceId !== undefined && workspaceId !== session.workspaceId) {
       throw new AgentError('WORKSPACE_NOT_ALLOWED');
+    }
+    const admission = this.deps.promptAdmission;
+    if (admission !== undefined) {
+      const execution = admission.send({
+        identity: {
+          commandId,
+          type: 'prompt.send',
+          ...(workspaceId === undefined ? {} : { workspaceId }),
+          sessionId,
+          payload: { text },
+        },
+        actor: { deviceId },
+        text,
+        traceId,
+        now: Date.now(),
+      });
+      return execution.result;
     }
     return this.deps.runs.sendPrompt(
       sessionId,

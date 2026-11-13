@@ -33,11 +33,11 @@ const UNAVAILABLE_PERMISSION_GATE: PermissionGate = {
     }),
 };
 
-/** prompt.send 的首次结果。 */
+/** prompt.send 的首次结果；S04 起固定为 queued。 */
 export interface PromptAccepted {
   sessionId: string;
   runId: string;
-  status: 'queued' | 'starting';
+  status: 'queued';
 }
 
 /** run.cancel 的接受结果。 */
@@ -199,11 +199,11 @@ export class RunScheduler {
     });
 
     this.drain();
-    const after = this.sessions.get(session.sessionId);
+    // 首次结果固定 queued；starting 只能通过后续 run.started 观察。
     return {
       sessionId: record.sessionId,
       runId: record.runId,
-      status: after.activeRun?.runId === record.runId ? 'starting' : 'queued',
+      status: 'queued',
     };
   }
 

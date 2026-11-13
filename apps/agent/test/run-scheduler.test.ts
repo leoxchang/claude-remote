@@ -137,8 +137,8 @@ describe('RunScheduler dual-slot dispatch', () => {
     });
 
     expect([a1.status, b1.status, a2.status, c1.status]).toEqual([
-      'starting',
-      'starting',
+      'queued',
+      'queued',
       'queued',
       'queued',
     ]);
@@ -164,7 +164,10 @@ describe('RunScheduler dual-slot dispatch', () => {
       traceId: 'trace_1',
     });
 
-    expect(accepted.status).toBe('starting');
+    expect(accepted.status).toBe('queued');
+    expect(
+      harness.sessions.get(harness.sessionId).activeRun?.status,
+    ).toBe('starting');
     expect(harness.registry.get(accepted.runId)).not.toBeNull();
     expect(harness.driver.startedRunIds()).toEqual([accepted.runId]);
 
@@ -498,7 +501,10 @@ describe('RunScheduler limits and failures', () => {
       commandId: 'cmd_2',
       traceId: 'trace_2',
     });
-    expect(next.status).toBe('starting');
+    expect(next.status).toBe('queued');
+    expect(
+      harness.sessions.get(harness.sessionId).activeRun?.status,
+    ).toBe('starting');
   });
 
   it('clears queued text when a run reaches a terminal state', async () => {

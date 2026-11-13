@@ -105,7 +105,7 @@ function harness(overrides: Partial<OperationSpies> = {}): Harness {
     sendPrompt: vi.fn(async (_workspaceId: string | undefined, sessionId: string) => ({
       sessionId,
       runId: 'run_01',
-      status: 'starting' as const,
+      status: 'queued' as const,
     })),
     cancelRun: vi.fn(async (sessionId: string) => ({
       sessionId,

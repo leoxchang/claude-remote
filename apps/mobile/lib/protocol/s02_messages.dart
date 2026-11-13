@@ -3,7 +3,7 @@ import '../data/agent_socket.dart' show JsonMap;
 import '../domain/session.dart';
 import '../domain/workspace.dart';
 
-/// prompt.send 的首次结果；status 只可能是 queued 或 starting。
+/// prompt.send 的首次结果；S04 起固定为 queued，starting 只来自 run.started。
 final class PromptAccepted {
   const PromptAccepted({
     required this.sessionId,
@@ -21,7 +21,7 @@ final class PromptAccepted {
     if (runId is! String || runId.isEmpty) {
       throw const CommandFailure('INVALID_RESPONSE');
     }
-    if (status != 'queued' && status != 'starting') {
+    if (status != 'queued') {
       throw const CommandFailure('INVALID_RESPONSE');
     }
     return PromptAccepted(sessionId: sessionId, runId: runId, status: status as String);

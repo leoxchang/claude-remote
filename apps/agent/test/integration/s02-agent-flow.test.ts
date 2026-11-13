@@ -206,7 +206,7 @@ describe('S02 agent flow', () => {
     const acceptedB = await waitFor(messages, (m) => m.commandId === 'cmd_b1');
     expect(acceptedB.payload).toMatchObject({
       status: 'ok',
-      data: { status: 'starting' },
+      data: { status: 'queued' },
     });
 
     socket.send(

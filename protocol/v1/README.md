@@ -40,6 +40,9 @@ S00 注册以下稳定错误码（`src/errors.ts` 的 `ERROR_CODES`），客户�
 
 S02 只新增类型和可选字段，不改变 S00/S01 的 `seq`、`command.result` 与去重语义。
 
+> S04 修订：`prompt.send` 首次结果由 `queued | starting` 收窄为 **`queued` only**；
+> `starting` 只能通过后续 `run.started` 事件观察。客户端必须等待事件，不得从首次结果推断已开始。
+
 新增命令（`commands.schema.json`）：`workspace.list`、`session.create`、`session.list`、
 `session.resume`、`session.rename`、`session.archive`、`queue.remove`。
 
