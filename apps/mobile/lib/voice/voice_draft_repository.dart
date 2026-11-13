@@ -13,7 +13,23 @@ final class VoiceDraftNotFound implements Exception {
 }
 
 /// final 文本写入 drafts 与 voice_drafts 的同一事务入口。
-final class VoiceDraftRepository {
+abstract interface class VoiceDraftStore {
+  Future<VoiceDraft> commitFinal({
+    required String voiceDraftId,
+    required String asrStreamId,
+    required String originSessionId,
+    required String originalDraft,
+    required String finalText,
+  });
+  Future<VoiceDraft> updateCombinedDraft(
+    String voiceDraftId,
+    String combinedDraft,
+  );
+  Future<void> restoreOriginal(String voiceDraftId);
+}
+
+/// final 文本写入 drafts 与 voice_drafts 的同一事务入口。
+final class VoiceDraftRepository implements VoiceDraftStore {
   VoiceDraftRepository(this._db, {DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
 
@@ -21,6 +37,7 @@ final class VoiceDraftRepository {
   final DateTime Function() _clock;
 
   /// 把 final 追加到原草稿，并写入 pending voice draft。
+  @override
   Future<VoiceDraft> commitFinal({
     required String voiceDraftId,
     required String asrStreamId,
@@ -59,6 +76,7 @@ final class VoiceDraftRepository {
   }
 
   /// 用户编辑后同步 voice_drafts.combinedDraft 与 drafts.text。
+  @override
   Future<VoiceDraft> updateCombinedDraft(
     String voiceDraftId,
     String combinedDraft,
@@ -91,6 +109,7 @@ final class VoiceDraftRepository {
   }
 
   /// 恢复原草稿并删除 voice draft；同事务。
+  @override
   Future<void> restoreOriginal(String voiceDraftId) {
     return _db.transaction((txn) async {
       final row = await _findWithin(txn, voiceDraftId);
