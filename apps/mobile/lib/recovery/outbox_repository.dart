@@ -104,6 +104,21 @@ final class OutboxRepository {
     );
   }
 
+  Future<void> updateAgentInstance(
+    String commandId,
+    String? agentInstanceId,
+  ) {
+    return db.update(
+      'outbox_commands',
+      {
+        'agentInstanceId': agentInstanceId,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'commandId = ?',
+      whereArgs: [commandId],
+    );
+  }
+
   /// 确定 result 后清正文，保留最小 UI 墓碑。
   Future<void> clearPayload(String commandId, {OutboxState? state}) {
     return db.update(
@@ -141,7 +156,7 @@ final class OutboxRepository {
     final placeholders = _blockingStates.map((_) => '?').join(', ');
     final rows = await db.query(
       'outbox_commands',
-      where: 'sessionId = ? AND state IN ($placeholders)',
+      where: "sessionId = ? AND type IN ('prompt.send', 'run.requeue') AND state IN ($placeholders)",
       whereArgs: [
         sessionId,
         ..._blockingStates.map((state) => state.value),
