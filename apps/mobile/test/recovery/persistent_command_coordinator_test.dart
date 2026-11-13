@@ -126,6 +126,39 @@ void main() {
     expect(await coordinator.canStartExecutionIntent('s1'), isTrue);
   });
 
+  test('redelivers awaiting_ack after relaunch and releases the gate', () async {
+    final dir = await Directory.systemTemp.createTemp('s04-coordinator-ack-');
+    addTearDown(() => dir.delete(recursive: true));
+    final store = await openStore(dir);
+    addTearDown(store.close);
+    await store.outbox.insert(
+      OutboxCommand(
+        commandId: 'cmd_ack',
+        sessionId: 's1',
+        type: 'prompt.send',
+        payloadJson: '{"text":"hello"}',
+        agentInstanceId: 'agent_1',
+        state: OutboxState.awaitingAck,
+        createdAt: 1,
+        updatedAt: 1,
+      ),
+    );
+    final deliveries = <String>[];
+    final coordinator = PersistentCommandCoordinator(
+      outbox: store.outbox,
+      deliver: (snapshot) async {
+        deliveries.add(snapshot.commandId);
+        return JsonMap.from({'runId': 'run_1', 'status': 'queued'});
+      },
+      schedule: (duration, callback) => () {},
+    );
+    await coordinator.onReady('agent_1');
+    expect(deliveries, ['cmd_ack']);
+    expect(await coordinator.canStartExecutionIntent('s1'), isFalse);
+    await coordinator.onConfirmed('cmd_ack');
+    expect(await coordinator.canStartExecutionIntent('s1'), isTrue);
+  });
+
   test('discarding a confirmation tombstone allows new intent', () async {
     final dir = await Directory.systemTemp.createTemp('s04-coordinator-discard-');
     addTearDown(() => dir.delete(recursive: true));

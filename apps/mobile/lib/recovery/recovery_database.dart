@@ -24,7 +24,10 @@ final class RecoveryDatabase {
       path,
       options: OpenDatabaseOptions(
         version: recoverySchemaVersion,
-        onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+        onConfigure: (db) async {
+          await db.execute('PRAGMA journal_mode = WAL');
+          await db.execute('PRAGMA foreign_keys = ON');
+        },
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE outbox_commands (

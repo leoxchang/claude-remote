@@ -8,6 +8,7 @@ import '../../data/providers.dart';
 import '../../protocol/s03_messages.dart';
 import '../approvals/approval_controller.dart';
 import '../approvals/approval_detail_page.dart';
+import '../recovery/recovery_page.dart';
 import 'chat_controller.dart';
 import 'widgets/composer.dart';
 import 'widgets/message_list.dart';
@@ -69,11 +70,34 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final controller = ref.read(chatControllerProvider.notifier);
     final timeline = state.timeline;
     final approvals = ref.watch(approvalControllerProvider).value;
+    final recovery = ref.watch(recoveryControllerProvider).value;
     final sessionId = controller.sessionId;
     return Scaffold(
-      appBar: AppBar(title: const Text('Claude Remote')),
+      appBar: AppBar(
+        title: const Text('Claude Remote'),
+        actions: [
+          if (recovery != null && recovery.runs.isNotEmpty)
+            IconButton(
+              key: const Key('recoveryButton'),
+              tooltip: '待恢复任务',
+              icon: const Badge(
+                label: Text('!'),
+                child: Icon(Icons.restore),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => RecoveryPage(controller: recovery),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
       body: Column(
         children: [
+          if (state.cacheNotice)
+            const _Banner(message: '正在显示本地缓存，可能不是最新'),
           if (state.snapshotTruncated)
             const _Banner(message: '仅保留最近摘要，完整记录暂不可下载'),
           if (state.error != null) _ErrorBar(message: state.error!),

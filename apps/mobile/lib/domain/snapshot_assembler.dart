@@ -108,6 +108,10 @@ final class SnapshotAssembler {
   }
 
   String _canonicalJson(Object? value) {
+    if (value is num && value.isFinite && value == value.truncateToDouble()) {
+      // Node JSON.stringify(1.0) 输出 1；Dart 默认输出 1.0，必须对齐。
+      return value.toInt().toString();
+    }
     if (value == null || value is num || value is bool || value is String) {
       return jsonEncode(value);
     }

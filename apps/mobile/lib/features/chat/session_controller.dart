@@ -29,10 +29,10 @@ final class SessionController {
   int _sequence = 0;
 
   /// 已有本地会话则请求快照，否则创建（或附着）唯一会话。
-  Future<SessionRecord> startOrAttach() async {
+  Future<SessionRecord> startOrAttach({bool refresh = true}) async {
     final existing = readSessionId();
     if (existing != null) {
-      await refreshSnapshot();
+      if (refresh) await refreshSnapshot();
       return SessionRecord(sessionId: existing);
     }
     final data = await client.execute<JsonMap>(

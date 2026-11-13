@@ -13,6 +13,7 @@ Map<String, Object?> example(String name) {
 }
 
 void main() {
+  strictWireTests();
   test('decodes shared S04 examples', () {
     final requeue = ProtocolDecoder.decode(
       jsonEncode(example('run-requeue.json')),
@@ -59,5 +60,36 @@ void main() {
       () => SnapshotPageMessage.fromWire(const {'snapshotId': 'snap'}),
       throwsA(isA<FormatException>()),
     );
+  });
+}
+
+void strictWireTests() {
+  test('rejects missing sync fields and malformed snapshot pages', () {
+    expect(
+      () => SyncPageMessage.fromWire(
+        {'afterSeq': 0, 'lastSeq': 1, 'hasMore': true, 'limit': 100},
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      () => SnapshotPageMessage.fromWire(
+        {'snapshotId': 'snap', 'sessionId': 's1', 'payload': {}},
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    final page = SyncPageMessage.fromWire({
+      'events': [],
+      'nextAfterSeq': 1,
+      'lastSeq': 1,
+      'hasMore': false,
+      'volatile': {
+        'activeRunId': 'run_1',
+        'pendingApprovalCount': 2,
+        'outcomeUnknown': true,
+      },
+    });
+    expect(page.volatile?.pendingApprovalCount, 2);
+    expect(page.volatile?.outcomeUnknown, isTrue);
+    expect(page.events, isEmpty);
   });
 }

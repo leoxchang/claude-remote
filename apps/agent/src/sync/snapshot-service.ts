@@ -14,6 +14,7 @@ import {
 import { RunRepository } from '../storage/repositories/run-repository.js';
 import { SessionRepository } from '../storage/repositories/session-repository.js';
 import { randomBase64Url } from '../security/random.js';
+import { MAX_ACTIVE_RUNS } from '../run/run-limits.js';
 import { SqliteTransaction, UnitOfWork } from '../storage/unit-of-work.js';
 
 /** 快照最大页数与单页/单消息字节上限。 */
@@ -119,11 +120,9 @@ export class SnapshotService {
       input.reason,
     );
     const snapshotId = `snap_${randomBase64Url(9)}`;
-    const byteLength = pages.reduce(
-      (total, page) => total + Buffer.byteLength(JSON.stringify(page), 'utf8'),
-      0,
-    );
-    const sha256 = sha256Canonical(pages);
+    const canonical = canonicalJson(pages);
+    const byteLength = Buffer.byteLength(canonical, 'utf8');
+    const sha256 = createHash('sha256').update(canonical, 'utf8').digest('hex');
     tx.prepare(
       `INSERT INTO snapshots
          (snapshotId, sessionId, lastSeq, pageCount, byteLength, sha256, reason, createdAt)
@@ -233,7 +232,7 @@ export class SnapshotService {
           pendingApprovals: pending,
           globalCapacity: {
             activeRunCount: globalActive,
-            maxActiveRuns: 2,
+            maxActiveRuns: MAX_ACTIVE_RUNS,
           },
           snapshotTruncated: false,
         });

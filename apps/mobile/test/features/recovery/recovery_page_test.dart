@@ -15,6 +15,7 @@ RecoveryRunSummary run(String id, {int generation = 1}) {
 }
 
 void main() {
+  controllerExtras();
   testWidgets('requires viewing the prompt before requeue', (tester) async {
     final requeued = <String>[];
     final discarded = <String>[];
@@ -129,5 +130,52 @@ void main() {
     await tester.tap(find.byKey(const Key('discardLocalButton')));
     expect(confirmed, 1);
     expect(discarded, 1);
+  });
+}
+
+void controllerExtras() {
+  test('resume, clearAll and error reporting', () async {
+    final requeued = <String>[];
+    final controller = RecoveryController(
+      loadPromptText: (runId) async => 'p',
+      requeueRun: (runId, sessionId, generation) async {
+        requeued.add(runId);
+        throw StateError('offline');
+      },
+      discardRun: (runId) async => throw StateError('offline'),
+      canStartIntent: (sessionId) async => true,
+    );
+    controller.registerRecoveryRuns([
+      const RecoveryRunSummary(
+        runId: 'run_1',
+        sessionId: 's1',
+        recoveryGeneration: 1,
+      ),
+    ]);
+    controller.onLifecycle(AppLifecycleState.paused);
+    controller.registerRecoveryRuns([
+      const RecoveryRunSummary(
+        runId: 'run_1',
+        sessionId: 's1',
+        recoveryGeneration: 1,
+      ),
+    ]);
+    expect(controller.runs, hasLength(1));
+    controller.onResume([
+      const RecoveryRunSummary(
+        runId: 'run_1',
+        sessionId: 's1',
+        recoveryGeneration: 1,
+      ),
+    ]);
+    expect(controller.masked, isFalse);
+    await controller.loadPrompt('run_1');
+    await controller.requeue('run_1');
+    expect(requeued, ['run_1']);
+    expect(controller.lastError, isNotNull);
+    await controller.discard('run_1');
+    expect(controller.lastError, isNotNull);
+    controller.clearAll();
+    expect(controller.runs, isEmpty);
   });
 }

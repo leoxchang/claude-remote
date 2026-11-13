@@ -85,10 +85,12 @@ export class AgentDatabase {
     if (this.uow.inTransaction) {
       throw new AgentError('STORAGE_TRANSACTION_NESTED');
     }
-    mkdirSync(dirname(destination), {
+    const destinationDir = dirname(destination);
+    mkdirSync(destinationDir, {
       recursive: true,
       mode: DATABASE_DIR_MODE,
     });
+    secureDirectory(destinationDir);
     await this.db.backup(destination);
     chmodSync(destination, DATABASE_FILE_MODE);
   }

@@ -1,3 +1,4 @@
+import { AgentError } from '../command/errors.js';
 import { AdapterEvent } from '../events/adapter-events.js';
 import { EventNormalizer } from '../events/normalizer.js';
 import { SessionRepository } from '../storage/repositories/session-repository.js';
@@ -47,7 +48,10 @@ export class DurableRunController {
       try {
         await decision.handle.interrupt();
       } catch {
-        await this.finish(runId, 'interrupted', 'INTERRUPT_FAILED');
+        await this.finish(runId, 'interrupted', 'INTERRUPT_FAILED', {
+          outcomeUnknown: true,
+          eventTailMayBeIncomplete: true,
+        });
         return accepted;
       }
     }
@@ -101,6 +105,7 @@ export class DurableRunController {
     runId: string,
     status: 'succeeded' | 'failed' | 'cancelled' | 'interrupted',
     errorSummary?: string,
+    options: { outcomeUnknown?: boolean; eventTailMayBeIncomplete?: boolean } = {},
   ): Promise<void> {
     this.clearTimer(runId);
     this.options.permissionBroker?.invalidateRun(
@@ -113,9 +118,13 @@ export class DurableRunController {
         runId,
         status,
         ...(errorSummary === undefined ? {} : { errorSummary }),
+        ...options,
       });
-    } catch {
-      // 已被更早的终态处理；重复完成不是错误。
+    } catch (error: unknown) {
+      if (!(error instanceof AgentError && error.code === 'RUN_NOT_FOUND')) {
+        // DB 写失败：停止新的 start，避免继续扩大未持久化状态。
+        this.options.scheduler.markDegraded();
+      }
     }
     this.options.normalizer.clearRun(runId);
   }

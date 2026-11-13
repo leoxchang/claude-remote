@@ -88,19 +88,22 @@ export class CommandRepository {
 
   /** 7 天后只清只读 resultJson，保留永久墓碑；返回清理条数。 */
   expireReadOnlyResults(now: number): number {
-    return this.uow.immediate((tx) => {
-      const result = tx
-        .prepare(
-          `UPDATE commands
-           SET resultJson = NULL, resultExpired = 1
-           WHERE kind = 'read_only'
-             AND resultExpired = 0
-             AND completedAt IS NOT NULL
-             AND completedAt <= ?`,
-        )
-        .run(now - READ_ONLY_RESULT_TTL_MS);
-      return result.changes;
-    });
+    return this.uow.immediate((tx) => this.expireReadOnlyResultsWithin(tx, now));
+  }
+
+  /** 复用调用方事务的过期清理，供 retention 单事务使用。 */
+  expireReadOnlyResultsWithin(tx: SqliteTransaction, now: number): number {
+    const result = tx
+      .prepare(
+        `UPDATE commands
+         SET resultJson = NULL, resultExpired = 1
+         WHERE kind = 'read_only'
+           AND resultExpired = 0
+           AND completedAt IS NOT NULL
+           AND completedAt <= ?`,
+      )
+      .run(now - READ_ONLY_RESULT_TTL_MS);
+    return result.changes;
   }
 }
 

@@ -41,6 +41,7 @@ final class ChatState {
     this.queuePreviews = const <String, String>{},
     this.archived = false,
     this.slotsFull = false,
+    this.cacheNotice = false,
   });
 
   final ConnectionStatus connection;
@@ -58,6 +59,8 @@ final class ChatState {
   final Map<String, String> queuePreviews;
   final bool archived;
   final bool slotsFull;
+  /// 冷启动展示本地缓存时提示“可能不是最新”。
+  final bool cacheNotice;
 
   int get draftBytes => utf8.encode(draft).length;
 
@@ -92,6 +95,7 @@ final class ChatState {
     Map<String, String>? queuePreviews,
     bool? archived,
     bool? slotsFull,
+    bool? cacheNotice,
   }) {
     return ChatState(
       connection: connection ?? this.connection,
@@ -115,6 +119,7 @@ final class ChatState {
       queuePreviews: queuePreviews ?? this.queuePreviews,
       archived: archived ?? this.archived,
       slotsFull: slotsFull ?? this.slotsFull,
+      cacheNotice: cacheNotice ?? this.cacheNotice,
     );
   }
 
@@ -156,6 +161,11 @@ final class ChatController extends Notifier<ChatState> {
 
   /// 当前本地会话；未附着时为 null。
   String? get sessionId => _sessionId;
+
+  /// 冷启动缓存提示；同步完成后清除。
+  void setCacheNotice(bool value) {
+    state = state.copyWith(cacheNotice: value);
+  }
 
   /// 运行时错误的安全摘要。
   void reportError(String message) {

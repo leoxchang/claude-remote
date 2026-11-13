@@ -92,8 +92,11 @@ export class RetentionService {
       report.deletedEvents += this.trimEvents(tx, now);
       report.deletedSnapshots += this.trimSnapshots(tx, now);
       report.deletedApprovals += this.trimApprovals(tx, now);
+      report.expiredCommands = this.deps.commands.expireReadOnlyResultsWithin(
+        tx,
+        now,
+      );
     });
-    report.expiredCommands = this.deps.commands.expireReadOnlyResults(now);
     report.liveBytes = this.deps.health.current().liveBytes;
     return report;
   }
@@ -174,10 +177,7 @@ export class RetentionService {
       tx.prepare(
         'DELETE FROM events WHERE sessionId = ? AND seq <= ?',
       ).run(session.sessionId, upTo);
-      this.deps.sessions.update({
-        ...session,
-        retentionFloor: upTo,
-      });
+      this.deps.sessions.updateRetentionFloor(session.sessionId, upTo);
       deleted += upTo - floor;
     }
     return deleted;

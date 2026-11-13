@@ -28,6 +28,14 @@ final class RecoveryPage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               const Text('恢复执行需要你确认原 prompt；不会自动继续旧任务。'),
+              if (controller.lastError != null)
+                Text(
+                  controller.lastError!,
+                  key: const Key('recoveryError'),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
               const SizedBox(height: 12),
               for (final run in runs) _RecoveryCard(controller: controller, run: run),
             ],

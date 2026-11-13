@@ -137,13 +137,14 @@ void main() {
       coordinator.applyLive(event(3, id: 'other')),
       SyncApplyOutcome.conflict,
     );
-    expect(applied, 1);
-    expect(
-      coordinator.applyLive(event(2)),
-      SyncApplyOutcome.applied,
-    );
+    expect(coordinator.needsResync('s1'), isTrue);
+    expect(coordinator.stateOf('s1').lastContiguousSeq, 0);
+    // 冲突后必须全量重同步；重新按顺序应用才推进。
+    expect(coordinator.applyLive(event(1)), SyncApplyOutcome.applied);
+    expect(coordinator.applyLive(event(2)), SyncApplyOutcome.applied);
+    expect(coordinator.applyLive(event(3)), SyncApplyOutcome.applied);
     expect(coordinator.stateOf('s1').lastContiguousSeq, 3);
-    expect(applied, 3);
+    expect(applied, 4);
 
     for (var seq = 100; seq < 100 + SyncState.maxPendingEvents + 1; seq += 1) {
       final outcome = coordinator.applyLive(event(seq));

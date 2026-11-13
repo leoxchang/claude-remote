@@ -17,7 +17,7 @@ import { StorageHealth } from '../../src/storage/storage-health.js';
 
 const NOW = 1_762_432_800_000;
 
-function setup(options: { workspaceMode?: 'deny' | 'allow_once'; active?: boolean; runContext?: boolean; input?: Record<string, unknown>; toolName?: string } = {}) {
+function setup(options: { workspaceMode?: 'deny' | 'allow_once'; active?: boolean; runContext?: boolean; input?: Record<string, unknown>; toolName?: string; throwOnPending?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 's04-broker-branches-'));
   const db = AgentDatabase.open(join(dir, 'agent.sqlite3'));
   const journal = new DurableEventJournal(db.uow, { now: () => NOW });
@@ -58,7 +58,9 @@ function setup(options: { workspaceMode?: 'deny' | 'allow_once'; active?: boolea
           },
     workspaceMode: () => options.workspaceMode ?? 'allow_once',
     deviceActive: () => options.active ?? true,
-    setPendingApprovalCount: () => undefined,
+    setPendingApprovalCount: () => {
+      if (options.throwOnPending === true) throw new Error('disk full');
+    },
   };
   let counter = 0;
   const broker = new DurablePermissionBroker({
@@ -270,6 +272,27 @@ describe('DurablePermissionBroker branches', () => {
       const reloaded = context.store.getById('approval_1');
       expect(reloaded?.originalInput).toBeNull();
       expect(reloaded?.resultPromise).toBeNull();
+    } finally {
+      context.db.close();
+    }
+  });
+
+  it('resolves the SDK promise even when post-commit notifications fail', async () => {
+    const context = setup({ throwOnPending: true });
+    try {
+      const pending = context.broker.request('run_1', request());
+      const result = context.broker.respond({
+        approvalId: 'approval_1',
+        workspaceId: 'ws_1',
+        sessionId: 's1',
+        runId: 'run_1',
+        deviceId: 'device_1',
+        commandId: 'cmd',
+        decision: 'allow_once',
+      });
+      expect(result.status).toBe('approved_once');
+      expect(await pending).toMatchObject({ behavior: 'allow' });
+      expect(context.store.getById('approval_1')?.status).toBe('approved_once');
     } finally {
       context.db.close();
     }

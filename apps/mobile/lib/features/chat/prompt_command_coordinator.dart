@@ -106,8 +106,12 @@ final class PromptCommandCoordinator {
           type: request.type,
           payload: request.payload,
         );
-        result = request.decode(wire);
-        await persistent.onConfirmed(request.commandId);
+        try {
+          result = request.decode(wire);
+        } finally {
+          // Mac 已接受：即使本地解码失败也必须结束 outbox，避免永久门控。
+          await persistent.onConfirmed(request.commandId);
+        }
       } else {
         result = await client.execute(request, timeout: timeout);
       }

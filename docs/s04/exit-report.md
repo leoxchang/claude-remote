@@ -24,9 +24,9 @@
 | 检查 | 结果 |
 |---|---|
 | `S04_LIVE=1 npm run test:s04:store00` | Mac 4/4 PASS；iPhone BLOCKED |
-| `npm run test:s04`（Agent） | 通过：88 文件 / 497 测试 |
-| `npm run coverage:agent` | 通过：lines 89.44% / branches 80.13% / functions 89.53% / statements 87.61% |
-| `flutter test --coverage` | 通过：223 测试；Dart 行覆盖率 81.0%（2617/3229） |
+| `npm run test:s04`（Agent） | 通过：88 文件 / 499 测试 |
+| `npm run coverage:agent` | 通过：lines 89.32% / branches 80.06% / functions 89.34% / statements 87.53% |
+| `flutter test --coverage` | 通过：234 测试；Dart 行覆盖率 80.0%（2715/3395） |
 | `S04_LIVE=1 npm run test:s04:live` | 通过：2/2（commit 前/后崩溃注入；真实 SDK resume） |
 | `npm run verify:s04` | FAIL：仅 STORE-00 iPhone/Data Protection、E2E-01–15 NOT_RUN |
 

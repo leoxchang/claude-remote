@@ -188,8 +188,13 @@ export async function createDurableAgentRuntime(
         );
         started = true;
         retentionTimer = setInterval(() => {
-          wiring.retention.runOnce(Date.now());
-          wiring.retention.evaluateCapacity(runtimeLiveBytes(runtimeDatabase));
+          try {
+            wiring.retention.runOnce(Date.now());
+            wiring.retention.evaluateCapacity(runtimeLiveBytes(runtimeDatabase));
+          } catch {
+            // 定期清理失败不杀死进程；存储健康由下一次写入/启动修复兜底。
+            wiring.health.degraded('unavailable');
+          }
         }, 15 * 60 * 1000);
       },
       async close() {

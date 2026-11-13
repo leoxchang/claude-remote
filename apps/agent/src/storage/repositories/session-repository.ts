@@ -124,6 +124,15 @@ export class SessionRepository {
     );
   }
 
+  /** 只推进 retentionFloor，不动 lastSeq。 */
+  updateRetentionFloor(sessionId: string, retentionFloor: number): void {
+    this.write((tx) =>
+      tx
+        .prepare('UPDATE sessions SET retentionFloor = ? WHERE sessionId = ?')
+        .run(retentionFloor, sessionId),
+    );
+  }
+
   private write<T>(fn: (tx: SqliteTransaction) => T): T {
     if (this.uow.inTransaction) return fn(this.uow.connectionRef);
     return this.uow.immediate(fn);

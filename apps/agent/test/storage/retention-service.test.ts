@@ -145,6 +145,25 @@ describe('RetentionService', () => {
     }
   });
 
+  it('can trim the entire event history without tripping the lastSeq guard', () => {
+    const context = setup({ eventRetentionCount: 0 });
+    try {
+      context.append('a');
+      context.append('b');
+      context.append('c');
+      expect(() => context.retention.runOnce(NOW)).not.toThrow();
+      expect(
+        context.db.connection
+          .prepare('SELECT count(*) AS total FROM events WHERE sessionId = ?')
+          .get('s1'),
+      ).toEqual({ total: 0 });
+      expect(context.sessions.get('s1')?.lastSeq).toBe(3);
+      expect(context.sessions.get('s1')?.retentionFloor).toBe(3);
+    } finally {
+      context.db.close();
+    }
+  });
+
   it('removes events older than 30 days and respects the batch size', () => {
     const context = setup({ eventBatch: 2 });
     try {

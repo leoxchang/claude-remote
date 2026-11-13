@@ -67,7 +67,10 @@ final class SyncState {
       );
     }
     final sameSeq = pendingBySeq[event.seq];
-    if (sameSeq != null && sameSeq.eventId != event.eventId) {
+    if (sameSeq != null && sameSeq.eventId == event.eventId) {
+      return SyncUpdate(this, SyncApplyOutcome.duplicate);
+    }
+    if (sameSeq != null) {
       return SyncUpdate(this, SyncApplyOutcome.conflict);
     }
     if (event.seq <= lastContiguousSeq) {
@@ -101,7 +104,17 @@ final class SyncState {
     required int lastSeq,
     required List<TimelineEvent> events,
   }) {
-    if (lastSeq < lastContiguousSeq) return this;
+    return afterSnapshotWithEvents(lastSeq: lastSeq, events: events).state;
+  }
+
+  /// 与 [afterSnapshot] 相同，但返回快照后从缓冲补上的事件供 UI 应用。
+  ({SyncState state, List<TimelineEvent> applied}) afterSnapshotWithEvents({
+    required int lastSeq,
+    required List<TimelineEvent> events,
+  }) {
+    if (lastSeq < lastContiguousSeq) {
+      return (state: this, applied: const <TimelineEvent>[]);
+    }
     var state = copyWith(
       lastContiguousSeq: lastSeq,
       pendingBySeq: const <int, TimelineEvent>{},
@@ -110,12 +123,15 @@ final class SyncState {
         for (final event in events) event.eventId: event.seq,
       }),
     );
+    final drained = <TimelineEvent>[];
     for (final seq in (pendingBySeq.keys.toList()..sort())) {
       final event = pendingBySeq[seq];
       if (event == null || event.seq <= state.lastContiguousSeq) continue;
-      state = state.applyLive(event).state;
+      final update = state.applyLive(event);
+      state = update.state;
+      drained.addAll(update.applied);
     }
-    return state;
+    return (state: state, applied: drained);
   }
 
   SyncState clearPending() {

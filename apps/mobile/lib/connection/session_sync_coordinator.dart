@@ -2,6 +2,9 @@ import '../domain/snapshot_assembler.dart';
 import '../domain/sync_state.dart';
 import '../protocol/messages.dart';
 import '../protocol/s04_messages.dart';
+import 'dart:async';
+import 'dart:convert';
+
 import '../recovery/cache_repository.dart';
 
 /// 取一页 afterSeq；服务端 RESYNC_REQUIRED 由调用方转成 [SyncResyncRequired]。
@@ -49,13 +52,15 @@ final class SessionSyncCoordinator {
     void Function(String sessionId, int lastSeq)? onCursor,
     CacheRepository? cache,
     SnapshotAssembler? assembler,
+    void Function(String sessionId, Map<String, Object?> page)? onStatePage,
   }) : _syncPage = syncPage,
        _snapshotPage = snapshotPage,
        _applySnapshot = applySnapshot,
        _applyEvent = applyEvent,
        _onCursor = onCursor,
        _cache = cache,
-       _assembler = assembler ?? SnapshotAssembler();
+       _assembler = assembler ?? SnapshotAssembler(),
+       _onStatePage = onStatePage;
 
   final SyncPageFetcher _syncPage;
   final SnapshotPageFetcher _snapshotPage;
@@ -64,13 +69,22 @@ final class SessionSyncCoordinator {
   final void Function(String sessionId, int lastSeq)? _onCursor;
   final CacheRepository? _cache;
   final SnapshotAssembler _assembler;
+  final void Function(String sessionId, Map<String, Object?> page)? _onStatePage;
   final Map<String, SyncState> _states = {};
   final Map<String, SyncVolatileSummary?> _volatile = {};
+  final Set<String> _needsResync = {};
 
   SyncState stateOf(String sessionId) =>
       _states[sessionId] ?? const SyncState();
 
   SyncVolatileSummary? volatileOf(String sessionId) => _volatile[sessionId];
+
+  bool needsResync(String sessionId) => _needsResync.contains(sessionId);
+
+  /// 冷启动时用持久游标初始化；必须早于第一次 sync/applyLive。
+  void seedCursor(String sessionId, int lastContiguousSeq) {
+    _states[sessionId] = SyncState(lastContiguousSeq: lastContiguousSeq);
+  }
 
   SyncState _state(String sessionId) {
     return _states.putIfAbsent(sessionId, () => const SyncState());
@@ -102,9 +116,20 @@ final class SessionSyncCoordinator {
         for (final event in page.events) {
           final update = _state(sessionId).applyLive(event);
           _set(sessionId, update.state);
+          if (update.outcome == SyncApplyOutcome.conflict ||
+              update.outcome == SyncApplyOutcome.overflow) {
+            await clearConflict(sessionId);
+            _needsResync.add(sessionId);
+            return SyncResult(
+              events: collected,
+              lastSeq: cursor,
+              resyncRequired: true,
+            );
+          }
           for (final applied in update.applied) {
             collected.add(applied);
             _applyEvent(applied);
+            await _cacheEvent(applied);
           }
         }
         cursor = page.nextAfterSeq;
@@ -126,8 +151,15 @@ final class SessionSyncCoordinator {
   SyncApplyOutcome applyLive(TimelineEvent event) {
     final update = _state(event.sessionId).applyLive(event);
     _set(event.sessionId, update.state);
+    if (update.outcome == SyncApplyOutcome.conflict ||
+        update.outcome == SyncApplyOutcome.overflow) {
+      _needsResync.add(event.sessionId);
+      unawaited(clearConflict(event.sessionId));
+      return update.outcome;
+    }
     for (final applied in update.applied) {
       _applyEvent(applied);
+      unawaited(_cacheEvent(applied));
     }
     return update.outcome;
   }
@@ -138,14 +170,17 @@ final class SessionSyncCoordinator {
     if (assembly == null) return false;
     final current = _state(assembly.sessionId);
     if (assembly.lastSeq < current.lastContiguousSeq) return false;
-    _set(
-      assembly.sessionId,
-      current.afterSnapshot(
-        lastSeq: assembly.lastSeq,
-        events: assembly.events,
-      ),
+    final after = current.afterSnapshotWithEvents(
+      lastSeq: assembly.lastSeq,
+      events: assembly.events,
     );
+    _set(assembly.sessionId, after.state);
     _applySnapshot(assembly);
+    for (final event in after.applied) {
+      _applyEvent(event);
+      await _cacheEvent(event);
+    }
+    _needsResync.remove(assembly.sessionId);
     _onCursor?.call(assembly.sessionId, assembly.lastSeq);
     return true;
   }
@@ -158,6 +193,25 @@ final class SessionSyncCoordinator {
     );
     _volatile.remove(sessionId);
     await _cache?.clearSession(sessionId);
+    _needsResync.add(sessionId);
+  }
+
+  Future<void> _cacheEvent(TimelineEvent event) async {
+    await _cache?.putEvents(event.sessionId, [
+      CachedEvent(
+        eventId: event.eventId,
+        sessionId: event.sessionId,
+        seq: event.seq,
+        payloadJson: jsonEncode(event.toWire()),
+        cachedAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    ]);
+  }
+
+  /// 只取第 0 页安全状态（recovery/queued/pending），不覆盖时间线。
+  Future<void> refreshStatePage(String sessionId) async {
+    final page = await _snapshotPage(null, 0);
+    _onStatePage?.call(page.sessionId, page.payload);
   }
 
   /// 全量快照流程：从第 0 页开始逐页拉取，直到应用或出错。

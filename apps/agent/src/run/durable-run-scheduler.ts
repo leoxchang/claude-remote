@@ -115,6 +115,11 @@ export class DurableRunScheduler {
     return this.degraded;
   }
 
+  /** 存储写失败后停止新的 start。 */
+  markDegraded(): void {
+    this.degraded = true;
+  }
+
   /** 启动后由 Admission commit 回调触发；只调度 queued。 */
   drain(): void {
     if (this.degraded) return;
@@ -322,6 +327,7 @@ export class DurableRunScheduler {
     status: 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
     errorSummary?: string;
     outcomeUnknown?: boolean;
+    eventTailMayBeIncomplete?: boolean;
   }): void {
     this.uow.immediate((tx) => {
       const run = this.runs.get(input.runId);
@@ -335,6 +341,9 @@ export class DurableRunScheduler {
         endedAt: this.now(),
         errorSummary: input.errorSummary ?? null,
         outcomeUnknown: input.outcomeUnknown === true,
+        eventTailMayBeIncomplete:
+          input.eventTailMayBeIncomplete === true ||
+          run.eventTailMayBeIncomplete,
       };
       this.runs.update(terminal);
       this.updateSessionStatus(terminal.sessionId, 'idle');

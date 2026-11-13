@@ -247,7 +247,12 @@ export class DurablePermissionBroker {
       this.expire(approvalId);
     }, APPROVAL_TTL_MS);
     this.cancelTimers.set(approvalId, cancel);
-    this.ports.setPendingApprovalCount(runId, this.store.pendingCount(runId));
+    try {
+      this.ports.setPendingApprovalCount(runId, this.store.pendingCount(runId));
+    } catch {
+      // 审批已持久化；计数投影失败只影响 UI，不能让请求失败掉线。
+      this.health.degraded('unavailable');
+    }
     return deferred.promise;
   }
 
@@ -449,24 +454,32 @@ export class DurablePermissionBroker {
       throw new AgentError('STORAGE_UNAVAILABLE');
     }
     if (committed === null) return null;
-    this.clearTimer(record.approvalId);
-    this.store.clearVolatile(record.approvalId);
-    if (status !== 'approved_once') {
-      this.events.toolDenied({
-        sessionId: record.sessionId,
-        runId: record.runId,
-        toolUseID: record.toolUseID,
-        toolName: record.toolName,
-        outcome,
-      });
-    }
-    this.ports.setPendingApprovalCount(
-      record.runId,
-      this.store.pendingCount(record.runId),
-    );
     const resolver = this.resolvers.get(record.approvalId);
     this.resolvers.delete(record.approvalId);
-    resolver?.(result);
+    try {
+      this.clearTimer(record.approvalId);
+      this.store.clearVolatile(record.approvalId);
+      try {
+        if (status !== 'approved_once') {
+          this.events.toolDenied({
+            sessionId: record.sessionId,
+            runId: record.runId,
+            toolUseID: record.toolUseID,
+            toolName: record.toolName,
+            outcome,
+          });
+        }
+        this.ports.setPendingApprovalCount(
+          record.runId,
+          this.store.pendingCount(record.runId),
+        );
+      } catch {
+        // 终态已提交；通知/投影失败不能让 SDK promise 悬挂。
+        this.health.degraded('unavailable');
+      }
+    } finally {
+      resolver?.(result);
+    }
     return resolvedAt;
   }
 

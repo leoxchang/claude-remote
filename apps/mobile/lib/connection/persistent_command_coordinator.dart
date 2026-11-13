@@ -55,7 +55,9 @@ final class PersistentCommandCoordinator {
       }
       await _outbox.updateAgentInstance(command.commandId, agentInstanceId);
       if (command.state == OutboxState.persisted ||
-          command.state == OutboxState.sending) {
+          command.state == OutboxState.sending ||
+          command.state == OutboxState.awaitingAck) {
+        // awaiting_ack 的 result 可能已丢失；同实例重投由 Mac 按 commandId 去重。
         await _deliverNow(command.commandId, autoRetry: true);
       }
     }

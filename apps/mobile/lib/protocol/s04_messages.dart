@@ -50,9 +50,9 @@ final class SyncPageMessage {
               .map((event) => _event(event))
               .toList(growable: false)
           : const <TimelineEvent>[],
-      nextAfterSeq: wire['nextAfterSeq'] is int ? wire['nextAfterSeq'] as int : 0,
-      lastSeq: wire['lastSeq'] is int ? wire['lastSeq'] as int : 0,
-      hasMore: wire['hasMore'] == true,
+      nextAfterSeq: _int(wire, 'nextAfterSeq'),
+      lastSeq: _int(wire, 'lastSeq'),
+      hasMore: _bool(wire, 'hasMore'),
       volatile: wire['volatile'] is Map
           ? SyncVolatileSummary.fromWire(_wire(wire['volatile']))
           : null,
@@ -132,6 +132,18 @@ TimelineEvent _event(Map<dynamic, dynamic> raw) {
 Map<String, Object?> _wire(Object? value) {
   if (value is! Map) return const <String, Object?>{};
   return value.map((key, item) => MapEntry('$key', item));
+}
+
+int _int(JsonMap wire, String key) {
+  final value = wire[key];
+  if (value is! int) throw const FormatException('invalid S04 message');
+  return value;
+}
+
+bool _bool(JsonMap wire, String key) {
+  final value = wire[key];
+  if (value is! bool) throw const FormatException('invalid S04 message');
+  return value;
 }
 
 String _string(JsonMap wire, String key) {

@@ -200,10 +200,11 @@ END;
 
 CREATE TRIGGER sessions_last_seq_update_guard
 BEFORE UPDATE OF lastSeq ON sessions
-WHEN NEW.lastSeq > COALESCE(
-  (SELECT MAX(seq) FROM events WHERE events.sessionId = NEW.sessionId),
-  0
-)
+WHEN NEW.lastSeq > OLD.lastSeq
+  AND NEW.lastSeq > COALESCE(
+    (SELECT MAX(seq) FROM events WHERE events.sessionId = NEW.sessionId),
+    0
+  )
 BEGIN
   SELECT RAISE(ABORT, 'lastSeq ahead of events');
 END;

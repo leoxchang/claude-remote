@@ -6,8 +6,14 @@ import '../connection/chat_session_runtime.dart';
 import '../connection/command_client.dart';
 import '../connection/connection_controller.dart';
 import '../connection/persistent_command_coordinator.dart';
+import '../connection/session_sync_coordinator.dart';
 import '../features/recovery/recovery_controller.dart';
 import '../features/recovery/recovery_prompt_api.dart';
+import '../domain/session.dart';
+import '../protocol/s04_messages.dart';
+import '../protocol/decoder.dart';
+import '../protocol/envelope.dart';
+import '../protocol/messages.dart';
 import 'recovery_providers.dart';
 import '../features/approvals/approval_command_coordinator.dart';
 import '../features/approvals/approval_content_api.dart';
@@ -114,7 +120,7 @@ final recoveryControllerProvider = FutureProvider<RecoveryController?>((
     loadPromptText: api.read,
     requeueRun: (runId, sessionId, generation) async {
       final commandId = 'cmd_requeue_${DateTime.now().microsecondsSinceEpoch}';
-      final wire = await coordinator!.send(
+      await coordinator!.send(
         commandId: commandId,
         sessionId: sessionId,
         type: 'run.requeue',
@@ -123,9 +129,6 @@ final recoveryControllerProvider = FutureProvider<RecoveryController?>((
           'expectedRecoveryGeneration': generation,
         },
       );
-      if (wire['status'] == 'error') {
-        throw CommandFailure('${(wire['error'] as Map)['code']}');
-      }
       await coordinator.onConfirmed(commandId);
     },
     discardRun: (runId) async {
@@ -145,6 +148,113 @@ final recoveryControllerProvider = FutureProvider<RecoveryController?>((
   );
 });
 
+/// S04 afterSeq 同步与分页快照；事件应用回 ChatController。
+final sessionSyncCoordinatorProvider =
+    FutureProvider<SessionSyncCoordinator?>((ref) async {
+      final credential = await ref.watch(credentialProvider.future);
+      if (credential == null) return null;
+      final client = await ref.watch(commandClientProvider.future);
+      if (client == null) return null;
+      final store = await ref.watch(recoveryStoreProvider.future);
+      final recovery = await ref.watch(recoveryControllerProvider.future);
+      final chat = ref.read(chatControllerProvider.notifier);
+      var sequence = 0;
+      String nextCommand(String prefix) =>
+          'cmd_${prefix}_${DateTime.now().microsecondsSinceEpoch}_${++sequence}';
+
+      return SessionSyncCoordinator(
+        syncPage: (afterSeq, limit) async {
+          final sessionId = chat.sessionId;
+          if (sessionId == null) throw StateError('session not attached');
+          return client.execute<SyncPageMessage>(
+            CommandRequest<SyncPageMessage>(
+              commandId: nextCommand('sync'),
+              traceId: nextCommand('trace'),
+              type: 'session.sync',
+              sessionId: sessionId,
+              payload: {'afterSeq': afterSeq, 'limit': limit},
+              decode: SyncPageMessage.fromWire,
+            ),
+          );
+        },
+        snapshotPage: (snapshotId, pageIndex) async {
+          final sessionId = chat.sessionId;
+          if (sessionId == null) throw StateError('session not attached');
+          return client.execute<SnapshotPageMessage>(
+            CommandRequest<SnapshotPageMessage>(
+              commandId: nextCommand('snapshot'),
+              traceId: nextCommand('trace'),
+              type: 'session.snapshot',
+              sessionId: sessionId,
+              payload: {
+                if (snapshotId != null) 'snapshotId': snapshotId,
+                if (pageIndex != null) 'pageIndex': pageIndex,
+              },
+              decode: SnapshotPageMessage.fromWire,
+            ),
+          );
+        },
+        applySnapshot: (assembly) {
+          final merged = <String, Object?>{...assembly.firstPage};
+          merged['recentEvents'] = assembly.events
+              .map((event) => event.toWire())
+              .toList(growable: false);
+          chat.mergeSnapshot(SessionSnapshot.fromPayload(merged));
+          final runs = merged['recoveryRequiredRuns'];
+          if (runs is List) {
+            recovery?.registerRecoveryRuns([
+              for (final entry in runs.whereType<Map<dynamic, dynamic>>())
+                if (entry['runId'] is String &&
+                    entry['recoveryGeneration'] is int)
+                  RecoveryRunSummary(
+                    runId: entry['runId'] as String,
+                    sessionId: assembly.sessionId,
+                    recoveryGeneration:
+                        entry['recoveryGeneration'] as int,
+                    promptExpiresAt: entry['promptExpiresAt'] is int
+                        ? entry['promptExpiresAt'] as int
+                        : null,
+                  ),
+            ]);
+          }
+          unawaited(
+            store.writeCursor(
+              sessionId: assembly.sessionId,
+              lastContiguousSeq: assembly.lastSeq,
+              lastSnapshotId: assembly.snapshotId,
+            ),
+          );
+        },
+        applyEvent: chat.mergeEvent,
+        onCursor: (sessionId, lastSeq) {
+          unawaited(
+            store.writeCursor(
+              sessionId: sessionId,
+              lastContiguousSeq: lastSeq,
+            ),
+          );
+        },
+        cache: store.cache,
+        onStatePage: (sessionId, page) {
+          final runs = page['recoveryRequiredRuns'];
+          if (runs is! List) return;
+          recovery?.registerRecoveryRuns([
+            for (final entry in runs.whereType<Map<dynamic, dynamic>>())
+              if (entry['runId'] is String &&
+                  entry['recoveryGeneration'] is int)
+                RecoveryRunSummary(
+                  runId: entry['runId'] as String,
+                  sessionId: sessionId,
+                  recoveryGeneration: entry['recoveryGeneration'] as int,
+                  promptExpiresAt: entry['promptExpiresAt'] is int
+                      ? entry['promptExpiresAt'] as int
+                      : null,
+                ),
+          ]);
+        },
+      );
+    });
+
 /// 已配对时的聊天运行时；未配对返回 null。
 final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
   ref,
@@ -162,6 +272,9 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
   final approvalClient = ref.watch(approvalCommandClientProvider);
   final approvals = await ref.watch(approvalControllerProvider.future);
   final persistent = await ref.watch(persistentCommandCoordinatorProvider.future);
+  final recovery = await ref.watch(recoveryControllerProvider.future);
+  final sync = await ref.watch(sessionSyncCoordinatorProvider.future);
+  final recoveryStore = await ref.watch(recoveryStoreProvider.future);
   if (persistent != null) chat.attachPersistentCommands(persistent);
   late final ConnectionController connection;
   connection = ConnectionController(
@@ -185,12 +298,42 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
         unawaited(persistent?.onReady(next));
       }
     },
-    onLifecycleHook: (state) => approvals?.onLifecycle(state),
+    onLifecycleHook: (state) {
+      approvals?.onLifecycle(state);
+      recovery?.onLifecycle(state);
+    },
     onReady: () async {
       chat.setSyncing(true);
       try {
-        final record = await session.startOrAttach();
+        final record = await session.startOrAttach(refresh: false);
         chat.attachSession(record.sessionId);
+        if (sync != null) {
+          final cursor = await recoveryStore.readCursor(record.sessionId);
+          final cached = await recoveryStore.cache.readEvents(record.sessionId);
+          if (cached.isNotEmpty) {
+            for (final entry in cached) {
+              try {
+                final decoded = ProtocolDecoder.decode(entry.payloadJson);
+                if (decoded is TimelineEvent) chat.mergeEvent(decoded);
+              } on ProtocolDecodeException {
+                // 单条缓存损坏不影响后续同步。
+              }
+            }
+            chat.setCacheNotice(true);
+          }
+          sync.seedCursor(record.sessionId, cursor?.lastContiguousSeq ?? 0);
+          try {
+            final result = await sync.sync(record.sessionId);
+            if (result.resyncRequired) {
+              await sync.resyncSnapshot(record.sessionId);
+            } else {
+              await sync.refreshStatePage(record.sessionId);
+            }
+            chat.setCacheNotice(false);
+          } on Object {
+            chat.reportError('历史同步失败，将继续重试');
+          }
+        }
       } on Object {
         chat.reportError('会话建立失败');
         rethrow;

@@ -49,8 +49,11 @@ final class RecoveryController extends ChangeNotifier {
   final Set<String> _loading = {};
   int _generation = 0;
   bool _masked = false;
+  String? _lastError;
 
   bool get masked => _masked;
+
+  String? get lastError => _lastError;
 
   List<RecoveryRunSummary> get runs =>
       _runs.values.toList(growable: false);
@@ -100,18 +103,30 @@ final class RecoveryController extends ChangeNotifier {
     if (!canRequeue(run)) return;
     if (!await _canStartIntent(run.sessionId)) return;
     final generation = _generation;
-    await _requeueRun(run.runId, run.sessionId, run.recoveryGeneration);
+    try {
+      await _requeueRun(run.runId, run.sessionId, run.recoveryGeneration);
+    } on Object {
+      _lastError = '恢复失败，请确认原 prompt 后重试';
+      notifyListeners();
+      return;
+    }
     if (generation != _generation) return;
     _runs.remove(runId);
     _prompts.remove(runId);
+    _lastError = null;
     notifyListeners();
   }
 
   /// 丢弃本地恢复记录；不撤销 Mac 已接受的执行。
   Future<void> discard(String runId) async {
-    await _discardRun(runId);
-    _runs.remove(runId);
-    _prompts.remove(runId);
+    try {
+      await _discardRun(runId);
+      _runs.remove(runId);
+      _prompts.remove(runId);
+      _lastError = null;
+    } on Object {
+      _lastError = '放弃本地重试失败，请重试';
+    }
     notifyListeners();
   }
 
