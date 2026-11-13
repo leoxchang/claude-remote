@@ -32,7 +32,8 @@
     "test:s04:store00": "vitest run --config vitest.s04-store00.config.ts",
     "test:s04": "vitest run --root apps/agent",
     "test:s04:live": "vitest run --config vitest.s04-live.config.ts",
-    "verify:s04": "tsx scripts/s04/verify-gate.ts"
+    "verify:s04": "tsx scripts/s04/verify-gate.ts",
+    "test:s05:asr00": "vitest run --config vitest.s05-asr00.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.319",
