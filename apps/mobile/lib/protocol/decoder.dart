@@ -16,6 +16,8 @@ const Set<String> _commandTypes = {
   'session.archive',
   'queue.remove',
   'permission.respond',
+  'run.requeue',
+  'session.sync',
 };
 
 const Set<String> _eventTypes = {
@@ -30,6 +32,7 @@ const Set<String> _eventTypes = {
   'run.completed',
   'permission.requested',
   'permission.resolved',
+  'run.recovery_required',
 };
 
 const Set<String> _controlTypes = {

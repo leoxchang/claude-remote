@@ -150,6 +150,14 @@ final class CacheRepository {
     );
   }
 
+  Future<void> clearSession(String sessionId) async {
+    await db.delete(
+      'cached_events',
+      where: 'sessionId = ?',
+      whereArgs: [sessionId],
+    );
+  }
+
   Future<void> clearAll() async {
     await db.delete('cached_events');
     await db.delete('cached_sessions');
