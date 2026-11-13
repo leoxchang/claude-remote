@@ -49,6 +49,11 @@ export class UnitOfWork {
   get inTransaction(): boolean {
     return this.inImmediate;
   }
+
+  /** 供仓库复用当前事务连接；调用方不得在事务外执行写操作。 */
+  get connectionRef(): Database.Database {
+    return this.connection;
+  }
 }
 
 function isPromiseLike(value: unknown): boolean {

@@ -11,8 +11,21 @@ interface DevicesFile {
   devices: DeviceRecord[];
 }
 
+/** 设备存储端口；JSON 与 SQLite 实现共用。 */
+export interface DeviceStorePort {
+  create(
+    deviceId: string,
+    deviceName: string,
+    tokenHash: string,
+  ): Promise<DeviceRecord>;
+  verify(deviceId: string, token: string): Promise<DeviceRecord | null>;
+  revoke(deviceId: string): Promise<DeviceRecord>;
+  active(): DeviceRecord | null;
+  list(): DeviceRecord[];
+}
+
 /** 设备绑定存储；Mac 只保存令牌哈希。 */
-export class DeviceStore {
+export class DeviceStore implements DeviceStorePort {
   private readonly devicesFile: string;
   private records: DeviceRecord[];
 

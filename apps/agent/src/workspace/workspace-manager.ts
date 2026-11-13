@@ -19,6 +19,7 @@ import {
   WorkspaceRecord,
   WorkspaceSummary,
 } from './workspace-types.js';
+import { WorkspaceRepository } from '../storage/repositories/workspace-repository.js';
 
 const WORKSPACE_ID_BYTES = 9;
 
@@ -29,8 +30,11 @@ export interface WorkspaceUsage {
 
 /** 项目管理依赖；写盘、usage 与策略回调可注入以便测试。 */
 export interface WorkspaceManagerOptions {
-  configDir: string;
-  config: AgentConfigV3;
+  configDir?: string;
+  /** V3 文件存储路径仍在使用时的内存配置快照。 */
+  config?: AgentConfigV3;
+  /** V4 起以 SQLite 仓库为权威。 */
+  repository?: WorkspaceRepository;
   usage?: WorkspaceUsage;
   writeConfig?: (configDir: string, config: AgentConfigV3) => void;
   /** 内存快照替换后同步调用；用于失效该项目的 pending 审批。 */
@@ -43,22 +47,16 @@ export interface WorkspaceManagerOptions {
 /**
  * 本机项目授权管理。
  *
- * 变更顺序固定为「校验 → 同步写盘 → 替换内存快照」，
- * 写盘失败时不改变内存状态，移除不删除任何项目文件。
+ * 变更顺序固定为「校验 → 同步写库 → 替换内存快照」，
+ * 写入失败时不改变可见状态，移除不删除任何项目文件。
  */
 export class WorkspaceManager {
-  private config: AgentConfigV3;
-  private readonly removed = new Set<string>();
+  private readonly repository: WorkspaceRepository;
   private readonly usage: WorkspaceUsage;
-  private readonly writeConfig: (
-    configDir: string,
-    config: AgentConfigV3,
-  ) => void;
 
   constructor(private readonly options: WorkspaceManagerOptions) {
-    this.config = options.config;
     this.usage = options.usage ?? { hasActiveOrQueued: () => false };
-    this.writeConfig = options.writeConfig ?? writeConfigV3AtomicSync;
+    this.repository = options.repository ?? legacyRepository(options);
   }
 
   /** 添加项目；保存解析后的真实路径。 */
@@ -68,7 +66,7 @@ export class WorkspaceManager {
   }): Promise<WorkspaceRecord> {
     const displayName = validateDisplayName(input.displayName);
     const rootPath = await resolveWorkspacePath(input.path);
-    const current = this.config.workspaces;
+    const current = this.repository.list();
     if (current.length >= MAX_WORKSPACES) {
       throw new ConfigV2Error('TOO_MANY_WORKSPACES');
     }
@@ -85,26 +83,24 @@ export class WorkspaceManager {
         mobileApprovalMode: DEFAULT_MOBILE_APPROVAL_MODE,
       },
     };
-    this.commit([...current, record]);
-    this.removed.delete(record.workspaceId);
+    this.repository.insert(record);
     return { ...record, policy: { ...record.policy } };
   }
 
   /** 当前全部项目摘要；不含真实路径。 */
   list(): WorkspaceSummary[] {
-    return this.config.workspaces.map(toSummary);
+    return this.repository.list().map(toSummary);
   }
 
   /** 只改显示名；ID、路径与运行中 run 不变。 */
-  async rename(workspaceId: string, displayName: string): Promise<WorkspaceSummary> {
+  async rename(
+    workspaceId: string,
+    displayName: string,
+  ): Promise<WorkspaceSummary> {
     const record = this.find(workspaceId);
     const next = validateDisplayName(displayName);
     const updated = { ...record, displayName: next };
-    this.commit(
-      this.config.workspaces.map((workspace) =>
-        workspace.workspaceId === workspaceId ? updated : workspace,
-      ),
-    );
+    this.repository.update(updated);
     return toSummary(updated);
   }
 
@@ -114,19 +110,14 @@ export class WorkspaceManager {
     if (this.usage.hasActiveOrQueued(record.workspaceId)) {
       throw new AgentError('WORKSPACE_BUSY');
     }
-    this.commit(
-      this.config.workspaces.filter(
-        (workspace) => workspace.workspaceId !== workspaceId,
-      ),
-    );
-    this.removed.add(workspaceId);
+    this.repository.remove(workspaceId, Date.now());
   }
 
   /**
    * 逐项目开启或关闭手机审批。
    *
-   * 校验、同步写盘、替换内存快照与策略监听回调都在同一调用栈完成；
-   * 写盘失败时不改变内存状态。
+   * 校验、同步写库与策略监听回调都在同一调用栈完成；
+   * 写入失败时不改变内存状态。
    */
   setApprovalMode(
     workspaceId: string,
@@ -143,11 +134,7 @@ export class WorkspaceManager {
       ...record,
       policy: { ...record.policy, mobileApprovalMode: mode },
     };
-    this.commit(
-      this.config.workspaces.map((workspace) =>
-        workspace.workspaceId === workspaceId ? updated : workspace,
-      ),
-    );
+    this.repository.update(updated);
     this.options.onApprovalModeChanged?.(workspaceId, mode);
     return toSummary(updated);
   }
@@ -163,11 +150,11 @@ export class WorkspaceManager {
    * 未知 ID 与已移除 ID 分开报错，路径被删或改指时报 WORKSPACE_NOT_ALLOWED。
    */
   assertUsable(workspaceId: string): WorkspaceRecord {
-    const record = this.config.workspaces.find(
-      (workspace) => workspace.workspaceId === workspaceId,
-    );
+    const record = this.repository.get(workspaceId);
     if (record === undefined) {
-      if (this.removed.has(workspaceId)) throw new AgentError('WORKSPACE_NOT_ALLOWED');
+      if (this.repository.isRemoved(workspaceId)) {
+        throw new AgentError('WORKSPACE_NOT_ALLOWED');
+      }
       throw new AgentError('WORKSPACE_NOT_FOUND');
     }
     assertWorkspacePathCurrent(record);
@@ -175,17 +162,79 @@ export class WorkspaceManager {
   }
 
   private find(workspaceId: string): WorkspaceRecord {
-    const record = this.config.workspaces.find(
-      (workspace) => workspace.workspaceId === workspaceId,
-    );
+    const record = this.repository.get(workspaceId);
     if (record === undefined) throw new AgentError('WORKSPACE_NOT_FOUND');
     return record;
   }
+}
 
-  /** 先同步写盘，成功后才替换内存快照。 */
-  private commit(workspaces: WorkspaceRecord[]): void {
-    const next: AgentConfigV3 = { ...this.config, workspaces };
-    this.writeConfig(this.options.configDir, next);
-    this.config = next;
+/** V3 JSON 适配器；写盘成功后才更新内存快照。 */
+class V3ConfigWorkspaceRepository implements WorkspaceRepository {
+  private readonly removed = new Set<string>();
+
+  constructor(private readonly options: WorkspaceManagerOptions) {}
+
+  list(): WorkspaceRecord[] {
+    return this.config().workspaces;
   }
+
+  get(workspaceId: string): WorkspaceRecord | undefined {
+    return this.config().workspaces.find(
+      (workspace) => workspace.workspaceId === workspaceId,
+    );
+  }
+
+  isRemoved(workspaceId: string): boolean {
+    return this.removed.has(workspaceId);
+  }
+
+  insert(record: WorkspaceRecord): void {
+    this.commit([...(this.config().workspaces ?? []), record]);
+    this.removed.delete(record.workspaceId);
+  }
+
+  update(record: WorkspaceRecord): void {
+    this.commit(
+      this.config().workspaces.map((workspace) =>
+        workspace.workspaceId === record.workspaceId ? record : workspace,
+      ),
+    );
+  }
+
+  remove(workspaceId: string, _now: number): void {
+    this.commit(
+      this.config().workspaces.filter(
+        (workspace) => workspace.workspaceId !== workspaceId,
+      ),
+    );
+    this.removed.add(workspaceId);
+  }
+
+  private config(): AgentConfigV3 {
+    const config = this.options.config;
+    if (config === undefined) {
+      throw new Error('workspace manager requires a repository or V3 config');
+    }
+    return config;
+  }
+
+  private commit(workspaces: WorkspaceRecord[]): void {
+    const current = this.config();
+    const next: AgentConfigV3 = { ...current, workspaces };
+    const configDir = this.options.configDir;
+    if (configDir === undefined) {
+      throw new Error('workspace manager requires configDir');
+    }
+    (this.options.writeConfig ?? writeConfigV3AtomicSync)(configDir, next);
+    this.options.config = next;
+  }
+}
+
+function legacyRepository(
+  options: WorkspaceManagerOptions,
+): WorkspaceRepository {
+  if (options.config === undefined) {
+    throw new Error('workspace manager requires a repository or V3 config');
+  }
+  return new V3ConfigWorkspaceRepository(options);
 }

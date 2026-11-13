@@ -24,6 +24,9 @@ CREATE TABLE devices (
   revokedAt INTEGER
 ) STRICT;
 
+CREATE UNIQUE INDEX idx_devices_single_active
+  ON devices ((1)) WHERE revokedAt IS NULL;
+
 CREATE TABLE workspaces (
   workspaceId TEXT PRIMARY KEY,
   displayName TEXT NOT NULL,
