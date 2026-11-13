@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s04_requeue",
+  "timestamp": 1762432800000,
+  "type": "run.requeue",
+  "commandId": "cmd_requeue",
+  "traceId": "trace_requeue",
+  "sourceDeviceId": "device_01",
+  "sessionId": "session_01",
+  "runId": "run_01",
+  "payload": {
+    "expectedRecoveryGeneration": 1
+  }
+}

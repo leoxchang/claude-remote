@@ -100,3 +100,18 @@ S03 只新增可选字段与消息类型，不改变 S01/S02 的 prompt/run/even
 - **新增错误码**：`APPROVAL_NOT_FOUND`、`APPROVAL_SESSION_MISMATCH`、`APPROVAL_CONTENT_TOO_LARGE`、`APPROVAL_CONTENT_UNAVAILABLE`、`APPROVAL_CAPACITY_EXCEEDED`、`UNSUPPORTED_USER_INTERACTION`、`APPROVAL_TOOL_UNSUPPORTED`、`APPROVAL_DUPLICATE_AFTER_RESOLUTION`。
 - 审批、审计、队列与 Journal 仍为内存状态；Agent 重启后旧 `approvalId` 不可读取或响应，不自动重放。
 - 共享样例见 `examples/s03/`。
+
+## S04 扩展（持久化、恢复与同步，向后兼容）
+
+S04 只新增命令/事件类型与可选字段；`prompt.send` 首次结果已在本文件 S02 小节修订为 `queued`-only。
+
+- **新命令 `run.requeue`**：信封携带 `commandId/traceId/sessionId/runId`，`payload.expectedRecoveryGeneration` 为非负整数；只接受 `recovery_required`，generation 不匹配返回 `RECOVERY_GENERATION_CONFLICT`，其他状态返回 `RUN_NOT_RECOVERABLE`。成功使用同一 `runId` 与原 prompt 关联，排到当前队尾，`promptExpiresAt` 不延长；`run.requeue` 自身使用新 `commandId`。
+- **新命令 `session.sync`**：`payload.afterSeq` 非负整数，`limit` 默认/最大 100（1..100）；每页还受 payload 48 KiB / 总消息 64 KiB 限制。`afterSeq` 越过 `lastSeq`、低于 `retentionFloor` 或跨度超过 1,000 条时返回 `RESYNC_REQUIRED`，details 只含不可变 snapshot manifest。
+- **`session.snapshot` 扩展**：命令 payload 可带 `snapshotId` 与 `pageIndex`（0..7）；事件 payload 增加 `snapshotId/pageIndex/pageCount/byteLength/sha256/recoveryRequiredRuns`。最多 8 页，页 0 含安全摘要与首批 `recentEvents`，后续页只含后续 `recentEvents`；快照不占 seq。
+- **新事件 `run.recovery_required`**：`payload.recoveryGeneration`（≥1）与 `reason: "agent_shutdown"`；只由启动修复从 `queued` 产生，不参与 Scheduler。
+- **`run.queued` 扩展**：可选 `requeued`、`recoveryGeneration`、`originalEnqueuedAt`，不含 prompt 正文。
+- **`run.completed` 扩展**：`reason` 增加 `agent_shutdown/recovery_discarded/retention_expired/sdk_aborted`；可选 `outcomeUnknown`、`eventTailMayBeIncomplete`。
+- **新错误码**：`STORAGE_UNAVAILABLE`、`STORAGE_LIMITED`、`STORAGE_CORRUPT`、`STORAGE_MIGRATION_CONFLICT`、`STORAGE_TRANSACTION_NESTED`、`STORAGE_TRANSACTION_ASYNC`、`AGENT_ALREADY_RUNNING`、`RUN_NOT_RECOVERABLE`、`RECOVERY_GENERATION_CONFLICT`、`COMMAND_RESULT_EXPIRED`、`SYNC_CONFLICT`、`SNAPSHOT_NOT_FOUND`。
+- **正文读取**：`GET /v1/runs/{runId}/prompt`，Bearer 认证、`Cache-Control: no-store`、仅 run 发起设备可读、最多 16 KiB；不占 seq、不写 command/Journal/日志。
+- **只读命令保留**：首次结果保留 7 天，过期返回 `COMMAND_RESULT_EXPIRED`；mutating 首次结果永久保留。
+- 共享样例见 `examples/s04/`。

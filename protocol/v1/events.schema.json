@@ -278,6 +278,34 @@
                       }
                     }
                   }
+                },
+                "snapshotId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pageIndex": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 7
+                },
+                "pageCount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8
+                },
+                "byteLength": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recoveryRequiredRuns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               }
             }
@@ -546,7 +574,11 @@
                 },
                 "reason": {
                   "enum": [
-                    "queue_removed"
+                    "queue_removed",
+                    "agent_shutdown",
+                    "recovery_discarded",
+                    "retention_expired",
+                    "sdk_aborted"
                   ]
                 },
                 "error": {
@@ -564,6 +596,12 @@
                       "type": "string"
                     }
                   }
+                },
+                "outcomeUnknown": {
+                  "type": "boolean"
+                },
+                "eventTailMayBeIncomplete": {
+                  "type": "boolean"
                 }
               }
             }
@@ -600,6 +638,17 @@
                     "SESSION_BUSY",
                     "GLOBAL_CAPACITY"
                   ]
+                },
+                "requeued": {
+                  "type": "boolean"
+                },
+                "recoveryGeneration": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "originalEnqueuedAt": {
+                  "type": "integer",
+                  "minimum": 0
                 }
               }
             }
@@ -992,6 +1041,40 @@
                     "string",
                     "null"
                   ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "run.recovery_required": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "run.recovery_required"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "recoveryGeneration",
+                "reason"
+              ],
+              "properties": {
+                "recoveryGeneration": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "reason": {
+                  "const": "agent_shutdown"
                 }
               }
             }

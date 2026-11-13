@@ -1,0 +1,17 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s04_expired",
+  "timestamp": 1762432800000,
+  "type": "command.result",
+  "commandId": "cmd_read_old",
+  "traceId": "trace_read_old",
+  "payload": {
+    "status": "error",
+    "duplicate": false,
+    "error": {
+      "code": "COMMAND_RESULT_EXPIRED",
+      "message": "COMMAND_RESULT_EXPIRED",
+      "retryable": false
+    }
+  }
+}

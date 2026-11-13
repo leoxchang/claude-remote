@@ -118,7 +118,18 @@
               "const": "session.snapshot"
             },
             "payload": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "snapshotId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pageIndex": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 7
+                }
+              }
             }
           }
         }
@@ -498,6 +509,76 @@
                     "allow_once",
                     "deny"
                   ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "run.requeue": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "type": "object",
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId",
+            "runId"
+          ],
+          "properties": {
+            "type": {
+              "const": "run.requeue"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "expectedRecoveryGeneration"
+              ],
+              "properties": {
+                "expectedRecoveryGeneration": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.sync": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "type": "object",
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId"
+          ],
+          "properties": {
+            "type": {
+              "const": "session.sync"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "afterSeq"
+              ],
+              "properties": {
+                "afterSeq": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
                 }
               }
             }

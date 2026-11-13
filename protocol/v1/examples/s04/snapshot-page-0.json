@@ -1,0 +1,48 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s04_snapshot_0",
+  "timestamp": 1762432800000,
+  "type": "session.snapshot",
+  "eventId": "event_snapshot_0",
+  "sessionId": "session_01",
+  "seq": 121,
+  "payload": {
+    "lastSeq": 120,
+    "snapshotId": "snap_01",
+    "pageIndex": 0,
+    "pageCount": 2,
+    "byteLength": 4096,
+    "sha256": "hash_snapshot",
+    "recentEvents": [
+      {
+        "protocolVersion": 1,
+        "messageId": "msg_snap_ev1",
+        "timestamp": 1762432700000,
+        "type": "run.queued",
+        "eventId": "event_1",
+        "sessionId": "session_01",
+        "seq": 1,
+        "runId": "run_01",
+        "payload": {
+          "enqueuedAt": 1762432700000
+        }
+      }
+    ],
+    "recoveryRequiredRuns": [],
+    "session": {
+      "sessionId": "session_01",
+      "workspaceId": "ws_01",
+      "title": "Session",
+      "status": "idle"
+    },
+    "activeRun": {
+      "runId": "run_02",
+      "status": "running",
+      "pendingApprovalCount": 0,
+      "outcomeUnknown": false
+    },
+    "queuedRuns": [],
+    "pendingApprovals": [],
+    "snapshotTruncated": false
+  }
+}

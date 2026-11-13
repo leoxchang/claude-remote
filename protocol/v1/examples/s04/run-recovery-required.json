@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "messageId": "msg_s04_recovery",
+  "timestamp": 1762432800000,
+  "type": "run.recovery_required",
+  "eventId": "event_recovery_1",
+  "sessionId": "session_01",
+  "seq": 4,
+  "runId": "run_01",
+  "payload": {
+    "recoveryGeneration": 1,
+    "reason": "agent_shutdown"
+  }
+}

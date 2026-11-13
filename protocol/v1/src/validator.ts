@@ -74,6 +74,14 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
     ref: 'https://s00.local/commands.schema.json#/$defs/permission.respond',
   },
   {
+    type: 'run.requeue',
+    ref: 'https://s00.local/commands.schema.json#/$defs/run.requeue',
+  },
+  {
+    type: 'session.sync',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.sync',
+  },
+  {
     type: 'command.result',
     ref: 'https://s00.local/commands.schema.json#/$defs/command.result',
   },
@@ -116,6 +124,10 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
   {
     type: 'run.started',
     ref: 'https://s00.local/events.schema.json#/$defs/run.started',
+  },
+  {
+    type: 'run.recovery_required',
+    ref: 'https://s00.local/events.schema.json#/$defs/run.recovery_required',
   },
   {
     type: 'permission.requested',

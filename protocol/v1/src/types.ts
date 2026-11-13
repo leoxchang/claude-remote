@@ -62,4 +62,4 @@ export type ProtocolMessage =
  * 尚未实现的预留类型名：不在 V1 实现，
  * 必须与已实现字段语义不冲突（由 PROTO-10 测试锁定）。
  */
-export const RESERVED_MESSAGE_TYPES: readonly string[] = ['session.sync'];
+export const RESERVED_MESSAGE_TYPES: readonly string[] = ['asr.transcribe'];
