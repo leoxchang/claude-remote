@@ -6,6 +6,9 @@ import {
 import { validateProtocolMessage } from '@claude-remote/protocol/validator';
 
 import { AgentOperations } from '../app/agent-operations.js';
+import { RecoveryService } from '../run/recovery-service.js';
+import { SessionSyncService } from '../sync/session-sync-service.js';
+import { SnapshotService } from '../sync/snapshot-service.js';
 import { DeviceRecord, JsonObject } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
 import { SessionListInput } from '../session/session-list.js';
@@ -31,12 +34,18 @@ const COMMAND_TYPES: readonly string[] = [
   'session.archive',
   'queue.remove',
   'permission.respond',
+  'run.requeue',
+  'session.sync',
 ];
 
 /** 命令路由依赖；幂等表可注入以便测试。 */
 export interface CommandRouterDependencies {
   operations: AgentOperations;
   idempotency?: InMemoryIdempotency;
+  /** S04 同步/快照/恢复服务；未装配时对应类型按未知命令拒绝。 */
+  sync?: SessionSyncService;
+  snapshots?: SnapshotService;
+  recovery?: RecoveryService;
 }
 
 type DispatchPayload =
@@ -55,10 +64,16 @@ type DispatchPayload =
 export class CommandRouter {
   private readonly operations: AgentOperations;
   private readonly idempotency: InMemoryIdempotency;
+  private readonly sync: SessionSyncService | undefined;
+  private readonly snapshots: SnapshotService | undefined;
+  private readonly recovery: RecoveryService | undefined;
 
   constructor(deps: CommandRouterDependencies) {
     this.operations = deps.operations;
     this.idempotency = deps.idempotency ?? new InMemoryIdempotency();
+    this.sync = deps.sync;
+    this.snapshots = deps.snapshots;
+    this.recovery = deps.recovery;
   }
 
   /** 处理一条命令并返回 command.result。 */
@@ -189,8 +204,94 @@ export class CommandRouter {
         }
         case 'session.snapshot': {
           const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
+          if (this.snapshots !== undefined) {
+            const payload = asRecord(command.payload);
+            const snapshotId =
+              typeof payload['snapshotId'] === 'string'
+                ? payload['snapshotId']
+                : undefined;
+            const pageIndex =
+              typeof payload['pageIndex'] === 'number' &&
+              Number.isInteger(payload['pageIndex'])
+                ? payload['pageIndex']
+                : undefined;
+            if (pageIndex !== undefined && pageIndex < 0) {
+              return errorPayload('INVALID_MESSAGE');
+            }
+            const page = this.snapshots.getPage({
+              identity: toIdentity(command),
+              actor: { deviceId: device.deviceId },
+              sessionId,
+              ...(snapshotId === undefined ? {} : { snapshotId }),
+              ...(pageIndex === undefined ? {} : { pageIndex }),
+              now: Date.now(),
+            });
+            return ok(page.result);
+          }
           const snapshot = await this.operations.snapshot(sessionId);
           return ok({ snapshot });
+        }
+        case 'session.sync': {
+          if (this.sync === undefined) {
+            return errorPayload('UNKNOWN_MESSAGE_TYPE');
+          }
+          const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
+          const payload = asRecord(command.payload);
+          const afterSeq = payload['afterSeq'];
+          if (
+            typeof afterSeq !== 'number' ||
+            !Number.isInteger(afterSeq) ||
+            afterSeq < 0
+          ) {
+            return errorPayload('INVALID_MESSAGE');
+          }
+          const rawLimit = payload['limit'];
+          const limit =
+            rawLimit === undefined
+              ? 100
+              : typeof rawLimit === 'number' && Number.isInteger(rawLimit)
+                ? rawLimit
+                : 0;
+          if (limit < 1 || limit > 100) return errorPayload('INVALID_MESSAGE');
+          const execution = this.sync.sync({
+            identity: toIdentity(command),
+            actor: { deviceId: device.deviceId },
+            sessionId,
+            afterSeq,
+            limit,
+            now: Date.now(),
+          });
+          if ('resyncRequired' in execution.result) {
+            return errorPayload('RESYNC_REQUIRED', {
+              snapshot: execution.result.manifest,
+            });
+          }
+          return ok(execution.result);
+        }
+        case 'run.requeue': {
+          if (this.recovery === undefined) {
+            return errorPayload('UNKNOWN_MESSAGE_TYPE');
+          }
+          const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
+          const runId = requireString(command.runId, 'RUN_NOT_FOUND');
+          const payload = asRecord(command.payload);
+          const generation = payload['expectedRecoveryGeneration'];
+          if (
+            typeof generation !== 'number' ||
+            !Number.isInteger(generation) ||
+            generation < 0
+          ) {
+            return errorPayload('INVALID_MESSAGE');
+          }
+          const execution = this.recovery.requeue({
+            identity: toIdentity(command),
+            actor: { deviceId: device.deviceId },
+            sessionId,
+            runId,
+            expectedRecoveryGeneration: generation,
+            now: Date.now(),
+          });
+          return ok(execution.result);
         }
         case 'permission.respond': {
           const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
@@ -349,10 +450,18 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function errorPayload(code: string): DispatchPayload {
+function errorPayload(
+  code: string,
+  details?: Record<string, unknown>,
+): DispatchPayload {
   return {
     status: 'error',
-    error: { code, message: code, retryable: false },
+    error: {
+      code,
+      message: code,
+      retryable: false,
+      ...(details === undefined ? {} : { details }),
+    },
   };
 }
 

@@ -18,6 +18,8 @@ import { DurableRunScheduler } from '../run/durable-run-scheduler.js';
 import { PromptAdmission } from '../run/prompt-admission.js';
 import { RecoveryService } from '../run/recovery-service.js';
 import { RunPromptController } from '../run/run-prompt-controller.js';
+import { SessionSyncService } from '../sync/session-sync-service.js';
+import { SnapshotService } from '../sync/snapshot-service.js';
 import { AgentDatabase } from '../storage/database.js';
 import { PersistentCommandExecutor } from '../storage/persistent-command-executor.js';
 import { SqliteDeviceStore } from '../storage/repositories/device-repository.js';
@@ -162,6 +164,21 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     onAccepted: () => scheduler.drain(),
   });
   const runPrompt = new RunPromptController({ runs, devices: deviceStore });
+  const snapshots = new SnapshotService({
+    executor,
+    journal,
+    sessions,
+    runs,
+    approvals: approvalStore,
+    uow,
+  });
+  const syncService = new SessionSyncService({
+    executor,
+    journal,
+    snapshots,
+    sessions,
+    runs,
+  });
   const approvalContent = new ApprovalContentController({
     store: approvalStore,
     settleExpired: (approvalId) => {
@@ -180,7 +197,12 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     approvals: approvalStore,
     journal,
   });
-  const router = new CommandRouter({ operations });
+  const router = new CommandRouter({
+    operations,
+    sync: syncService,
+    snapshots,
+    recovery,
+  });
 
   const pairingService = new PairingService({
     deviceStore,
