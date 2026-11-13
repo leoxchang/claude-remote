@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { AsrClientEvent } from '../../src/asr/asr-protocol.js';
 import {
-  AsrClientEvent,
   AsrEventNormalizer,
   DEFAULT_MAX_FINAL_BYTES,
 } from '../../src/asr/asr-event-normalizer.js';
