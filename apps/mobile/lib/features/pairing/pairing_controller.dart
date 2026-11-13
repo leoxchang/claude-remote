@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/credential_store.dart';
 import '../../data/device_credential.dart';
 import '../../data/pairing_api.dart';
+import '../../data/recovery_providers.dart';
 import 'qr_payload.dart';
 
 /// 配对页状态机；与 spec §13.2 的 `pairingState` 对齐。
@@ -97,9 +98,15 @@ final class PairingController extends Notifier<PairingState> {
     }
   }
 
-  /// 只删除本机凭证；Mac 上的令牌仍需单独吊销。
+  /// 只删除本机凭证与恢复数据；Mac 上的令牌仍需单独吊销。
   Future<void> clearCredential() async {
     await ref.read(credentialStoreProvider).clear();
+    try {
+      final store = await ref.read(recoveryStoreProvider.future);
+      await store.clearAll();
+    } on Object {
+      // 尚未打开本地恢复库时无需清理。
+    }
     state = const PairingState(status: PairingStatus.unpaired);
   }
 

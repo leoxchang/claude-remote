@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../connection/command_client.dart';
 import '../../connection/connection_controller.dart';
+import '../../connection/persistent_command_coordinator.dart';
 import '../../data/agent_socket.dart';
 import '../../data/providers.dart' show commandClientProvider;
 import '../../domain/run.dart';
@@ -133,10 +134,17 @@ final chatControllerProvider = NotifierProvider<ChatController, ChatState>(
 final class ChatController extends Notifier<ChatState> {
   String? _sessionId;
   PromptCommandCoordinator? _coordinator;
+  PersistentCommandCoordinator? _persistentCommands;
   int _sequence = 0;
 
   @override
   ChatState build() => const ChatState();
+
+  /// 启动时注入持久 outbox；prompt.send 先落库再发送。
+  void attachPersistentCommands(PersistentCommandCoordinator coordinator) {
+    _persistentCommands = coordinator;
+    _coordinator = null;
+  }
 
   /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
   void attachSession(String sessionId) {
@@ -281,6 +289,7 @@ final class ChatController extends Notifier<ChatState> {
         _coordinator ??= PromptCommandCoordinator(
           client: client,
           timeout: ref.read(promptTimeoutProvider),
+          persistent: _persistentCommands,
         );
     state = state.copyWith(composer: ComposerStatus.sending, error: null);
     await _executePrompt(coordinator, sessionId, request, text);

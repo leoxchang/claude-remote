@@ -186,6 +186,9 @@ final class PersistentCommandCoordinator {
         updatedAt: _now,
       );
       return result;
+    } on CommandFailure catch (error) {
+      await onFailure(commandId, error.code);
+      rethrow;
     } on Object {
       await _outbox.updateState(
         commandId,

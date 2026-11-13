@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../connection/command_client.dart';
 import '../../protocol/s02_messages.dart';
+import '../../connection/persistent_command_coordinator.dart';
 
 /// 结果未知的 prompt；保留原会话与请求，绝不自动生成新 commandId。
 final class UnknownPrompt {
@@ -24,11 +25,14 @@ final class PromptCommandCoordinator {
     required this.client,
     this.timeout = const Duration(seconds: 10),
     this.retryDelay = const Duration(seconds: 5),
+    this.persistent,
   });
 
   final CommandClient client;
   final Duration timeout;
   final Duration retryDelay;
+  /// S04：存在时 prompt.send 先持久化再发送。
+  final PersistentCommandCoordinator? persistent;
 
   final Map<String, CommandRequest<PromptAccepted>> _pending =
       <String, CommandRequest<PromptAccepted>>{};
@@ -93,7 +97,20 @@ final class PromptCommandCoordinator {
     CommandRequest<PromptAccepted> request,
   ) async {
     try {
-      final result = await client.execute(request, timeout: timeout);
+      final PromptAccepted result;
+      final persistent = this.persistent;
+      if (persistent != null && request.type == 'prompt.send') {
+        final wire = await persistent.send(
+          commandId: request.commandId,
+          sessionId: sessionId,
+          type: request.type,
+          payload: request.payload,
+        );
+        result = request.decode(wire);
+        await persistent.onConfirmed(request.commandId);
+      } else {
+        result = await client.execute(request, timeout: timeout);
+      }
       _pending.remove(sessionId);
       _unknownReasons.remove(sessionId);
       _cancelTimer(sessionId);

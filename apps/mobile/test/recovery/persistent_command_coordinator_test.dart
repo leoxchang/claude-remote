@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:claude_remote/connection/command_client.dart';
@@ -27,6 +28,7 @@ void main() {
     addTearDown(store.close);
 
     final deliveries = <PersistedCommandSnapshot>[];
+    final retried = Completer<void>();
     var fail = true;
     final scheduled = <void Function()>[];
     final coordinator = PersistentCommandCoordinator(
@@ -38,6 +40,7 @@ void main() {
           fail = false;
           throw const CommandTimeout('cmd_1');
         }
+        if (!retried.isCompleted) retried.complete();
         return JsonMap.from({'sessionId': 's1', 'runId': 'run_1', 'status': 'queued'});
       },
       schedule: (duration, callback) {
@@ -64,7 +67,7 @@ void main() {
     expect(scheduled, hasLength(1));
 
     scheduled.removeLast()();
-    await pumpEventQueue();
+    await retried.future.timeout(const Duration(seconds: 2));
     expect(deliveries, hasLength(2));
     expect(deliveries.last.commandId, 'cmd_1');
     expect(deliveries.last.payload, const {'text': 'hello'});
