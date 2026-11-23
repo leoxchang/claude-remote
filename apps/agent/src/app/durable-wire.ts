@@ -8,7 +8,7 @@ import { AttachmentStore } from '../attachment/attachment-store.js';
 import { DurableApprovalStore } from '../approval/durable-approval-store.js';
 import { DurablePermissionBroker } from '../approval/durable-permission-broker.js';
 import { CommandRouter } from '../command/router.js';
-import { AgentConfigV4 } from '../config/config-v4.js';
+import { AgentConfigV5 } from '../config/config-v5.js';
 import { resolveAgentPaths } from '../config/paths.js';
 import { DurableEventJournal } from '../events/durable-event-journal.js';
 import { DurableJournalAdapter } from '../events/durable-journal-adapter.js';
@@ -56,7 +56,7 @@ const CAPABILITIES = [
 ];
 
 export interface DurableWireOptions {
-  config: AgentConfigV4;
+  config: AgentConfigV5;
   database: AgentDatabase;
   driver: ManagedRunDriver;
   configDir: string;

@@ -11,6 +11,12 @@ import {
   resolveDatabasePath,
 } from '../config/config-v4.js';
 import {
+  AgentConfigV5,
+  migrateV4ToV5,
+  readConfigV5IfExists,
+  writeConfigV5AtomicSync,
+} from '../config/config-v5.js';
+import {
   migrateConfigV1ToV2,
   writeConfigV2Atomic,
 } from '../config/config-v2.js';
@@ -136,12 +142,17 @@ export async function createDurableAgentRuntime(
     throw new Error('agent.json not found; run init first');
   }
   const existingV4 = readConfigV4IfExists(configDir);
+  const existingV5 = readConfigV5IfExists(configDir);
   const desktopId =
-    existingV4?.desktopId ?? migrateConfigV2ToV3(raw).desktopId;
+    existingV4?.desktopId ??
+    existingV5?.desktopId ??
+    migrateConfigV2ToV3(raw).desktopId;
   const databasePath =
-    existingV4 === null
-      ? join(configDir, 'agent.sqlite3')
-      : resolveDatabasePath(configDir, existingV4);
+    existingV4 !== null
+      ? resolveDatabasePath(configDir, existingV4)
+      : existingV5 !== null
+        ? join(configDir, existingV5.database.file)
+        : join(configDir, 'agent.sqlite3');
   let lock: InstanceLockHandle | null = null;
   let database: AgentDatabase | null = null;
   try {
@@ -151,7 +162,7 @@ export async function createDurableAgentRuntime(
       databasePath,
     });
     database = AgentDatabase.open(databasePath);
-    const config = ensureV4Config(configDir, existingV4, database);
+    const config = ensureV5Config(configDir, existingV4, database);
     const journal = new DurableEventJournal(database.uow);
     const recovery = new StartupRecovery({
       uow: database.uow,
@@ -230,14 +241,34 @@ function runtimeLiveBytes(database: AgentDatabase): number {
   return database.liveBytes();
 }
 
-function ensureV4Config(
+/** V5 优先：已有 v5 直接用；否则完成既有 v4 迁移链并把结果升级为 v5 落盘。 */
+function ensureV5Config(
   configDir: string,
   existingV4: AgentConfigV4 | null,
   database: AgentDatabase,
-): AgentConfigV4 {
+): AgentConfigV5 {
   const state = database.connection
     .prepare('SELECT migrationState FROM schema_meta WHERE id = 1')
     .get() as { migrationState?: string } | undefined;
+  const existingV5 = readConfigV5IfExists(configDir);
+  if (existingV5 !== null) {
+    if (state?.migrationState !== 'completed') {
+      throw new Error('STORAGE_MIGRATION_CONFLICT');
+    }
+    return existingV5;
+  }
+  const v4 = ensureV4ConfigState(configDir, existingV4, database, state);
+  const migrated = migrateV4ToV5(v4);
+  writeConfigV5AtomicSync(configDir, migrated);
+  return migrated;
+}
+
+function ensureV4ConfigState(
+  configDir: string,
+  existingV4: AgentConfigV4 | null,
+  database: AgentDatabase,
+  state: { migrationState?: string } | undefined,
+): AgentConfigV4 {
   if (existingV4 !== null) {
     if (state?.migrationState !== 'completed') {
       throw new Error('STORAGE_MIGRATION_CONFLICT');
