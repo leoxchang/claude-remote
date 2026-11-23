@@ -20,6 +20,7 @@ import { DurableRunScheduler } from '../run/durable-run-scheduler.js';
 import { PromptAdmission } from '../run/prompt-admission.js';
 import { RecoveryService } from '../run/recovery-service.js';
 import { RunPromptController } from '../run/run-prompt-controller.js';
+import { createTrustedDevices, TrustedDevices } from '../relay/trusted-devices.js';
 import { SessionSyncService } from '../sync/session-sync-service.js';
 import { SnapshotService } from '../sync/snapshot-service.js';
 import { AgentDatabase } from '../storage/database.js';
@@ -73,6 +74,8 @@ export interface DurableWiring {
   recovery: RecoveryService;
   retention: RetentionService;
   health: StorageHealth;
+  /** 信任设备叠加；云端手机经此放行审批与 prompt 读取。 */
+  relayDevices: TrustedDevices;
   start(listen?: { host: string; port: number }): Promise<void>;
   close(): Promise<void>;
   address(): { host: string; port: number } | null;
@@ -84,6 +87,15 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
   const paths = resolveAgentPaths(configDir);
   const uow = database.uow;
   const deviceStore = new SqliteDeviceStore(uow);
+  const relayDevices = createTrustedDevices(
+    (deviceId) =>
+      deviceStore
+        .list()
+        .some(
+          (device) =>
+            device.deviceId === deviceId && device.revokedAt === null,
+        ),
+  );
   const sessions = new SessionRepository(uow);
   const runs = new RunRepository(uow);
   const workspacesRepository = new SqliteWorkspaceRepository(uow);
@@ -126,13 +138,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     ports: {
       runContext: (runId) => scheduler.approvalContext(runId),
       workspaceMode: (workspaceId) => workspaces.approvalMode(workspaceId),
-      deviceActive: (deviceId) =>
-        deviceStore
-          .list()
-          .some(
-            (device) =>
-              device.deviceId === deviceId && device.revokedAt === null,
-          ),
+      deviceActive: (deviceId) => relayDevices.isActive(deviceId),
       setPendingApprovalCount: (runId, count) =>
         scheduler.setPendingApprovalCount(runId, count),
     },
@@ -179,7 +185,11 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     onAccepted: () => scheduler.drain(),
     health,
   });
-  const runPrompt = new RunPromptController({ runs, devices: deviceStore });
+  const runPrompt = new RunPromptController({
+    runs,
+    devices: deviceStore,
+    isActiveDevice: (deviceId) => relayDevices.isActive(deviceId),
+  });
   const snapshots = new SnapshotService({
     executor,
     journal,
@@ -297,6 +307,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     recovery,
     retention,
     health,
+    relayDevices,
     async start(listen = { host: PHONE_LISTEN.host, port: PHONE_LISTEN.port }) {
       adminServer = await createAdminServer({
         socketPath: paths.socketPath,

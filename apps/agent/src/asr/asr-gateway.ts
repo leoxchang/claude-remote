@@ -50,7 +50,7 @@ export interface AsrGatewayOptions {
   now?: () => number;
 }
 
-interface GatewaySocket {
+export interface GatewaySocket {
   send(data: string | Uint8Array): void;
   close(code?: number, reason?: string): void;
   on(event: string, listener: (...args: unknown[]) => void): void;
@@ -108,9 +108,55 @@ export class AsrGateway {
     socket: GatewaySocket,
     request: FastifyRequest,
   ): Promise<void> {
-    const state: ConnectionState = {
+    const pending: Array<{ data: unknown; isBinary: boolean }> = [];
+    let state: ConnectionState | null = null;
+    socket.on('message', (data: unknown, isBinary: unknown) => {
+      if (state === null) {
+        if (pending.length < MAX_PENDING_FRAMES) {
+          pending.push({ data, isBinary: isBinary === true });
+        }
+        return;
+      }
+      this.dispatch(state, data, isBinary === true);
+    });
+    socket.on('close', () => {
+      if (state !== null) this.onSocketClosed(state);
+    });
+    socket.on('error', () => {
+      if (state !== null) this.onSocketClosed(state);
+    });
+    const device = await this.authenticate(request).catch(() => null);
+    if (device === null) {
+      socket.close(1008, 'unauthenticated');
+      return;
+    }
+    state = this.createState(socket, device.deviceId);
+    this.connections.add(state);
+    for (const frame of pending) this.dispatch(state, frame.data, frame.isBinary);
+  }
+
+  /**
+   * 已鉴权连接的直连接入点（relay 通道用）：
+   * 云端已完成身份校验，这里跳过 HTTP 鉴权直接登记连接。
+   */
+  acceptAuthenticated(socket: GatewaySocket, deviceId: string): void {
+    const state = this.createState(socket, deviceId);
+    socket.on('message', (data: unknown, isBinary: unknown) => {
+      this.dispatch(state, data, isBinary === true);
+    });
+    socket.on('close', () => {
+      this.onSocketClosed(state);
+    });
+    socket.on('error', () => {
+      this.onSocketClosed(state);
+    });
+    this.connections.add(state);
+  }
+
+  private createState(socket: GatewaySocket, deviceId: string): ConnectionState {
+    return {
       socket,
-      deviceId: '',
+      deviceId,
       streamId: null,
       ready: false,
       finished: false,
@@ -121,32 +167,6 @@ export class AsrGateway {
       queue: [],
       flushScheduled: false,
     };
-    const pending: Array<{ data: unknown; isBinary: boolean }> = [];
-    let authenticated = false;
-    socket.on('message', (data: unknown, isBinary: unknown) => {
-      if (!authenticated) {
-        if (pending.length < MAX_PENDING_FRAMES) {
-          pending.push({ data, isBinary: isBinary === true });
-        }
-        return;
-      }
-      this.dispatch(state, data, isBinary === true);
-    });
-    socket.on('close', () => {
-      this.onSocketClosed(state);
-    });
-    socket.on('error', () => {
-      this.onSocketClosed(state);
-    });
-    const device = await this.authenticate(request).catch(() => null);
-    if (device === null) {
-      socket.close(1008, 'unauthenticated');
-      return;
-    }
-    state.deviceId = device.deviceId;
-    authenticated = true;
-    this.connections.add(state);
-    for (const frame of pending) this.dispatch(state, frame.data, frame.isBinary);
   }
 
   private dispatch(

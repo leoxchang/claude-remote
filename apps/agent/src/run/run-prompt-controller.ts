@@ -8,6 +8,8 @@ export const MAX_RUN_PROMPT_BYTES = 16 * 1024;
 export interface RunPromptControllerDeps {
   runs: RunRepository;
   devices: DeviceStorePort;
+  /** 设备是否活跃；缺省按本地 store 判定（relay 模式传信任叠加）。 */
+  isActiveDevice?: (deviceId: string) => boolean;
 }
 
 /**
@@ -27,11 +29,15 @@ export class RunPromptController {
       throw new AgentError('RUN_NOT_FOUND');
     }
     if (run.deviceId !== deviceId) throw new AgentError('FORBIDDEN');
-    const active = this.deps.devices
-      .list()
-      .some(
-        (device) => device.deviceId === deviceId && device.revokedAt === null,
-      );
+    const active =
+      this.deps.isActiveDevice !== undefined
+        ? this.deps.isActiveDevice(deviceId)
+        : this.deps.devices
+            .list()
+            .some(
+              (device) =>
+                device.deviceId === deviceId && device.revokedAt === null,
+            );
     if (!active) throw new AgentError('FORBIDDEN');
     if (Buffer.byteLength(run.promptText, 'utf8') > MAX_RUN_PROMPT_BYTES) {
       throw new AgentError('RUN_NOT_RECOVERABLE');
