@@ -28,6 +28,7 @@ import {
 } from '../relay/connector.js';
 import { createRelayHttpDispatch } from '../relay/http-dispatch.js';
 import { RelayLink } from '../relay/link.js';
+import { buildRelayStatus } from '../relay/status.js';
 import { SessionSyncService } from '../sync/session-sync-service.js';
 import { SnapshotService } from '../sync/snapshot-service.js';
 import { AgentDatabase } from '../storage/database.js';
@@ -334,6 +335,10 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
           listen: { host: config.listen.host, port: config.listen.port },
           activeDeviceId: deviceStore.active()?.deviceId ?? null,
           versions: agentVersions(),
+          relay: buildRelayStatus(
+            config,
+            relaySession?.link.state() ?? null,
+          ),
         }),
         onRevoke: (deviceId) => {
           asrRuntime?.close('device_revoked');

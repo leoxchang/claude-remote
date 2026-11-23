@@ -11,6 +11,10 @@ import {
   readConfigV4IfExists,
   resolveDatabasePath,
 } from '../config/config-v4.js';
+import {
+  AgentConfigV5,
+  readConfigV5IfExists,
+} from '../config/config-v5.js';
 import { LAN_LISTEN_HOST, resolveAgentPaths } from '../config/paths.js';
 import { detectLanAddress } from '../config/lan.js';
 import { AgentVersions, agentVersions } from '../app/versions.js';
@@ -56,6 +60,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
   const runCommand = options.runCommand ?? defaultRunCommand;
   const checks = [
     checkConfig(options.configDir),
+    checkRelay(options.configDir),
     checkStorage(options.configDir),
     await checkAgent(options.configDir),
     await checkEndpoint(options.configDir, platform, runCommand),
@@ -79,6 +84,14 @@ function checkConfig(configDir: string): DoctorCheck {
       detail: `agent.json not found at ${paths.agentFile}; run init first`,
     };
   }
+  const v5 = readConfigV5IfExists(configDir);
+  if (v5 !== null) {
+    return {
+      id: 'config',
+      status: 'pass',
+      detail: `agent.json V5 present; desktopId=${v5.desktopId}`,
+    };
+  }
   const v4 = readConfigV4IfExists(configDir);
   return {
     id: 'config',
@@ -90,13 +103,34 @@ function checkConfig(configDir: string): DoctorCheck {
   };
 }
 
+/** relay 配置检查；只读本地配置，不主动探测网络。 */
+function checkRelay(configDir: string): DoctorCheck {
+  const v5 = readConfigV5IfExists(configDir);
+  const relay = v5?.relay;
+  if (relay === undefined) {
+    return {
+      id: 'relay',
+      status: 'pass',
+      detail: 'relay not configured (direct mode only)',
+    };
+  }
+  return {
+    id: 'relay',
+    status: 'pass',
+    detail: `relay configured: ${relay.baseUrl} (contract 1; live state via "agent status")`,
+  };
+}
+
 function checkStorage(configDir: string): DoctorCheck {
   const paths = resolveAgentPaths(configDir);
-  const v4 = readConfigV4IfExists(configDir);
+  const v5 = readConfigV5IfExists(configDir);
+  const v4 = v5 === null ? readConfigV4IfExists(configDir) : null;
   const databasePath =
-    v4 === null
-      ? join(configDir, DEFAULT_DATABASE_FILE)
-      : resolveDatabasePath(configDir, v4);
+    v5 !== null
+      ? join(configDir, v5.database.file)
+      : v4 === null
+        ? join(configDir, DEFAULT_DATABASE_FILE)
+        : resolveDatabasePath(configDir, v4);
   if (!existsSync(databasePath)) {
     return {
       id: 'storage',
@@ -157,12 +191,13 @@ async function checkEndpoint(
   platform: NodeJS.Platform,
   runCommand: DoctorCommandRunner,
 ): Promise<DoctorCheck> {
-  const config = readConfigV4IfExists(configDir);
+  const v5: AgentConfigV5 | null = readConfigV5IfExists(configDir);
+  const config = v5 ?? readConfigV4IfExists(configDir);
   if (config === null) {
     return {
       id: 'endpoint',
       status: 'warn',
-      detail: 'config is not V4 yet; start the agent once',
+      detail: 'config is not V4+ yet; start the agent once',
     };
   }
   const baseUrl = config.tailscale.baseUrl;
