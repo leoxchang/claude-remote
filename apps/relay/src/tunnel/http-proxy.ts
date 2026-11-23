@@ -29,6 +29,8 @@ export interface HttpTunnelRequestInput {
   method: string;
   path: string;
   contentType?: string;
+  /** 原始查询参数（不含 desktopId）；契约 §5.4。 */
+  query?: Record<string, string>;
   body?: Buffer;
 }
 
@@ -82,6 +84,7 @@ export class HttpTunnel {
           deviceId: input.deviceId,
           method: input.method,
           path: input.path,
+          ...(input.query === undefined ? {} : { query: input.query }),
           ...(input.contentType === undefined
             ? {}
             : { contentType: input.contentType }),

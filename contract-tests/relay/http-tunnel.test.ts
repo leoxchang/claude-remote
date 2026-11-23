@@ -110,16 +110,18 @@ describe('契约 §5.4 HTTP 代答', () => {
     expect(await response.text()).toBe(responseBody.toString('utf8'));
   });
 
-  it('GET 审批内容路径参数原样转发，无 bodyBase64', async () => {
+  it('GET 审批内容路径参数与查询参数原样转发，无 bodyBase64', async () => {
     const { relay, desktop, phone, desktopId } = await setup();
     const pending = fetch(
-      proxyUrl(relay, '/v1/approvals/ap_1/content', desktopId),
+      proxyUrl(relay, '/v1/approvals/ap_1/content', desktopId) +
+        '&chunkIndex=2',
       { headers: authHeaders(phone) },
     );
     const request = await desktop.nextMessage();
     const payload = request['payload'] as Record<string, string>;
     expect(payload['method']).toBe('GET');
     expect(payload['path']).toBe('/v1/approvals/ap_1/content');
+    expect(payload['query']).toEqual({ chunkIndex: '2' });
     expect(payload['bodyBase64']).toBeUndefined();
 
     desktop.send({

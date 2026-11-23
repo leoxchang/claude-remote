@@ -287,6 +287,7 @@ Agent 不得发送 `channel.open`。
     "deviceId": "dev_手机",
     "method": "POST",
     "path": "/v1/attachments",
+    "query": { "chunkIndex": "0" },
     "contentType": "application/json",
     "bodyBase64": "…"
   } }
@@ -296,6 +297,8 @@ Agent 不得发送 `channel.open`。
   （云端已完成鉴权），并保留其用于租约、ASR 归属等按设备语义。
 - 只会出现 §3.6 白名单内的 method/path；`contentType` 可缺省；
   GET 请求无 `bodyBase64`。
+- `query` 为手机原始 URL 的查询参数（**不含** `desktopId`），仅在存在时出现；
+  非字符串值不得出现。
 
 **Agent → 云端**
 

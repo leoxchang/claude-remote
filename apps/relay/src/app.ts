@@ -42,6 +42,19 @@ const TUNNEL_ERROR_STATUS: Record<TunnelErrorCode, number> = {
 
 const BODY_TOO_LARGE_CODE = 'FST_ERR_CTP_BODY_TOO_LARGE';
 
+/** 转发给桌面的查询参数：排除 desktopId，仅保留字符串值；空则缺省。 */
+function forwardedQuery(
+  query: unknown,
+): Record<string, string> | undefined {
+  if (typeof query !== 'object' || query === null) return undefined;
+  const forwarded: Record<string, string> = {};
+  for (const [key, value] of Object.entries(query as Record<string, unknown>)) {
+    if (key === 'desktopId' || typeof value !== 'string') continue;
+    forwarded[key] = value;
+  }
+  return Object.keys(forwarded).length === 0 ? undefined : forwarded;
+}
+
 /** 创建应用所需依赖与覆盖项；limits 覆盖仅用于测试。 */
 export interface RelayAppOptions {
   store: RelayStore;
@@ -253,11 +266,13 @@ export async function createRelayApp(
     const context = resolveProxyTarget(request, reply);
     if (context === null) return reply;
     const contentType = request.headers['content-type'];
+    const query = forwardedQuery(request.query);
     try {
       const response = await tunnel.request(context.desktop, {
         deviceId: context.device.deviceId,
         method,
         path,
+        ...(query === undefined ? {} : { query }),
         ...(typeof contentType === 'string' ? { contentType } : {}),
         ...(body === undefined ? {} : { body }),
       });

@@ -130,6 +130,27 @@ describe('HttpTunnel', () => {
     expect(response.body.toString('utf8')).toBe('alive');
   });
 
+  it('query 原样进入 http.request 载荷（契约 §5.4）', async () => {
+    const tunnel = new HttpTunnel({ httpTimeoutMs: 5000, httpBodyBytes: 1024 });
+    const { link, sent } = fakeDesktop();
+    const pending = tunnel.request(link, {
+      deviceId: 'dev_p',
+      method: 'GET',
+      path: '/v1/approvals/a1/content',
+      query: { chunkIndex: '2' },
+    });
+    expect(sent[0]?.['payload']).toMatchObject({
+      path: '/v1/approvals/a1/content',
+      query: { chunkIndex: '2' },
+    });
+    tunnel.handleResponse({
+      requestId: sent[0]?.payload['requestId'] as string,
+      status: 200,
+      bodyBase64: '',
+    });
+    expect((await pending).status).toBe(200);
+  });
+
   it('响应体超 httpBodyBytes → GATEWAY_ERROR', async () => {
     const tunnel = new HttpTunnel({ httpTimeoutMs: 5000, httpBodyBytes: 100 });
     const { link, sent } = fakeDesktop();

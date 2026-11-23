@@ -24,9 +24,9 @@ import { createTrustedDevices, TrustedDevices } from '../relay/trusted-devices.j
 import {
   RelayConnector,
   RelayConnectorState,
-  RelayHttpDispatch,
   startRelayFromConfig,
 } from '../relay/connector.js';
+import { createRelayHttpDispatch } from '../relay/http-dispatch.js';
 import { RelayLink } from '../relay/link.js';
 import { SessionSyncService } from '../sync/session-sync-service.js';
 import { SnapshotService } from '../sync/snapshot-service.js';
@@ -89,17 +89,6 @@ export interface DurableWiring {
   close(): Promise<void>;
   address(): { host: string; port: number } | null;
 }
-
-const RELAY_ROUTE_NOT_FOUND_BODY = JSON.stringify({
-  error: { code: 'ROUTE_NOT_FOUND', message: 'ROUTE_NOT_FOUND' },
-});
-
-/** Task 8 之前的中转代答占位：真实分发在 http-handlers 抽取后接入。 */
-const relayHttpDispatchPlaceholder: RelayHttpDispatch = () => ({
-  status: 404,
-  contentType: 'application/json',
-  body: Buffer.from(RELAY_ROUTE_NOT_FOUND_BODY),
-});
 
 /** S04 唯一装配路径：SQLite 投影为权威，Journal 只发布已提交事件。 */
 export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
@@ -397,7 +386,11 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
         asrAccept: (socket, deviceId) => {
           asrRuntime?.gateway.acceptAuthenticated(socket, deviceId);
         },
-        httpDispatch: relayHttpDispatchPlaceholder,
+        httpDispatch: createRelayHttpDispatch({
+          attachments,
+          approvalContent,
+          runPrompt,
+        }),
         logger,
       });
       if (relaySession !== null) {

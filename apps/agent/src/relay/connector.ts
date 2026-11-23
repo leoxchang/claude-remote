@@ -26,6 +26,8 @@ export interface RelayHttpDispatchRequest {
   method: string;
   path: string;
   contentType?: string;
+  /** 转发自手机 URL 的查询参数（不含 desktopId）。 */
+  query?: Record<string, string>;
   body: Buffer;
 }
 
@@ -151,6 +153,7 @@ export function createRelayConnector(
           ...(input.contentType === undefined
             ? {}
             : { contentType: input.contentType }),
+          ...(input.query === undefined ? {} : { query: input.query }),
           body: input.body,
         });
         link?.httpResponse(input.requestId, result);

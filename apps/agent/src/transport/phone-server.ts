@@ -7,10 +7,8 @@ import { WebSocket } from 'ws';
 import { ApprovalContentController } from '../approval/approval-content-controller.js';
 import {
   AttachmentStore,
-  isImageMediaType,
   MAX_ATTACHMENT_BYTES,
 } from '../attachment/attachment-store.js';
-import { AgentError } from '../command/errors.js';
 import { DeviceRecord } from '../domain/types.js';
 import {
   PairingError,
@@ -21,6 +19,12 @@ import {
 import { RunPromptController } from '../run/run-prompt-controller.js';
 import { DeviceStorePort } from '../store/device-store.js';
 import { authenticateRequest, authenticateUpgrade } from './authenticate.js';
+import {
+  handleApprovalContentRead,
+  handleAttachmentUpload,
+  handleRunPromptRead,
+  HttpHandlerResult,
+} from './http-handlers.js';
 
 /** 手机接口只监听 localhost；由运行时显式 listen。 */
 export const PHONE_LISTEN = { host: '127.0.0.1', port: 8787 } as const;
@@ -30,8 +34,6 @@ const MAX_MESSAGE_BYTES = 64 * 1024;
 
 /** 上传请求体上限：8 MiB 图片的 base64 编码再加一点余量。 */
 const MAX_ATTACHMENT_BODY_BYTES = Math.ceil(MAX_ATTACHMENT_BYTES * 4 / 3) + 4096;
-
-const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
 
 const UNAUTHORIZED_STATUS = 401;
 
@@ -64,18 +66,6 @@ export interface PhoneServerDependencies {
   /** 连接诊断；未装配时静默。 */
   logger?: ConnectionLogger;
 }
-
-/** 内容 endpoint 的稳定状态映射。 */
-const CONTENT_HTTP_STATUS: Record<string, number> = {
-  INVALID_MESSAGE: 400,
-  UNAUTHENTICATED: 401,
-  FORBIDDEN: 403,
-  APPROVAL_NOT_FOUND: 404,
-  APPROVAL_ALREADY_RESOLVED: 409,
-  APPROVAL_CONTENT_UNAVAILABLE: 409,
-  APPROVAL_EXPIRED: 410,
-  RATE_LIMITED: 429,
-};
 
 /** 创建手机 HTTP/WSS 入口，不在 101 之前接受未认证升级。 */
 export async function createPhoneServer(
@@ -144,34 +134,22 @@ export async function createPhoneServer(
     if (device === null) {
       return sendError(reply, 401, 'UNAUTHENTICATED');
     }
-    if (deps.approvalContent === undefined) {
-      return sendError(reply, 404, 'APPROVAL_NOT_FOUND');
-    }
     const params = request.params as { approvalId?: unknown };
     const approvalId = params.approvalId;
-    const chunkIndex = parseChunkIndex(
-      (request.query as { chunkIndex?: unknown }).chunkIndex,
-    );
-    if (
-      typeof approvalId !== 'string' ||
-      approvalId.length === 0 ||
-      chunkIndex === null
-    ) {
+    if (typeof approvalId !== 'string') {
       return sendError(reply, 400, 'INVALID_MESSAGE');
     }
-    try {
-      return deps.approvalContent.readChunk({
-        approvalId,
-        chunkIndex,
-        deviceId: device.deviceId,
-      });
-    } catch (error: unknown) {
-      if (error instanceof AgentError) {
-        const status = CONTENT_HTTP_STATUS[error.code] ?? 409;
-        return sendError(reply, status, error.code);
-      }
-      throw error;
-    }
+    return sendHandlerResult(
+      reply,
+      handleApprovalContentRead(
+        { approvalContent: deps.approvalContent },
+        {
+          deviceId: device.deviceId,
+          approvalId,
+          query: request.query as Record<string, unknown>,
+        },
+      ),
+    );
   });
 
   app.post(
@@ -186,23 +164,13 @@ export async function createPhoneServer(
       if (device === null) {
         return sendError(reply, 401, 'UNAUTHENTICATED');
       }
-      if (deps.attachments === undefined) {
-        return sendError(reply, 404, 'ATTACHMENT_UNAVAILABLE');
-      }
-      const upload = parseAttachmentUpload(request.body);
-      if (upload === null) {
-        return sendError(reply, 400, 'INVALID_MESSAGE');
-      }
-      try {
-        const saved = deps.attachments.save({
-          deviceId: device.deviceId,
-          mediaType: upload.mediaType,
-          bytes: upload.bytes,
-        });
-        return reply.code(201).send(saved);
-      } catch {
-        return sendError(reply, 400, 'INVALID_MESSAGE');
-      }
+      return sendHandlerResult(
+        reply,
+        handleAttachmentUpload(
+          { attachments: deps.attachments },
+          { deviceId: device.deviceId, payload: request.body },
+        ),
+      );
     },
   );
 
@@ -215,63 +183,29 @@ export async function createPhoneServer(
     if (device === null) {
       return sendError(reply, 401, 'UNAUTHENTICATED');
     }
-    if (deps.runPrompt === undefined) {
-      return sendError(reply, 404, 'RUN_NOT_FOUND');
-    }
     const params = request.params as { runId?: unknown };
     const runId = params.runId;
-    if (typeof runId !== 'string' || runId.length === 0) {
+    if (typeof runId !== 'string') {
       return sendError(reply, 400, 'INVALID_MESSAGE');
     }
-    try {
-      return deps.runPrompt.read(runId, device.deviceId);
-    } catch (error: unknown) {
-      if (error instanceof AgentError) {
-        const status =
-          error.code === 'FORBIDDEN'
-            ? 403
-            : error.code === 'RUN_NOT_RECOVERABLE'
-              ? 409
-              : 404;
-        return sendError(reply, status, error.code);
-      }
-      throw error;
-    }
+    return sendHandlerResult(
+      reply,
+      handleRunPromptRead({ runPrompt: deps.runPrompt }, { deviceId: device.deviceId, runId }),
+    );
   });
 
   return app;
 }
 
-/** 只接受无符号十进制整数；拒绝负数、小数、空格与科学计数法。 */
-function parseChunkIndex(value: unknown): number | null {
-  if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) {
-    return null;
-  }
-  return Number(value);
-}
-
-interface AttachmentUpload {
-  mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
-  bytes: Buffer;
-}
-
-/** 只接受 JSON `{mediaType, dataBase64}`；解码后由存储层再验大小与格式。 */
-function parseAttachmentUpload(body: unknown): AttachmentUpload | null {
-  if (typeof body !== 'object' || body === null) return null;
-  const record = body as Record<string, unknown>;
-  const mediaType = record['mediaType'];
-  const dataBase64 = record['dataBase64'];
-  if (
-    !isImageMediaType(mediaType) ||
-    typeof dataBase64 !== 'string' ||
-    dataBase64.length === 0 ||
-    !BASE64_PATTERN.test(dataBase64)
-  ) {
-    return null;
-  }
-  const bytes = Buffer.from(dataBase64, 'base64');
-  if (bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) return null;
-  return { mediaType, bytes };
+/** 统一输出处理器结果。 */
+function sendHandlerResult(
+  reply: FastifyReply,
+  result: HttpHandlerResult,
+): FastifyReply {
+  return reply
+    .code(result.status)
+    .header('content-type', result.contentType)
+    .send(result.body);
 }
 
 function isPairingInput(value: unknown): value is PairingInput {

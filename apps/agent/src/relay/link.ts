@@ -46,6 +46,7 @@ export interface RelayLinkHandlers {
     method: string;
     path: string;
     contentType?: string;
+    query?: Record<string, string>;
     body: Buffer;
   }): void;
   /** 链路断开（非用户 stop）且未致命时通知；连接层据此清理虚拟通道。 */
@@ -418,6 +419,7 @@ function parseHttpRequest(payload: unknown): {
   method: string;
   path: string;
   contentType?: string;
+  query?: Record<string, string>;
   body: Buffer;
 } | null {
   const record = asRecord(payload);
@@ -428,6 +430,7 @@ function parseHttpRequest(payload: unknown): {
   const path = record['path'];
   const contentType = record['contentType'];
   const bodyBase64 = record['bodyBase64'];
+  const queryRaw = record['query'];
   if (
     typeof requestId !== 'string' ||
     typeof deviceId !== 'string' ||
@@ -438,12 +441,23 @@ function parseHttpRequest(payload: unknown): {
   ) {
     return null;
   }
+  let query: Record<string, string> | undefined;
+  if (queryRaw !== undefined) {
+    const queryRecord = asRecord(queryRaw);
+    if (queryRecord === null) return null;
+    const entries = Object.entries(queryRecord);
+    if (entries.some(([, value]) => typeof value !== 'string')) return null;
+    query = Object.fromEntries(
+      entries.map(([key, value]) => [key, value as string]),
+    );
+  }
   return {
     requestId,
     deviceId,
     method,
     path,
     ...(contentType === undefined ? {} : { contentType }),
+    ...(query === undefined ? {} : { query }),
     body: Buffer.from(bodyBase64 ?? '', 'base64'),
   };
 }
