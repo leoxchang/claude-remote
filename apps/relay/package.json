@@ -1,0 +1,28 @@
+{
+  "name": "@claude-remote/relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "claude-remote-relay": "./bin/claude-remote-relay.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@fastify/websocket": "11.3.7",
+    "better-sqlite3": "13.0.3",
+    "commander": "15.1.0",
+    "fastify": "5.12.8",
+    "ws": "8.22.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/ws": "8.18.2"
+  }
+}
