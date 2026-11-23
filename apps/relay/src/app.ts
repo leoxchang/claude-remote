@@ -1,6 +1,7 @@
 import Fastify, { FastifyInstance } from 'fastify';
 
 import { registerLoginRoute } from './auth/login-route.js';
+import { registerDeviceRoutes } from './devices/device-routes.js';
 import { sendError } from './http/send-error.js';
 import { DEFAULT_LIMITS, RelayLimits } from './limits.js';
 import { RelayStore } from './storage/store.js';
@@ -13,6 +14,7 @@ export interface RelayAppOptions {
   store: RelayStore;
   limits?: Partial<RelayLimits>;
   logger?: boolean;
+  isOnline?: (deviceId: string) => boolean;
 }
 
 /** 组装 Relay Fastify 应用；测试用 inject，运行时由 main.ts listen。 */
@@ -33,6 +35,11 @@ export async function createRelayApp(
   registerLoginRoute(app, {
     store: options.store,
     loginPerMinute: limits.loginPerMinute,
+  });
+
+  registerDeviceRoutes(app, {
+    store: options.store,
+    isOnline: options.isOnline ?? (() => false),
   });
 
   app.setNotFoundHandler(async (_request, reply) =>
