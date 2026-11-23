@@ -2,9 +2,11 @@ import { AddressInfo } from 'node:net';
 
 import { createRelayApp } from './app.js';
 import { loadConfig } from './config.js';
+import { openRelayStore } from './storage/sqlite-store.js';
 
 const config = loadConfig(process.env);
-const app = await createRelayApp({ logger: true });
+const store = openRelayStore(config.dataDir);
+const app = await createRelayApp({ store, logger: true });
 await app.listen({ host: config.host, port: config.port });
 
 const address = app.server.address();
