@@ -3,9 +3,10 @@ import { WebSocket } from 'ws';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_LIMITS } from '../src/limits.js';
-import { DesktopLink } from '../src/routing/registry.js';
+import { ConnectionRegistry, DesktopLink } from '../src/routing/registry.js';
 import { PhoneLink } from '../src/routing/phone-link.js';
 import {
+  handleDesktopMessage,
   spliceDesktopToPhone,
   splicePhoneToDesktop,
 } from '../src/routing/splice.js';
@@ -125,25 +126,84 @@ describe('splicePhoneToDesktop', () => {
 describe('spliceDesktopToPhone', () => {
   it('文本原样送达', () => {
     const socket = new FakeSocket();
-    spliceDesktopToPhone(phoneLink(socket), {
-      channelId: 'ch_test',
-      binary: false,
-      data: 'hello-back',
-    });
+    spliceDesktopToPhone(
+      phoneLink(socket),
+      {
+        channelId: 'ch_test',
+        binary: false,
+        data: 'hello-back',
+      },
+      DEFAULT_LIMITS,
+    );
     expect(socket.sent[0]).toEqual({ data: 'hello-back' });
   });
 
   it('二进制 base64 解码逐字节还原', () => {
     const socket = new FakeSocket();
     const payload = Buffer.from([9, 8, 7, 0, 255]);
-    spliceDesktopToPhone(phoneLink(socket, 'asr'), {
-      channelId: 'ch_test',
-      binary: true,
-      data: payload.toString('base64'),
-    });
+    spliceDesktopToPhone(
+      phoneLink(socket, 'asr'),
+      {
+        channelId: 'ch_test',
+        binary: true,
+        data: payload.toString('base64'),
+      },
+      DEFAULT_LIMITS,
+    );
     const sent = socket.sent[0];
     expect(sent?.binary).toBe(true);
     expect(Buffer.isBuffer(sent?.data)).toBe(true);
     expect((sent?.data as Buffer).equals(payload)).toBe(true);
+  });
+
+  it('下行超限（control 65537 字节）→ close 4003 且不发送', () => {
+    const socket = new FakeSocket();
+    spliceDesktopToPhone(
+      phoneLink(socket),
+      { channelId: 'ch_test', binary: false, data: 'a'.repeat(65537) },
+      DEFAULT_LIMITS,
+    );
+    expect(socket.sent).toHaveLength(0);
+    expect(socket.closed).toEqual([{ code: 4003, reason: 'frame too large' }]);
+  });
+});
+
+describe('handleDesktopMessage 关闭码校验', () => {
+  it('非法关闭码（5000）→ 返回 false，不向手机 socket.close', () => {
+    const registry = new ConnectionRegistry();
+    const phoneSocket = new FakeSocket();
+    const { link: desktop } = desktopLink();
+    const link = phoneLink(phoneSocket);
+    desktop.channels.set(link.channelId, link);
+    const handled = handleDesktopMessage(
+      registry,
+      desktop,
+      JSON.stringify({
+        type: 'channel.close',
+        payload: { channelId: link.channelId, code: 5000, reason: 'x' },
+      }),
+      DEFAULT_LIMITS,
+    );
+    expect(handled).toBe(false);
+    expect(phoneSocket.closed).toHaveLength(0);
+  });
+
+  it('合法关闭码（4000）→ 透传给手机', () => {
+    const registry = new ConnectionRegistry();
+    const phoneSocket = new FakeSocket();
+    const { link: desktop } = desktopLink();
+    const link = phoneLink(phoneSocket);
+    desktop.channels.set(link.channelId, link);
+    const handled = handleDesktopMessage(
+      registry,
+      desktop,
+      JSON.stringify({
+        type: 'channel.close',
+        payload: { channelId: link.channelId, code: 4000, reason: 'bye' },
+      }),
+      DEFAULT_LIMITS,
+    );
+    expect(handled).toBe(true);
+    expect(phoneSocket.closed).toEqual([{ code: 4000, reason: 'bye' }]);
   });
 });

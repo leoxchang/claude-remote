@@ -19,10 +19,19 @@ const channelDataSchema = z.object({
   data: z.string(),
 });
 
+const MAX_CLOSE_REASON_BYTES = 123;
+
+/** ws 合法关闭码：1000 或 3000-4999；越界传入 socket.close 会抛 RangeError。 */
+function isValidCloseCode(code: number): boolean {
+  return code === 1000 || (code >= 3000 && code <= 4999);
+}
+
 const channelCloseSchema = z.object({
   channelId: z.string().min(1),
-  code: z.number().int(),
-  reason: z.string(),
+  code: z.number().int().refine(isValidCloseCode),
+  reason: z
+    .string()
+    .refine((reason) => Buffer.byteLength(reason, 'utf8') <= MAX_CLOSE_REASON_BYTES),
 });
 
 /** 契约 §5.2 channel.data 载荷。 */
@@ -125,13 +134,25 @@ export function splicePhoneToDesktop(
   });
 }
 
-/** 桌面 → 手机：base64 解码回二进制帧，文本原样。 */
+/** 桌面 → 手机：base64 解码回二进制帧，文本原样；与上行共用帧上限。 */
 export function spliceDesktopToPhone(
   link: PhoneLink,
   payload: ChannelDataPayload,
+  limits: RelayLimits,
 ): void {
+  const limit =
+    link.kind === 'control' ? limits.controlFrameBytes : limits.asrFrameBytes;
   if (payload.binary) {
-    link.socket.send(Buffer.from(payload.data, 'base64'), { binary: true });
+    const data = Buffer.from(payload.data, 'base64');
+    if (data.byteLength > limit) {
+      link.socket.close(CLOSE_SLOW_CONSUMER, FRAME_TOO_LARGE_REASON);
+      return;
+    }
+    link.socket.send(data, { binary: true });
+    return;
+  }
+  if (Buffer.byteLength(payload.data, 'utf8') > limit) {
+    link.socket.close(CLOSE_SLOW_CONSUMER, FRAME_TOO_LARGE_REASON);
     return;
   }
   link.socket.send(payload.data);
@@ -145,6 +166,7 @@ export function handleDesktopMessage(
   registry: ConnectionRegistry,
   desktop: DesktopLink,
   text: string,
+  limits: RelayLimits,
 ): boolean {
   let parsed: unknown;
   try {
@@ -159,7 +181,7 @@ export function handleDesktopMessage(
     const payload = channelDataSchema.safeParse(message.payload);
     if (!payload.success) return false;
     const link = desktop.channels.get(payload.data.channelId);
-    if (link !== undefined) spliceDesktopToPhone(link, payload.data);
+    if (link !== undefined) spliceDesktopToPhone(link, payload.data, limits);
     return true;
   }
   if (message.type === 'channel.close') {

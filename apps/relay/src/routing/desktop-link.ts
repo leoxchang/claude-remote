@@ -152,9 +152,21 @@ export function acceptDesktopConnection(deps: DesktopConnectionDeps): void {
   }
 
   function handleReadyMessage(current: DesktopLink, text: string): void {
-    if (deps.onReadyMessage !== undefined && deps.onReadyMessage(current, text)) {
+    if (Buffer.byteLength(text, 'utf8') > limits.desktopMessageBytes) {
+      closeWith(CLOSE_SLOW_CONSUMER, 'message too large');
       return;
     }
+    let handled = false;
+    try {
+      handled =
+        deps.onReadyMessage !== undefined &&
+        deps.onReadyMessage(current, text);
+    } catch {
+      // 处理层异常不得成为未捕获异常打崩进程。
+      closeWith(CLOSE_HANDSHAKE_FAILED, 'invalid message');
+      return;
+    }
+    if (handled) return;
     socket.send(JSON.stringify(createErrorMessage('INVALID_MESSAGE')));
     closeWith(CLOSE_HANDSHAKE_FAILED, 'invalid message');
   }

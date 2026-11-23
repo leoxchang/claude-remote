@@ -2,6 +2,7 @@ import { IncomingMessage } from 'node:http';
 
 import websocket from '@fastify/websocket';
 import Fastify, {
+  FastifyError,
   FastifyInstance,
   FastifyReply,
   FastifyRequest,
@@ -19,11 +20,27 @@ import {
   closeDesktopChannels,
   handleDesktopMessage,
 } from './routing/splice.js';
-import { ConnectionRegistry } from './routing/registry.js';
+import { ConnectionRegistry, DesktopLink } from './routing/registry.js';
 import { DeviceRecord, RelayStore } from './storage/store.js';
+import {
+  handleHttpResponseMessage,
+  HttpTunnel,
+  TunnelError,
+  TunnelErrorCode,
+} from './tunnel/http-proxy.js';
 import { CONTRACT_VERSION, RELAY_VERSION } from './version.js';
 
 export { CONTRACT_VERSION, RELAY_VERSION };
+
+const PROXY_PARAM_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+const TUNNEL_ERROR_STATUS: Record<TunnelErrorCode, number> = {
+  GATEWAY_TIMEOUT: 504,
+  DESKTOP_OFFLINE: 503,
+  GATEWAY_ERROR: 502,
+};
+
+const BODY_TOO_LARGE_CODE = 'FST_ERR_CTP_BODY_TOO_LARGE';
 
 /** 创建应用所需依赖与覆盖项；limits 覆盖仅用于测试。 */
 export interface RelayAppOptions {
@@ -40,6 +57,10 @@ export async function createRelayApp(
 ): Promise<FastifyInstance> {
   const limits: RelayLimits = { ...DEFAULT_LIMITS, ...options.limits };
   const registry = options.registry ?? new ConnectionRegistry();
+  const tunnel = new HttpTunnel({
+    httpTimeoutMs: limits.httpTimeoutMs,
+    httpBodyBytes: limits.httpBodyBytes,
+  });
   const app = Fastify({
     logger: options.logger === true,
     bodyLimit: limits.httpBodyBytes,
@@ -106,9 +127,11 @@ export async function createRelayApp(
         registry,
         limits,
         onReadyMessage: (link, text) =>
-          handleDesktopMessage(registry, link, text),
+          handleHttpResponseMessage(tunnel, text) ||
+          handleDesktopMessage(registry, link, text, limits),
         onClose: (link) => {
           closeDesktopChannels(registry, link);
+          tunnel.failDesktop(link.desktopId);
         },
       });
     },
@@ -174,6 +197,123 @@ export async function createRelayApp(
     { websocket: true, preValidation: phoneAuth },
     handlePhone('asr'),
   );
+
+  const resolveProxyTarget = (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): { device: DeviceRecord; desktop: DesktopLink } | null => {
+    let device: DeviceRecord;
+    try {
+      device = authenticateBearer(options.store, request.headers);
+    } catch (error: unknown) {
+      if (error instanceof AuthError) {
+        sendError(reply, 401, 'UNAUTHENTICATED');
+        return null;
+      }
+      throw error;
+    }
+    const query = request.query as Record<string, unknown>;
+    const desktopId = query['desktopId'];
+    if (typeof desktopId !== 'string' || desktopId.length === 0) {
+      sendError(reply, 400, 'INVALID_REQUEST');
+      return null;
+    }
+    const target = options.store.findDevice(desktopId);
+    if (
+      target === null ||
+      target.role !== 'desktop' ||
+      target.accountId !== device.accountId
+    ) {
+      sendError(reply, 404, 'DESKTOP_NOT_FOUND');
+      return null;
+    }
+    const desktop = registry.desktopFor(desktopId);
+    if (desktop === undefined || !registry.isOnline(desktopId)) {
+      sendError(reply, 503, 'DESKTOP_OFFLINE');
+      return null;
+    }
+    return { device, desktop };
+  };
+
+  const forwardProxy = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    method: 'GET' | 'POST',
+    path: string,
+    body?: Buffer,
+  ): Promise<FastifyReply> => {
+    const context = resolveProxyTarget(request, reply);
+    if (context === null) return reply;
+    const contentType = request.headers['content-type'];
+    try {
+      const response = await tunnel.request(context.desktop, {
+        deviceId: context.device.deviceId,
+        method,
+        path,
+        ...(typeof contentType === 'string' ? { contentType } : {}),
+        ...(body === undefined ? {} : { body }),
+      });
+      if (response.contentType !== undefined) {
+        reply.header('content-type', response.contentType);
+      }
+      return reply.code(response.status).send(response.body);
+    } catch (error: unknown) {
+      if (error instanceof TunnelError) {
+        return sendError(reply, TUNNEL_ERROR_STATUS[error.code], error.code);
+      }
+      throw error;
+    }
+  };
+
+  // 代答路由需要原始字节；用封装插件挂自定义 body 解析，避免影响登录等 JSON 路由。
+  await app.register(async (scope) => {
+    const rawBodyParser = (
+      _request: FastifyRequest,
+      body: Buffer,
+      done: (error: Error | null, result?: Buffer) => void,
+    ): void => {
+      done(null, body);
+    };
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser('*', { parseAs: 'buffer' }, rawBodyParser);
+
+    scope.post('/v1/attachments', async (request, reply) => {
+      const body = Buffer.isBuffer(request.body)
+        ? request.body
+        : Buffer.alloc(0);
+      return forwardProxy(request, reply, 'POST', '/v1/attachments', body);
+    });
+
+    scope.get('/v1/approvals/:approvalId/content', async (request, reply) => {
+      const { approvalId } = request.params as { approvalId: string };
+      if (!PROXY_PARAM_PATTERN.test(approvalId)) {
+        return sendError(reply, 404, 'ROUTE_NOT_FOUND');
+      }
+      return forwardProxy(
+        request,
+        reply,
+        'GET',
+        `/v1/approvals/${approvalId}/content`,
+      );
+    });
+
+    scope.get('/v1/runs/:runId/prompt', async (request, reply) => {
+      const { runId } = request.params as { runId: string };
+      if (!PROXY_PARAM_PATTERN.test(runId)) {
+        return sendError(reply, 404, 'ROUTE_NOT_FOUND');
+      }
+      return forwardProxy(request, reply, 'GET', `/v1/runs/${runId}/prompt`);
+    });
+  });
+
+  app.setErrorHandler(async (error: FastifyError, _request, reply) => {
+    if (error.code === BODY_TOO_LARGE_CODE) {
+      return sendError(reply, 413, 'BODY_TOO_LARGE');
+    }
+    const statusCode = error.statusCode ?? 500;
+    if (statusCode >= 500) return sendError(reply, 500, 'INTERNAL_ERROR');
+    return sendError(reply, statusCode, 'INVALID_REQUEST');
+  });
 
   app.setNotFoundHandler(async (_request, reply) =>
     sendError(reply, 404, 'ROUTE_NOT_FOUND'),
