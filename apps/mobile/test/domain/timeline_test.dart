@@ -295,6 +295,42 @@ void main() {
     expect(next.messages.single.text, longText);
   });
 
+  test('keeps the tool start timestamp across output and completion', () {
+    var state = applyEvent(
+      TimelineState.initial(sessionId),
+      event(
+        seq: 1,
+        type: 'tool.started',
+        payload: {
+          'toolUseId': 'toolu_01',
+          'toolName': 'Bash',
+          'input': {'command': 'pwd'},
+        },
+      ),
+    );
+    final startedAt = state.tools.single.createdAt;
+    expect(startedAt, greaterThan(0));
+
+    state = applyEvent(
+      state,
+      event(
+        seq: 2,
+        type: 'tool.output',
+        payload: {'toolUseId': 'toolu_01', 'chunk': '/tmp'},
+      ),
+    );
+    state = applyEvent(
+      state,
+      event(
+        seq: 3,
+        type: 'tool.completed',
+        payload: {'toolUseId': 'toolu_01', 'status': 'succeeded'},
+      ),
+    );
+
+    expect(state.tools.single.createdAt, startedAt);
+  });
+
   test('reducers never mutate the previous state', () {
     final previous = TimelineState.initial(sessionId);
     final next = applyEvent(

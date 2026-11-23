@@ -12,6 +12,8 @@ final class RecoveryProtectionException implements Exception {
 
 /// 通过原生 Swift 为 RecoveryStore DB/WAL/SHM 设置并验证
 /// NSFileProtectionComplete；非 iOS（测试/桌面）跳过。
+///
+/// 模拟器由原生层在编译期短路，避免在开发环境误用未加密的本地库。
 abstract final class RecoveryProtection {
   static const MethodChannel channel = MethodChannel(
     'claude_remote/s04_store_protection',

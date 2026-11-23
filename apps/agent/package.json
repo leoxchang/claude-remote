@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "claude-remote-agent": "./bin/claude-remote-agent.js"
+  },
   "engines": {
     "node": ">=22"
   },

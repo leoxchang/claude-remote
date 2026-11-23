@@ -28,8 +28,10 @@ import '../features/chat/chat_controller.dart';
 import '../features/chat/session_controller.dart';
 import '../features/pairing/pairing_controller.dart' show credentialStoreProvider;
 import 'agent_socket.dart';
+import 'attachment_upload.dart';
 import 'device_credential.dart';
 import 'io_agent_socket.dart';
+import 'ready_agent_socket.dart';
 import 'pairing_api.dart';
 
 /// 启动时读取 Keychain；未配对返回 null。
@@ -41,7 +43,7 @@ final credentialProvider = FutureProvider<DeviceCredential?>((ref) async {
 final commandClientProvider = FutureProvider<CommandClient?>((ref) async {
   final credential = await ref.watch(credentialProvider.future);
   if (credential == null) return null;
-  return CommandClient(IoAgentSocket.connect(credential));
+  return CommandClient(await ReadyAgentSocket.connect(credential));
 });
 
 /// 审批命令专用客户端；与聊天命令分离，避免共享未完成请求。
@@ -267,7 +269,9 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
   final credential = await ref.watch(credentialProvider.future);
   if (credential == null) return null;
   final chat = ref.read(chatControllerProvider.notifier);
-  final client = CommandClient();
+  // 服务端同一设备只保留一个连接；命令与事件必须共用同一 socket。
+  final client = await ref.watch(commandClientProvider.future);
+  if (client == null) return null;
   final session = SessionController(
     client: client,
     readSessionId: () => chat.sessionId,
@@ -283,6 +287,14 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
   if (persistent != null) chat.attachPersistentCommands(persistent);
   chat.attachVoiceDrafts(recoveryStore.voiceDrafts);
   chat.attachComposerDrafts(recoveryStore);
+  chat.attachUserMessages(recoveryStore);
+  chat.attachUserAttachmentStore(recoveryStore);
+  chat.attachAttachmentUploader(
+    AttachmentApi(
+      credentials: ref.read(credentialStoreProvider),
+      transport: HttpAttachmentTransport(),
+    ).uploadFile,
+  );
   late final ConnectionController connection;
   connection = ConnectionController(
     socketFactory: createSocket,

@@ -1,17 +1,19 @@
 # Tailscale Serve 配置记录
 
-**状态：** **PARTIAL** — Tailscale 1.104.6 已安装并连接，MagicDNS 已开；**HTTPS Certificates 未启用**，Serve 尚未配置成功（2026-11-12 核对）。
+**状态：** **Mac 侧 PASS（2026-11-17 12:33 实测）** — HTTPS Certificates 已开启，Serve 已生效，系统 CA 校验通过，Funnel 未启用；**iPhone 仍未接入 tailnet**（`tailscale status` 无 Peer）。
 **目标：** 只用 Serve 把 `https://<machine>.<tailnet>.ts.net` 转发到 `127.0.0.1:8787`；**不得启用 Funnel**。
 
 ## 1. 前置条件
 
 | 条件 | 状态 |
 |---|---|
-| Mac 安装 Tailscale 并登录 | ✅ 1.104.6，BackendState=Running |
-| Mac 与 iPhone 在同一 tailnet | ⏳ iPhone 未接入 |
+| Mac 安装 Tailscale 并登录 | ✅ 1.104.6（daemon）/ 1.104.7（CLI），BackendState=Running |
+| Mac 与 iPhone 在同一 tailnet | ❌ iPhone 未接入（status 仅本机一个节点） |
 | MagicDNS 开启 | ✅ `CurrentTailnet.MagicDNSEnabled=true` |
-| HTTPS Certificates 开启 | ❌ `CertDomains: null` |
+| HTTPS Certificates 开启 | ✅ `CertDomains: ["macbook-pro.tail0970fd.ts.net"]` |
 | 机器名不含敏感信息 | ✅ `macbook-pro` |
+
+> 2026-11-17 发现 443 冲突：Homebrew nginx 以 root 监听 IPv4 443（cert `www-local.yxt101.com`），导致 TLS 握手拿到自签证书。停止 nginx 后 tailscaled 同时接管 IPv4/IPv6 443，证书恢复正常。
 
 ## 2. 已实测的本机信息
 
@@ -20,11 +22,11 @@ machineHostname: macbook-pro
 tailnetName:     tail0970fd.ts.net
 dnsName:         macbook-pro.tail0970fd.ts.net
 tailscaleIPs:    100.95.53.10, fd7a:115c:a1e0::e01:35dd
-serveTarget:     127.0.0.1:8787（待配置）
-funnelEnabled:   false（当前无任何 serve/funnel 配置）
+serveTarget:     127.0.0.1:8787
+funnelEnabled:   false（`tailscale funnel status` 仅显示 tailnet only，无 Funnel）
 ```
 
-## 3. 待执行步骤
+## 3. 执行步骤（2026-11-17 复核）
 
 1. 在 Tailscale 管理后台（Admin → DNS）开启 **HTTPS Certificates**；
 2. 执行 `/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 8787`；
@@ -36,9 +38,12 @@ funnelEnabled:   false（当前无任何 serve/funnel 配置）
 ```text
 machineHostname: macbook-pro
 tailnetName:     tail0970fd.ts.net
-serveTarget:     <待回填>
+serveTarget:     127.0.0.1:8787
 funnelEnabled:   false（必须）
-certificateCheck: <待回填>
+certificateCheck: PASS — curl ssl_verify_result=0（系统 CA），
+                 subject=CN=macbook-pro.tail0970fd.ts.net，
+                 issuer=Let's Encrypt YE2，
+                 notBefore=2026-11-17 03:29:13 UTC，notAfter=2027-02-15 03:29:12 UTC
 ```
 
 > 说明：HTTPS Certificates 关闭时 `tailscale serve --bg 8787` 会一直等待证书签发而不返回，已在 2026-11-12 观测到；这不是命令写错。

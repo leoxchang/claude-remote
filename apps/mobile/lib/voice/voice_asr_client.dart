@@ -112,9 +112,11 @@ final class IoVoiceAsrClientFactory implements VoiceAsrClientFactory {
   @override
   Future<VoiceAsrConnection> connect() async {
     final base = Uri.parse(credential.baseUrl);
-    final uri = base.replace(scheme: 'wss', path: '/ws/asr');
+    final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+    final uri = base.replace(scheme: scheme, path: '/ws/asr');
     final channel = _open(uri, {
-      'Authorization': 'Bearer ${credential.deviceToken}',
+      'Authorization':
+          'Bearer ${credential.deviceId}.${credential.deviceToken}',
     });
     return IoVoiceAsrConnection(channel);
   }

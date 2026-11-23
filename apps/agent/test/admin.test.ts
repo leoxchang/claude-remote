@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { AdminClient } from '../src/admin/client.js';
 import { AdminStatus, createAdminServer } from '../src/admin/server.js';
+import { agentVersions } from '../src/app/versions.js';
 import { PairingService } from '../src/pairing/pairing-service.js';
 import { DeviceStore } from '../src/store/device-store.js';
 
@@ -41,6 +42,7 @@ async function startAdmin(): Promise<AdminHarness> {
     desktopId: 'desktop_test',
     listen: { host: '127.0.0.1', port: 8787 },
     activeDeviceId: null,
+    versions: agentVersions(),
   };
   const revoked: string[] = [];
   const server = await createAdminServer({
@@ -88,6 +90,7 @@ describe('createAdminServer', () => {
         desktopId: 'desktop_test',
         listen: { host: '127.0.0.1', port: 8787 },
         activeDeviceId: null,
+        versions: agentVersions(),
       }),
       onRevoke: () => undefined,
     });
@@ -113,6 +116,7 @@ describe('createAdminServer', () => {
           desktopId: 'desktop_test',
           listen: { host: '127.0.0.1', port: 8787 },
           activeDeviceId: null,
+          versions: agentVersions(),
         }),
         onRevoke: () => undefined,
       }),

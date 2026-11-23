@@ -4,6 +4,7 @@ import { ManagedRunDriver } from '../adapter/managed-run-driver.js';
 import { createAdminServer } from '../admin/server.js';
 import { ApprovalContentController } from '../approval/approval-content-controller.js';
 import { AsrRuntime, createAsrRuntime } from '../asr/asr-runtime.js';
+import { AttachmentStore } from '../attachment/attachment-store.js';
 import { DurableApprovalStore } from '../approval/durable-approval-store.js';
 import { DurablePermissionBroker } from '../approval/durable-permission-broker.js';
 import { CommandRouter } from '../command/router.js';
@@ -39,10 +40,13 @@ import {
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { DurableAgentOperations } from './durable-agent-operations.js';
 import { AgentLogger } from './logger.js';
+import {
+  AGENT_VERSION,
+  RUNTIME_VERSION,
+  SDK_VERSION,
+  agentVersions,
+} from './versions.js';
 
-const AGENT_VERSION = '0.0.0';
-const SDK_VERSION = '0.3.319';
-const RUNTIME_VERSION = '2.1.319';
 const CAPABILITIES = [
   'text',
   'message.delta',
@@ -58,6 +62,8 @@ export interface DurableWireOptions {
   configDir: string;
   logger: AgentLogger;
   agentInstanceId: string;
+  /** 图片附件存储；必须与 driver 读取的是同一实例/同一目录。 */
+  attachments: AttachmentStore;
   /** 进程环境；ASR Key 只在启动时读取。 */
   env?: NodeJS.ProcessEnv;
 }
@@ -74,7 +80,7 @@ export interface DurableWiring {
 
 /** S04 唯一装配路径：SQLite 投影为权威，Journal 只发布已提交事件。 */
 export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
-  const { config, database, driver, configDir, logger } = options;
+  const { config, database, driver, configDir, logger, attachments } = options;
   const paths = resolveAgentPaths(configDir);
   const uow = database.uow;
   const deviceStore = new SqliteDeviceStore(uow);
@@ -221,6 +227,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     sync: syncService,
     snapshots,
     recovery,
+    attachments,
   });
 
   const pairingService = new PairingService({
@@ -249,6 +256,14 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     },
   });
   journal.subscribe((event) => {
+    if (event.type === 'run.started' || event.type === 'run.completed') {
+      logger.info(event.type, {
+        eventId: event.eventId,
+        sessionId: event.sessionId,
+        runId: event.runId,
+        seq: event.seq,
+      });
+    }
     connections.publish(event);
   });
 
@@ -260,11 +275,14 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
       .list()
       .find((entry) => entry.deviceId === deviceId);
     if (device === undefined) return;
-    const result = await router.route(parseCommand(raw), device);
+    const command = parseCommand(raw);
+    const result = await router.route(command, device);
     connections.publish(result);
     logger.info('command.processed', {
       deviceId,
       commandId: result.commandId,
+      traceId: result.traceId,
+      ...commandLogIds(command),
       status: result.payload.status,
       duplicate: result.payload.duplicate,
     });
@@ -290,6 +308,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
           desktopId: config.desktopId,
           listen: { host: config.listen.host, port: config.listen.port },
           activeDeviceId: deviceStore.active()?.deviceId ?? null,
+          versions: agentVersions(),
         }),
         onRevoke: (deviceId) => {
           asrRuntime?.close('device_revoked');
@@ -309,12 +328,14 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
                 workspaceId: first.workspaceId,
                 displayName: first.displayName,
               },
+        logger,
         onConnection: (socket, device) => {
           logger.info('connection.accepted', { deviceId: device.deviceId });
           void connections.accept(socket, device);
         },
         approvalContent,
         runPrompt,
+        attachments,
       });
       asrRuntime = createAsrRuntime({
         app: phoneServer,
@@ -363,4 +384,19 @@ function parseCommand(raw: string): unknown {
   } catch {
     return {};
   }
+}
+
+/** 从命令信封提取可安全写日志的会话/run 标识；缺失时不写该字段。 */
+function commandLogIds(command: unknown): {
+  sessionId?: string;
+  runId?: string;
+} {
+  if (typeof command !== 'object' || command === null) return {};
+  const record = command as Record<string, unknown>;
+  const sessionId = record['sessionId'];
+  const runId = record['runId'];
+  return {
+    ...(typeof sessionId === 'string' ? { sessionId } : {}),
+    ...(typeof runId === 'string' ? { runId } : {}),
+  };
 }

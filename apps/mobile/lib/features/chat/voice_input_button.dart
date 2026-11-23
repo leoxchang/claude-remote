@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../voice/voice_ui_state.dart';
 
-/// 按住说话按钮；滑入取消区松手即取消。
+/// 按住说话的长按区；中心文案随录音状态变化，上滑进入取消区后松手取消。
 final class VoiceInputButton extends StatefulWidget {
   const VoiceInputButton({
     super.key,
@@ -43,27 +43,33 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     // 只有 idle 才能开始；按住期间的 up/cancel 必须始终保留，
     // 否则状态切到 connecting 后松手会丢失。
     final canPress = widget.enabled && widget.state is VoiceIdle;
+    final colors = Theme.of(context).colorScheme;
+    final textColor = widget.enabled
+        ? colors.onSurface
+        : colors.onSurface.withValues(alpha: 0.35);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (_holding)
           Container(
             key: const ValueKey('voice-cancel-zone'),
-            width: 200,
-            padding: const EdgeInsets.all(6),
+            margin: const EdgeInsets.symmetric(vertical: 2),
+            width: 132,
+            padding: const EdgeInsets.symmetric(vertical: 5),
             decoration: BoxDecoration(
               color: _cancelReady
-                  ? Theme.of(context).colorScheme.errorContainer
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
+                  ? colors.errorContainer
+                  : colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '松开取消',
               textAlign: TextAlign.center,
               style: TextStyle(
+                fontSize: 12,
                 color: _cancelReady
-                    ? Theme.of(context).colorScheme.onErrorContainer
-                    : null,
+                    ? colors.onErrorContainer
+                    : colors.onSurfaceVariant,
               ),
             ),
           ),
@@ -110,10 +116,19 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
             });
             widget.onCancel();
           },
-          child: FilledButton.tonalIcon(
-            onPressed: canPress ? () {} : null,
-            icon: const Icon(Icons.mic),
-            label: Text(_label),
+          child: SizedBox(
+            height: 42,
+            child: Center(
+              child: Text(
+                _label,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
           ),
         ),
       ],

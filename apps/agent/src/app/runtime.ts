@@ -32,9 +32,9 @@ import { SessionRepository } from '../storage/repositories/session-repository.js
 import { RecoveryReport, StartupRecovery } from '../storage/startup-recovery.js';
 import { DurableEventJournal } from '../events/durable-event-journal.js';
 import { RecoveryService } from '../run/recovery-service.js';
-import { PHONE_LISTEN } from '../transport/phone-server.js';
 import { AgentOperations } from './agent-operations.js';
 import { wireDurableAgent } from './durable-wire.js';
+import { AttachmentStore } from '../attachment/attachment-store.js';
 import { AgentLogger, createFileLogger } from './logger.js';
 import { wireAgent } from './wire.js';
 import { existsSync, readFileSync } from 'node:fs';
@@ -59,6 +59,8 @@ export interface AgentRuntimeOptions {
   phoneListen?: { host: string; port: number };
   logger?: AgentLogger;
   agentInstanceId?: string;
+  /** 图片附件存储；未提供时使用配置目录下的默认位置。 */
+  attachments?: AttachmentStore;
   /** 进程环境；ASR 配置只在启动时读取一次。 */
   env?: NodeJS.ProcessEnv;
 }
@@ -91,8 +93,8 @@ export async function createAgentRuntime(
       if (started) return;
       await wiring.start(
         options.phoneListen ?? {
-          host: PHONE_LISTEN.host,
-          port: PHONE_LISTEN.port,
+          host: configV2.listen.host,
+          port: configV2.listen.port,
         },
       );
       started = true;
@@ -166,6 +168,9 @@ export async function createDurableAgentRuntime(
       configDir,
       logger,
       agentInstanceId,
+      attachments:
+        options.attachments ??
+        new AttachmentStore(join(configDir, 'attachments')),
       ...(options.env === undefined ? {} : { env: options.env }),
     });
     wiring.retention.runOnce(Date.now());
@@ -185,8 +190,8 @@ export async function createDurableAgentRuntime(
         if (started) return;
         await wiring.start(
           options.phoneListen ?? {
-            host: PHONE_LISTEN.host,
-            port: PHONE_LISTEN.port,
+            host: config.listen.host,
+            port: config.listen.port,
           },
         );
         started = true;

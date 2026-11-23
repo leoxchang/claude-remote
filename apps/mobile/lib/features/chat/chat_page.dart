@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../connection/chat_session_runtime.dart';
 import '../../data/providers.dart';
@@ -12,13 +13,13 @@ import '../approvals/approval_controller.dart';
 import '../approvals/approval_detail_page.dart';
 import '../recovery/recovery_page.dart';
 import 'chat_controller.dart';
+import 'pending_attachment.dart';
 import 'widgets/composer.dart';
 import 'widgets/message_list.dart';
 import 'widgets/pending_approval_card.dart';
 import 'widgets/queue_panel.dart';
 import 'widgets/run_controls.dart';
 import 'voice_draft_banner.dart';
-import 'voice_input_button.dart';
 import 'voice_recording_panel.dart';
 
 /// S01 唯一聊天页：时间线、停止控制和 composer。
@@ -41,6 +42,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_startRuntime());
+  }
+
+  /// 拍照或从相册取图；统一缩到长边 1568 像素并压缩，控制上传体积。
+  Future<void> _pickImage(PhotoSource source) async {
+    final picker = ImagePicker();
+    try {
+      final XFile? file = await picker.pickImage(
+        source: source == PhotoSource.camera
+            ? ImageSource.camera
+            : ImageSource.gallery,
+        maxWidth: 1568,
+        maxHeight: 1568,
+        imageQuality: 82,
+      );
+      if (file == null) return;
+      await ref.read(chatControllerProvider.notifier).addImage(file.path);
+    } on Object {
+      // 模拟器没有相机，或其权限被拒绝；只用相册也能发图。
+      if (!mounted) return;
+      ref
+          .read(chatControllerProvider.notifier)
+          .reportError('无法打开相机或相册');
+    }
   }
 
   Future<void> _startRuntime() async {
@@ -86,7 +110,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
         selection: TextSelection.collapsed(offset: state.draft.length),
       );
     }
-    Widget composer({required bool enabled, bool readOnly = false}) {
+    Widget composer({
+      required bool enabled,
+      bool readOnly = false,
+      VoiceUiState? voiceState,
+      bool canRecordVoice = false,
+    }) {
       return Composer(
         controller: _text,
         enabled: enabled,
@@ -100,6 +129,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
             _text.clear();
           }
         },
+        attachments: state.attachments,
+        attachmentsBusy: state.hasAttachments && !state.attachmentsReady,
+        onRemoveAttachment: controller.removeImage,
+        onPickImage: (source) => unawaited(_pickImage(source)),
+        voiceState: voiceState,
+        canRecordVoice: canRecordVoice,
+        onVoicePress: voice == null ? null : () => unawaited(voice.press()),
+        onVoiceRelease: voice == null ? null : () => unawaited(voice.release()),
+        onVoiceCancel: voice == null
+            ? null
+            : () => unawaited(voice.cancel(VoiceCancelReason.user)),
       );
     }
     return Scaffold(
@@ -132,9 +172,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
             const _Banner(message: '仅保留最近摘要，完整记录暂不可下载'),
           if (state.error != null) _ErrorBar(message: state.error!),
           Expanded(
-            child: MessageList(
-              messages: timeline?.messages ?? const [],
-              tools: timeline?.tools ?? const [],
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: MessageList(
+                messages: timeline?.messages ?? const [],
+                tools: timeline?.tools ?? const [],
+                userMessages: state.userMessages,
+              ),
             ),
           ),
           if (approvals != null && sessionId != null)
@@ -187,14 +232,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     composer(
                       enabled: state.canSend && !locked,
                       readOnly: locked,
-                    ),
-                    VoiceInputButton(
-                      state: voiceState,
-                      enabled: state.canRecordVoice,
-                      onPress: () => unawaited(voice.press()),
-                      onRelease: () => unawaited(voice.release()),
-                      onCancel: () =>
-                          unawaited(voice.cancel(VoiceCancelReason.user)),
+                      voiceState: voiceState,
+                      canRecordVoice: state.canRecordVoice,
                     ),
                   ],
                 );

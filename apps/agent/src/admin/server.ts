@@ -7,6 +7,7 @@ import { chmod } from 'node:fs/promises';
 import { PairingService } from '../pairing/pairing-service.js';
 import { DeviceStorePort } from '../store/device-store.js';
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
+import { AgentVersions } from '../app/versions.js';
 import { registerAdminRoutes } from './routes.js';
 
 /** 管理接口的 socket 权限。 */
@@ -21,6 +22,7 @@ export interface AdminStatus {
   desktopId: string;
   listen: { host: string; port: number };
   activeDeviceId: string | null;
+  versions: AgentVersions;
 }
 
 /** 管理接口依赖；onRevoke 由连接层提供。 */

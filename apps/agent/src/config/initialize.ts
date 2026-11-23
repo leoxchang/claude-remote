@@ -3,12 +3,14 @@ import { isAbsolute } from 'node:path';
 
 import { AgentConfig } from '../domain/types.js';
 import { randomBase64Url } from '../security/random.js';
-import { readJsonFileIfExists, writeFileAtomic } from './atomic-file.js';
+import { writeFileAtomic, readJsonFileIfExists } from './atomic-file.js';
+import { parseBaseUrl } from './base-url.js';
 import {
   AGENT_LISTEN_HOST,
   AGENT_LISTEN_PORT,
   CONFIG_DIR_MODE,
   CONFIG_FILE_MODE,
+  LAN_LISTEN_HOST,
   resolveAgentPaths,
 } from './paths.js';
 
@@ -21,6 +23,8 @@ export interface InitializeConfigInput {
   workspacePath: string;
   displayName: string;
   tailscaleBaseUrl: string;
+  /** 局域网直连：监听 0.0.0.0，baseUrl 允许私有 http。 */
+  lanMode?: boolean;
 }
 
 /** 首次初始化本地配置；已有配置时拒绝覆盖。 */
@@ -28,8 +32,10 @@ export async function initializeConfig(
   input: InitializeConfigInput,
 ): Promise<AgentConfig> {
   const rootPath = await resolveWorkspacePath(input.workspacePath);
-  const baseUrl = validateTailscaleBaseUrl(input.tailscaleBaseUrl);
+  const baseUrl = resolveBaseUrl(input.tailscaleBaseUrl, input.lanMode === true);
   const paths = resolveAgentPaths(input.configDir);
+  const listenHost =
+    input.lanMode === true ? LAN_LISTEN_HOST : AGENT_LISTEN_HOST;
 
   if ((await readJsonFileIfExists(paths.agentFile)) !== undefined) {
     throw new Error('agent.json already exists; refusing to overwrite');
@@ -43,7 +49,7 @@ export async function initializeConfig(
       displayName: input.displayName,
       rootPath,
     },
-    listen: { host: AGENT_LISTEN_HOST, port: AGENT_LISTEN_PORT },
+    listen: { host: listenHost, port: AGENT_LISTEN_PORT },
     tailscale: { baseUrl },
   };
 
@@ -79,18 +85,10 @@ async function resolveWorkspacePath(input: string): Promise<string> {
   return realpath(input);
 }
 
-function validateTailscaleBaseUrl(raw: string): string {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new Error('tailscale base url must be a valid URL');
-  }
-  if (url.protocol !== 'https:') {
-    throw new Error('tailscale base url must use https');
-  }
-  if (!url.hostname.endsWith('.ts.net')) {
-    throw new Error('tailscale base url host must end with .ts.net');
+function resolveBaseUrl(raw: string, lanMode: boolean): string {
+  const url = parseBaseUrl(raw);
+  if (!lanMode && url.protocol === 'http:') {
+    throw new Error('http base url requires LAN mode');
   }
   return url.origin;
 }

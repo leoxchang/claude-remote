@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:claude_remote/connection/command_client.dart';
 import 'package:claude_remote/connection/connection_controller.dart';
+import 'package:claude_remote/data/attachment_upload.dart';
 import 'package:claude_remote/data/providers.dart';
 import 'package:claude_remote/features/chat/chat_controller.dart';
 import 'package:claude_remote/protocol/messages.dart';
+import 'package:claude_remote/recovery/user_message.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -116,6 +119,76 @@ void main() {
     expect(state().draft, isEmpty);
     expect(state().activeRunId, 'run_01');
     expect(state().busy, isTrue);
+  });
+
+  test('does not show the queued run twice when run.queued arrives first', () async {
+    controller().updateDraft('hello');
+    final future = controller().sendText();
+    await pumpEventQueue();
+
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_queued',
+        timestamp: 1,
+        type: 'run.queued',
+        payload: const {'enqueuedAt': 1},
+        eventId: 'event_queued',
+        sessionId: 'session_01',
+        seq: 1,
+        runId: 'run_01',
+      ),
+    );
+    expect(state().queue, hasLength(1));
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {
+          'sessionId': 'session_01',
+          'runId': 'run_01',
+          'status': 'queued',
+        },
+      ),
+    );
+    await future;
+
+    expect(state().queue, hasLength(1));
+    expect(state().queue.single.runId, 'run_01');
+  });
+
+  test('does not re-queue a run that already started', () async {
+    controller().updateDraft('hello');
+    final future = controller().sendText();
+    await pumpEventQueue();
+
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_queued',
+        timestamp: 1,
+        type: 'run.queued',
+        payload: const {'enqueuedAt': 1},
+        eventId: 'event_queued',
+        sessionId: 'session_01',
+        seq: 1,
+        runId: 'run_01',
+      ),
+    );
+    emitRunStarted(controller(), 'run_01', seq: 2);
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {
+          'sessionId': 'session_01',
+          'runId': 'run_01',
+          'status': 'queued',
+        },
+      ),
+    );
+    await future;
+
+    expect(state().queue, isEmpty);
+    expect(state().activeRunId, 'run_01');
   });
 
   test('keeps the draft and reports SESSION_BUSY', () async {
@@ -246,4 +319,177 @@ void main() {
     expect(state().cancelling, isFalse);
     expect(state().busy, isFalse);
   });
+
+  test('echoes and persists the user prompt', () async {
+    final store = _MemoryUserMessages();
+    controller().attachUserMessages(store);
+    controller().updateDraft('你好');
+    final future = controller().sendText();
+    await pumpEventQueue();
+
+    expect(state().userMessages.single.text, '你好');
+    expect(store.rows.single.commandId, lastCommandId(socket));
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {
+          'sessionId': 'session_01',
+          'runId': 'run_01',
+          'status': 'queued',
+        },
+      ),
+    );
+    await future;
+  });
+
+  test('restores user messages when reattaching a session', () async {
+    final store = _MemoryUserMessages();
+    await store.appendUserMessage(
+      const UserMessage(
+        sessionId: 'session_01',
+        commandId: 'cmd_old',
+        text: '旧问题',
+        createdAt: 1,
+      ),
+    );
+    controller().attachUserMessages(store);
+
+    controller().attachSession('session_02');
+    controller().attachSession('session_01');
+    await pumpEventQueue();
+
+    expect(state().userMessages.single.text, '旧问题');
+  });
+
+  test('restores user messages when the store attaches after the session', () async {
+    final store = _MemoryUserMessages();
+    await store.appendUserMessage(
+      const UserMessage(
+        sessionId: 'session_01',
+        commandId: 'cmd_old',
+        text: '旧问题',
+        createdAt: 1,
+      ),
+    );
+
+    // 会话先附着、本地存储后注入（会话列表 → 聊天页的真实顺序）。
+    controller().attachUserMessages(store);
+    await pumpEventQueue();
+
+    expect(state().userMessages.single.text, '旧问题');
+  });
+
+  test('keeps user messages when re-entering the same session', () async {
+    final store = _MemoryUserMessages();
+    await store.appendUserMessage(
+      const UserMessage(
+        sessionId: 'session_01',
+        commandId: 'cmd_old',
+        text: '旧问题',
+        createdAt: 1,
+      ),
+    );
+    controller().attachUserMessages(store);
+    await pumpEventQueue();
+
+    controller().attachSession('session_01');
+    await pumpEventQueue();
+
+    expect(state().userMessages.single.text, '旧问题');
+  });
+
+  test('uploads a picked image and sends it with an empty draft', () async {
+    final file = File(
+      '${Directory.systemTemp.createTempSync('s06-pick-').path}/a.jpg',
+    )..writeAsBytesSync(<int>[0xff, 0xd8, 0xff, 0xe0]);
+    addTearDown(() => file.parent.deleteSync(recursive: true));
+    controller().attachAttachmentUploader(
+      (path) async => const UploadedAttachment(
+        attachmentId: 'att_12345678',
+        mediaType: 'image/jpeg',
+        size: 4,
+      ),
+    );
+
+    await controller().addImage(file.path);
+
+    expect(state().attachments.single.isReady, isTrue);
+    expect(state().canSend, isTrue);
+
+    final future = controller().sendText();
+    await pumpEventQueue();
+    final payload =
+        (jsonDecode(socket.sent.last) as Map<String, dynamic>)['payload']
+            as Map<String, dynamic>;
+    expect(payload['text'], '');
+    expect(payload['attachments'], [
+      {'attachmentId': 'att_12345678', 'mediaType': 'image/jpeg', 'size': 4},
+    ]);
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {
+          'sessionId': 'session_01',
+          'runId': 'run_01',
+          'status': 'queued',
+        },
+      ),
+    );
+    await future;
+
+    expect(state().attachments, isEmpty);
+    expect(state().userMessages.single.attachmentPaths, [file.path]);
+  });
+
+  test('drops a failed upload and keeps the draft unsendable', () async {
+    final file = File(
+      '${Directory.systemTemp.createTempSync('s06-pick-fail-').path}/a.jpg',
+    )..writeAsBytesSync(<int>[0xff, 0xd8, 0xff, 0xe0]);
+    addTearDown(() => file.parent.deleteSync(recursive: true));
+    controller().attachAttachmentUploader(
+      (path) async =>
+          throw const AttachmentUploadException('UPLOAD_FAILED'),
+    );
+
+    await controller().addImage(file.path);
+
+    expect(state().attachments, isEmpty);
+    expect(state().error, contains('图片上传失败'));
+  });
+
+  test('removes a pending image', () async {
+    final file = File(
+      '${Directory.systemTemp.createTempSync('s06-pick-remove-').path}/a.jpg',
+    )..writeAsBytesSync(<int>[0xff, 0xd8, 0xff, 0xe0]);
+    addTearDown(() => file.parent.deleteSync(recursive: true));
+    controller().attachAttachmentUploader(
+      (path) async => const UploadedAttachment(
+        attachmentId: 'att_12345678',
+        mediaType: 'image/jpeg',
+        size: 4,
+      ),
+    );
+    await controller().addImage(file.path);
+
+    controller().removeImage(file.path);
+
+    expect(state().attachments, isEmpty);
+  });
+}
+
+final class _MemoryUserMessages implements UserMessageStore {
+  final List<UserMessage> rows = <UserMessage>[];
+
+  @override
+  Future<void> appendUserMessage(UserMessage message) async {
+    rows.add(message);
+  }
+
+  @override
+  Future<List<UserMessage>> readUserMessages(String sessionId) async {
+    return rows
+        .where((message) => message.sessionId == sessionId)
+        .toList(growable: false);
+  }
 }

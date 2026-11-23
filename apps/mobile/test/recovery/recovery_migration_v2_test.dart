@@ -116,7 +116,7 @@ void main() {
     );
     addTearDown(store.close);
 
-    expect(recoverySchemaVersion, 2);
+    expect(recoverySchemaVersion, 4);
     for (final table in [
       'outbox_commands',
       'sync_cursors',
@@ -129,6 +129,8 @@ void main() {
     }
     final voiceRows = await store.db.query('voice_drafts');
     expect(voiceRows, isEmpty);
+    final userRows = await store.db.query('user_messages');
+    expect(userRows, isEmpty);
   });
 
   test('creates only the voice draft columns with pending status', () async {

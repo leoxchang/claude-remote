@@ -1,9 +1,9 @@
 # S04 真机 E2E 台账
 
-**日期：** 2026-11-13
-**结论：** **BLOCKED** — 15 条真机用例尚未在真实 iPhone + Tailscale HTTPS + SQLite 环境执行；S04 不得验收。
-**realDevice:** false
-**dataProtection:** false
+**日期：** 2026-11-13（iPhone 补测 2026-11-17）
+**结论：** **BLOCKED** — 15 条真机 E2E 尚未在真实 iPhone + Tailscale HTTPS + SQLite 环境执行；STORE-00 iPhone 已于 2026-11-17 PASS，S04 仍不得验收。
+**realDevice:** true
+**dataProtection:** true
 **sdkEvidence:** REAL（PERM-00）
 **PERM-00:** PASS（S03 真实 SDK 6/6）
 
@@ -14,8 +14,8 @@
 | S00 Core | PASS |
 | S01/S02/S03 自动化 | PASS（S03 真机 E2E 仍 BLOCKED） |
 | STORE-00 Mac（真实 better-sqlite3/WAL/backup） | PASS |
-| STORE-00 iPhone（sqflite + Data Protection） | BLOCKED（无物理设备） |
-| Tailscale HTTPS Certificates / Serve | 未配置 |
+| STORE-00 iPhone（sqflite + Data Protection） | PASS（2026-11-17 真机 integration_test，见 `store00-evidence.md`） |
+| Tailscale HTTPS Certificates / Serve | 2026-11-17 已配置并验证（2026-11-23 核对：Tailscale 已停止、Serve 配置为空，需重新启用） |
 
 ## 2. 用例
 
@@ -39,7 +39,8 @@
 
 ## 3. 解除条件
 
-1. 启用 Tailscale HTTPS Certificates 与 Serve；
-2. 接入物理 iPhone 并完成 STORE-00 iPhone（`IPHONE: PASS`、`dataProtection: true`）；
-3. 逐项执行 E2E-01–15 并回填状态与 traceId；
-4. `npm run verify:s04` 全部 PASS 后才允许 S04 验收。
+1. 恢复 Tailscale HTTPS Certificates 与 Serve（2026-11-17 曾验证通过，当前已停止）；
+2. ~~接入物理 iPhone 并完成 STORE-00 iPhone~~ ✅ 2026-11-17 完成（`IPHONE: PASS`、`dataProtection: true`）；
+3. iPhone 安装 Tailscale 登录同一 tailnet（当前无 iPhone 节点，E2E 依赖时仍需）；
+4. 逐项执行 E2E-01–15 并回填状态与 traceId；
+5. `npm run verify:s04` 全部 PASS 后才允许 S04 验收。

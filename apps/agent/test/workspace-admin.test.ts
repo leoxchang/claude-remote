@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AdminClient } from '../src/admin/client.js';
 import { AdminStatus, createAdminServer } from '../src/admin/server.js';
+import { agentVersions } from '../src/app/versions.js';
 import { AgentConfigV3 } from '../src/config/config-v3.js';
 import { PairingService } from '../src/pairing/pairing-service.js';
 import { DeviceStore } from '../src/store/device-store.js';
@@ -37,6 +38,7 @@ async function startAdmin(): Promise<AdminClient> {
     desktopId: 'desktop_test',
     listen: { host: '127.0.0.1', port: 8787 },
     activeDeviceId: null,
+    versions: agentVersions(),
   };
   const workspaces = new WorkspaceManager({
     configDir,

@@ -22,8 +22,10 @@ import {
   AGENT_LISTEN_PORT,
   CONFIG_FILE_MODE,
   DEFAULT_CONFIG_DIR,
+  LAN_LISTEN_HOST,
   resolveAgentPaths,
 } from './paths.js';
+import { parseBaseUrl } from './base-url.js';
 
 /** 显示名允许的最大 Unicode code point 数。 */
 export const MAX_DISPLAY_NAME_CODE_POINTS = 80;
@@ -187,13 +189,17 @@ function parseWorkspace(input: unknown): WorkspaceRecord {
 
 function parseListen(record: Record<string, unknown>): AgentConfigV2['listen'] {
   const listen = asRecord(record['listen']);
+  const host = listen['host'];
   if (
-    listen['host'] !== AGENT_LISTEN_HOST ||
+    (host !== AGENT_LISTEN_HOST && host !== LAN_LISTEN_HOST) ||
     listen['port'] !== AGENT_LISTEN_PORT
   ) {
     throw new ConfigV2Error('INVALID_CONFIG');
   }
-  return { host: AGENT_LISTEN_HOST, port: AGENT_LISTEN_PORT };
+  return {
+    host: host === LAN_LISTEN_HOST ? LAN_LISTEN_HOST : AGENT_LISTEN_HOST,
+    port: AGENT_LISTEN_PORT,
+  };
 }
 
 function parseTailscale(
@@ -201,10 +207,11 @@ function parseTailscale(
 ): AgentConfigV2['tailscale'] {
   const tailscale = asRecord(record['tailscale']);
   const baseUrl = requireString(tailscale, 'baseUrl');
-  if (!baseUrl.startsWith('https://') || !new URL(baseUrl).hostname.endsWith('.ts.net')) {
+  try {
+    return { baseUrl: parseBaseUrl(baseUrl).origin };
+  } catch {
     throw new ConfigV2Error('INVALID_CONFIG');
   }
-  return { baseUrl };
 }
 
 async function backupPreviousConfig(agentFile: string): Promise<void> {

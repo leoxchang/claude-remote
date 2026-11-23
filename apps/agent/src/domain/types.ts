@@ -1,3 +1,5 @@
+import { ListenHost } from '../config/paths.js';
+
 import { WorkspaceRecord } from '../workspace/workspace-types.js';
 
 /** 终态 run 状态；进入终态后不再变化。 */
@@ -98,7 +100,7 @@ export interface AgentConfig {
     rootPath: string;
   };
   listen: {
-    host: '127.0.0.1';
+    host: ListenHost;
     port: 8787;
   };
   tailscale: {
@@ -112,7 +114,7 @@ export interface AgentConfigV2 {
   desktopId: string;
   workspaces: WorkspaceRecord[];
   listen: {
-    host: '127.0.0.1';
+    host: ListenHost;
     port: 8787;
   };
   tailscale: {

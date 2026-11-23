@@ -43,9 +43,23 @@ class PairingPage extends ConsumerWidget {
         _ => _ScanView(
           builder: scannerBuilder ?? _defaultScanner,
           onCode: controller.submit,
+          onManual: () => _openManualEntry(context, controller),
         ),
       },
     );
+  }
+
+  /// 模拟器/相机不可用时，粘贴 Mac 终端输出的配对载荷。
+  Future<void> _openManualEntry(
+    BuildContext context,
+    PairingController controller,
+  ) async {
+    final payload = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ManualPayloadDialog(),
+    );
+    if (payload == null || payload.isEmpty) return;
+    controller.submit(payload);
   }
 
   Widget _defaultScanner(BuildContext context, ValueChanged<String> onCode) {
@@ -64,10 +78,15 @@ class PairingPage extends ConsumerWidget {
 }
 
 class _ScanView extends StatelessWidget {
-  const _ScanView({required this.builder, required this.onCode});
+  const _ScanView({
+    required this.builder,
+    required this.onCode,
+    required this.onManual,
+  });
 
   final PairingScannerBuilder builder;
   final ValueChanged<String> onCode;
+  final VoidCallback onManual;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +97,62 @@ class _ScanView extends StatelessWidget {
           child: Text('在 Mac 上运行 pair 命令，然后扫描终端里的二维码'),
         ),
         Expanded(child: builder(context, onCode)),
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: TextButton(
+            key: const Key('pairingManualEntry'),
+            onPressed: onManual,
+            child: const Text('无法扫码？手动输入配对信息'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 手动粘贴一次性配对载荷；内容只在本页内存中。
+class _ManualPayloadDialog extends StatefulWidget {
+  const _ManualPayloadDialog();
+
+  @override
+  State<_ManualPayloadDialog> createState() => _ManualPayloadDialogState();
+}
+
+class _ManualPayloadDialogState extends State<_ManualPayloadDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('手动配对'),
+      content: TextField(
+        key: const Key('pairingPayloadField'),
+        controller: _controller,
+        autofocus: true,
+        minLines: 3,
+        maxLines: 6,
+        decoration: const InputDecoration(
+          hintText: '粘贴 Mac 上 pair 命令输出的 payload',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          key: const Key('pairingManualSubmit'),
+          onPressed: () =>
+              Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('配对'),
+        ),
       ],
     );
   }

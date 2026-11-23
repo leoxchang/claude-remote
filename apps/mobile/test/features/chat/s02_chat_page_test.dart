@@ -74,7 +74,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.widgetWithText(FilledButton, '排队'), findsOneWidget);
+    expect(find.byTooltip('排队'), findsOneWidget);
   });
 
   testWidgets('renders an anonymous queued card with removal and hint', (
@@ -118,9 +118,9 @@ void main() {
     );
     await tester.pump();
 
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, '发送'),
+    final button = tester.widget<InkResponse>(
+      find.byKey(const Key('composerSend')),
     );
-    expect(button.onPressed, isNull);
+    expect(button.onTap, isNull);
   });
 }

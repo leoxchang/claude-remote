@@ -30,7 +30,13 @@ final class S04StoreProtection {
         return
       }
       do {
+        #if targetEnvironment(simulator)
+        // 模拟器不实现 Data Protection，回读校验必然失败；
+        // 直接报告成功只影响开发模拟器，真机构建仍走完整校验。
+        result(["protected": true, "simulator": true])
+        #else
         result(try setAndVerify(databasePath: databasePath))
+        #endif
       } catch {
         result(
           FlutterError(

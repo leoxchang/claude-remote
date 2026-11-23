@@ -32,9 +32,30 @@ void main() {
     expect(payload.code, 'code_0123456789');
   });
 
+  test('parses a LAN http payload on a private address', () {
+    final payload = PairingQrPayload.parse(
+      qrJson(baseUrl: 'http://192.168.5.10:8787'),
+    );
+
+    expect(payload.baseUrl, 'http://192.168.5.10:8787');
+  });
+
+  test('accepts an https host outside the tailnet', () {
+    final payload = PairingQrPayload.parse(
+      qrJson(baseUrl: 'https://remote.example.com'),
+    );
+
+    expect(payload.baseUrl, 'https://remote.example.com');
+  });
+
   for (final invalid in <String, String>{
     'plain http': qrJson(baseUrl: 'http://mac.tailnet-abc.ts.net'),
-    'non tailscale host': qrJson(baseUrl: 'https://example.com'),
+    'public http host': qrJson(baseUrl: 'http://example.com'),
+    'public http ip': qrJson(baseUrl: 'http://8.8.8.8:8787'),
+    'http with credentials': qrJson(
+      baseUrl: 'http://user:pass@192.168.5.10:8787',
+    ),
+    'base url with path': qrJson(baseUrl: 'https://example.com/api'),
     'unsupported version': qrJson(v: 2),
     'missing code': qrJson(code: null),
     'missing pairing id': qrJson(pairingId: null),

@@ -6,6 +6,13 @@ import {
 import { validateProtocolMessage } from '@claude-remote/protocol/validator';
 
 import { AgentOperations } from '../app/agent-operations.js';
+import {
+  AttachmentRequest,
+  AttachmentStore,
+  isImageMediaType,
+  MAX_ATTACHMENTS_PER_PROMPT,
+  MAX_ATTACHMENT_BYTES,
+} from '../attachment/attachment-store.js';
 import { RecoveryService } from '../run/recovery-service.js';
 import { SessionSyncService } from '../sync/session-sync-service.js';
 import { SnapshotService } from '../sync/snapshot-service.js';
@@ -46,6 +53,8 @@ export interface CommandRouterDependencies {
   sync?: SessionSyncService;
   snapshots?: SnapshotService;
   recovery?: RecoveryService;
+  /** 图片附件存储；未装配时 prompt.send 不接受 attachments。 */
+  attachments?: AttachmentStore;
 }
 
 type DispatchPayload =
@@ -67,6 +76,7 @@ export class CommandRouter {
   private readonly sync: SessionSyncService | undefined;
   private readonly snapshots: SnapshotService | undefined;
   private readonly recovery: RecoveryService | undefined;
+  private readonly attachments: AttachmentStore | undefined;
 
   constructor(deps: CommandRouterDependencies) {
     this.operations = deps.operations;
@@ -74,6 +84,7 @@ export class CommandRouter {
     this.sync = deps.sync;
     this.snapshots = deps.snapshots;
     this.recovery = deps.recovery;
+    this.attachments = deps.attachments;
   }
 
   /** 处理一条命令并返回 command.result。 */
@@ -180,7 +191,14 @@ export class CommandRouter {
           return ok(this.operations.archiveSession(sessionId));
         }
         case 'prompt.send': {
-          const text = readPrompt(command.payload);
+          const payload = asRecord(command.payload);
+          const attachmentRequests = readAttachmentRequests(payload['attachments']);
+          const text = readPrompt(payload, attachmentRequests.length > 0);
+          if (this.attachments === undefined && attachmentRequests.length > 0) {
+            throw new AgentError('INVALID_MESSAGE');
+          }
+          const resolved =
+            this.attachments?.resolve(attachmentRequests) ?? [];
           const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
           const accepted = await this.operations.sendPrompt(
             command.workspaceId,
@@ -189,7 +207,11 @@ export class CommandRouter {
             command.commandId,
             command.traceId,
             device.deviceId,
+            attachmentRequests,
           );
+          if (resolved.length > 0 && accepted.runId.length > 0) {
+            this.attachments?.linkRun(accepted.runId, resolved);
+          }
           return ok(accepted);
         }
         case 'run.cancel': {
@@ -378,15 +400,46 @@ function ok<T extends object>(data: T): DispatchPayload {
   return { status: 'ok', data: { ...data } as Record<string, unknown> };
 }
 
-function readPrompt(payload: unknown): string {
+function readPrompt(payload: unknown, allowEmpty = false): string {
   const text = asRecord(payload)['text'];
-  if (typeof text !== 'string' || text.trim().length === 0) {
+  if (typeof text !== 'string' || (text.trim().length === 0 && !allowEmpty)) {
     throw new AgentError('INVALID_MESSAGE');
   }
   if (Buffer.byteLength(text, 'utf8') > MAX_PROMPT_BYTES) {
     throw new AgentError('INVALID_MESSAGE');
   }
   return text;
+}
+
+/** 解析 prompt 的图片引用；字段不合法时整条命令按 INVALID_MESSAGE 拒绝。 */
+function readAttachmentRequests(value: unknown): AttachmentRequest[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_ATTACHMENTS_PER_PROMPT) {
+    throw new AgentError('INVALID_MESSAGE');
+  }
+  const requests: AttachmentRequest[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) {
+      throw new AgentError('INVALID_MESSAGE');
+    }
+    const record = entry as Record<string, unknown>;
+    const attachmentId = record['attachmentId'];
+    const mediaType = record['mediaType'];
+    const size = record['size'];
+    if (
+      typeof attachmentId !== 'string' ||
+      !/^att_[A-Za-z0-9_-]{8,64}$/.test(attachmentId) ||
+      !isImageMediaType(mediaType) ||
+      typeof size !== 'number' ||
+      !Number.isInteger(size) ||
+      size <= 0 ||
+      size > MAX_ATTACHMENT_BYTES
+    ) {
+      throw new AgentError('INVALID_MESSAGE');
+    }
+    requests.push({ attachmentId, mediaType, size });
+  }
+  return requests;
 }
 
 function readListInput(payload: unknown): SessionListInput {

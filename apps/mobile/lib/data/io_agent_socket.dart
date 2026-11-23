@@ -7,17 +7,29 @@ import '../protocol/envelope.dart';
 import 'agent_socket.dart';
 import 'device_credential.dart';
 
-/// 真实 WSS 连接；使用系统默认 TLS 校验，不支持关闭校验。
+/// 主控制连接地址：https→wss，http（局域网）→ws。
+Uri agentSocketUri(DeviceCredential credential) {
+  final base = Uri.parse(credential.baseUrl);
+  final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+  return base.replace(scheme: scheme, path: '/ws');
+}
+
+/// 与服务端 `authenticateRequest` 一致的 Bearer 头：`<deviceId>.<token>`。
+Map<String, String> agentSocketHeaders(DeviceCredential credential) {
+  return {
+    'Authorization': 'Bearer ${credential.deviceId}.${credential.deviceToken}',
+  };
+}
+
+/// 真实 WSS/WS 连接；使用系统默认 TLS 校验，不支持关闭校验。
 final class IoAgentSocket implements AgentSocket {
   IoAgentSocket._(this._channel);
 
-  /// 用凭证里的 baseUrl 建立 `wss://<host>/ws`，令牌只放在 Authorization 头。
+  /// 用凭证里的 baseUrl 建立主控制连接。
   factory IoAgentSocket.connect(DeviceCredential credential) {
-    final base = Uri.parse(credential.baseUrl);
-    final uri = base.replace(scheme: 'wss', path: '/ws');
     final channel = IOWebSocketChannel.connect(
-      uri,
-      headers: {'Authorization': 'Bearer ${credential.deviceToken}'},
+      agentSocketUri(credential),
+      headers: agentSocketHeaders(credential),
       pingInterval: const Duration(seconds: 15),
       connectTimeout: const Duration(seconds: 10),
     );

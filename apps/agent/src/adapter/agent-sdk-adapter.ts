@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import {
   CanUseTool,
   Options,
@@ -7,6 +9,10 @@ import {
   query,
 } from '@anthropic-ai/claude-agent-sdk';
 
+import {
+  ImageMediaType,
+  RunAttachment,
+} from '../attachment/attachment-store.js';
 import { SdkPermissionRequest } from '../approval/approval-types.js';
 import { AdapterEvent } from '../events/adapter-events.js';
 import {
@@ -36,10 +42,18 @@ interface RunState {
 /** 真实 Agent SDK 适配器；SDK 类型只出现在本文件。 */
 export class AgentSdkAdapter implements ManagedRunDriver {
   private readonly queryFactory: QueryFactory;
+  private readonly loadAttachments: (runId: string) => RunAttachment[];
 
-  constructor(options: { queryFactory?: QueryFactory } = {}) {
+  constructor(
+    options: {
+      queryFactory?: QueryFactory;
+      /** 按 runId 取回已上传图片；未装配时不支持图片。 */
+      loadAttachments?: (runId: string) => RunAttachment[];
+    } = {},
+  ) {
     this.queryFactory =
       options.queryFactory ?? ((params) => query(params));
+    this.loadAttachments = options.loadAttachments ?? (() => []);
   }
 
   /**
@@ -66,7 +80,10 @@ export class AgentSdkAdapter implements ManagedRunDriver {
         ? {}
         : { resume: input.claudeSessionId }),
     };
-    const q = this.queryFactory({ prompt: singleMessage(input.text), options });
+    const q = this.queryFactory({
+      prompt: singleMessage(input.text, this.loadAttachments(input.runId)),
+      options,
+    });
     const state: RunState = {
       messageId: null,
       interrupted: false,
@@ -308,11 +325,47 @@ function mapPermissionRequest(
   };
 }
 
-async function* singleMessage(text: string): AsyncGenerator<SDKUserMessage> {
+/** 文本用字符串，带图片时改用文本块 + 图片块。 */
+async function* singleMessage(
+  text: string,
+  attachments: readonly RunAttachment[],
+): AsyncGenerator<SDKUserMessage> {
+  const blocks = attachments.flatMap((attachment) => {
+    const block = toImageBlock(attachment);
+    return block === null ? [] : [block];
+  });
+  const content =
+    blocks.length === 0
+      ? text
+      : [
+          ...(text.length === 0 ? [] : [{ type: 'text' as const, text }]),
+          ...blocks,
+        ];
   yield {
     type: 'user',
-    message: { role: 'user', content: text },
+    message: { role: 'user', content },
     parent_tool_use_id: null,
+  };
+}
+
+/** 读取本机图片并编码为 base64；读失败时跳过该张图片。 */
+function toImageBlock(attachment: RunAttachment): {
+  type: 'image';
+  source: { type: 'base64'; media_type: ImageMediaType; data: string };
+} | null {
+  let data: string;
+  try {
+    data = readFileSync(attachment.path).toString('base64');
+  } catch {
+    return null;
+  }
+  return {
+    type: 'image',
+    source: {
+      type: 'base64',
+      media_type: attachment.mediaType,
+      data,
+    },
   };
 }
 

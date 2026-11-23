@@ -1,9 +1,11 @@
 import { AgentConfig } from '../domain/types.js';
 import { readJsonFileIfExists } from './atomic-file.js';
+import { parseBaseUrl } from './base-url.js';
 import {
   AGENT_LISTEN_HOST,
   AGENT_LISTEN_PORT,
   DEFAULT_CONFIG_DIR,
+  LAN_LISTEN_HOST,
   resolveAgentPaths,
 } from './paths.js';
 
@@ -38,25 +40,35 @@ export function parseAgentConfig(raw: unknown): AgentConfig {
   }
   const displayName = requireString(workspace, 'displayName');
   const rootPath = requireString(workspace, 'rootPath');
-  if (listen['host'] !== AGENT_LISTEN_HOST) {
+  const listenHost = listen['host'];
+  if (listenHost !== AGENT_LISTEN_HOST && listenHost !== LAN_LISTEN_HOST) {
     throw new Error(
-      `agent.json listen.host must be ${AGENT_LISTEN_HOST}`,
+      `agent.json listen.host must be ${AGENT_LISTEN_HOST} or ${LAN_LISTEN_HOST}`,
     );
   }
   if (listen['port'] !== AGENT_LISTEN_PORT) {
     throw new Error(`agent.json listen.port must be ${AGENT_LISTEN_PORT}`);
   }
   const baseUrl = requireString(tailscale, 'baseUrl');
-  if (!baseUrl.startsWith('https://')) {
-    throw new Error('agent.json tailscale.baseUrl must use https');
+  let origin: string;
+  try {
+    origin = parseBaseUrl(baseUrl).origin;
+  } catch {
+    throw new Error(
+      'agent.json tailscale.baseUrl must use https, or http on a private LAN address',
+    );
   }
 
   return {
     version: 1,
     desktopId,
     workspace: { workspaceId: 'default', displayName, rootPath },
-    listen: { host: AGENT_LISTEN_HOST, port: AGENT_LISTEN_PORT },
-    tailscale: { baseUrl },
+    listen: {
+      host:
+        listenHost === LAN_LISTEN_HOST ? LAN_LISTEN_HOST : AGENT_LISTEN_HOST,
+      port: AGENT_LISTEN_PORT,
+    },
+    tailscale: { baseUrl: origin },
   };
 }
 

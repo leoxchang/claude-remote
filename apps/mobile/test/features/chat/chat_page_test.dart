@@ -59,12 +59,15 @@ void main() {
       container.read(chatControllerProvider.notifier);
 
   testWidgets('disables send while offline', (tester) async {
-    await pumpChat(tester);
+    final container = await pumpChat(tester);
+    chatOf(container).attachSession('session_01');
+    chatOf(container).updateDraft('hello');
+    await tester.pump();
 
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, '发送'),
+    final button = tester.widget<InkResponse>(
+      find.byKey(const Key('composerSend')),
     );
-    expect(button.onPressed, isNull);
+    expect(button.onTap, isNull);
   });
 
   testWidgets('enables send once ready with a draft', (tester) async {
@@ -74,10 +77,10 @@ void main() {
     chatOf(container).updateDraft('hello');
     await tester.pump();
 
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, '发送'),
+    final button = tester.widget<InkResponse>(
+      find.byKey(const Key('composerSend')),
     );
-    expect(button.onPressed, isNotNull);
+    expect(button.onTap, isNotNull);
   });
 
   testWidgets('shows the stop control while a run is active', (tester) async {

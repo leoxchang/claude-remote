@@ -1,4 +1,5 @@
 import { AgentError } from '../command/errors.js';
+import { AttachmentRequest } from '../attachment/attachment-store.js';
 import { ApprovalStore } from '../approval/approval-store.js';
 import { pendingApprovalSummaries } from '../approval/approval-summary.js';
 import {
@@ -63,6 +64,7 @@ export interface AgentOperations {
     commandId: string,
     traceId: string,
     deviceId: string,
+    attachments?: readonly AttachmentRequest[],
   ): Promise<PromptAccepted>;
   cancelRun(sessionId: string, runId: string): Promise<CancelAccepted>;
   removeQueuedRun(sessionId: string, runId: string): Promise<QueueRemoved>;
@@ -145,10 +147,15 @@ export class AgentOperationsImpl implements AgentOperations {
     commandId: string,
     traceId: string,
     deviceId: string,
+    attachments: readonly AttachmentRequest[] = [],
   ): Promise<PromptAccepted> {
     const session = this.deps.sessions.get(sessionId);
     if (workspaceId !== undefined && workspaceId !== session.workspaceId) {
       throw new AgentError('WORKSPACE_NOT_ALLOWED');
+    }
+    if (attachments.length > 0) {
+      // 旧 S01 运行路径没有附件存储，不能静默丢图。
+      throw new AgentError('INVALID_MESSAGE');
     }
     const admission = this.deps.promptAdmission;
     if (admission !== undefined) {

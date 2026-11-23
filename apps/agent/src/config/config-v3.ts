@@ -18,7 +18,12 @@ import {
   migrateConfigV1ToV2,
   parseAgentConfigV2,
 } from './config-v2.js';
-import { CONFIG_FILE_MODE, DEFAULT_CONFIG_DIR, resolveAgentPaths } from './paths.js';
+import {
+  CONFIG_FILE_MODE,
+  DEFAULT_CONFIG_DIR,
+  ListenHost,
+  resolveAgentPaths,
+} from './paths.js';
 
 /** S03 配置结构：多项目 + 队列策略 + 逐项目手机审批模式。 */
 export interface AgentConfigV3 {
@@ -26,7 +31,7 @@ export interface AgentConfigV3 {
   desktopId: string;
   workspaces: WorkspaceRecord[];
   listen: {
-    host: '127.0.0.1';
+    host: ListenHost;
     port: 8787;
   };
   tailscale: {

@@ -91,15 +91,50 @@ describe('initializeConfig', () => {
     ).rejects.toThrow(/https/i);
   });
 
-  it('rejects a base url that is not a ts.net host', async () => {
+  it('accepts an https base url on any host', async () => {
+    const value = await setup();
+
+    const config = await initializeConfig({
+      ...validInput(value),
+      tailscaleBaseUrl: 'https://remote.example.com',
+    });
+
+    expect(config.tailscale.baseUrl).toBe('https://remote.example.com');
+  });
+
+  it('accepts a private http base url in LAN mode', async () => {
+    const value = await setup();
+
+    const config = await initializeConfig({
+      ...validInput(value),
+      tailscaleBaseUrl: 'http://192.168.5.10:8787',
+      lanMode: true,
+    });
+
+    expect(config.listen.host).toBe('0.0.0.0');
+    expect(config.tailscale.baseUrl).toBe('http://192.168.5.10:8787');
+  });
+
+  it('rejects a private http base url without LAN mode', async () => {
     const value = await setup();
 
     await expect(
       initializeConfig({
         ...validInput(value),
-        tailscaleBaseUrl: 'https://example.com',
+        tailscaleBaseUrl: 'http://192.168.5.10:8787',
       }),
-    ).rejects.toThrow(/ts\.net/i);
+    ).rejects.toThrow(/LAN mode/i);
+  });
+
+  it('rejects a public http base url', async () => {
+    const value = await setup();
+
+    await expect(
+      initializeConfig({
+        ...validInput(value),
+        tailscaleBaseUrl: 'http://example.com',
+      }),
+    ).rejects.toThrow(/https/i);
   });
 
   it('refuses to overwrite an existing configuration', async () => {
@@ -135,10 +170,24 @@ describe('loadConfig', () => {
     ) as Record<string, unknown>;
     await writeFile(
       join(value.configDir, 'agent.json'),
-      JSON.stringify({ ...stored, listen: { host: '0.0.0.0', port: 8787 } }),
+      JSON.stringify({ ...stored, listen: { host: '192.168.5.10', port: 8787 } }),
     );
 
     await expect(loadConfig(value.configDir)).rejects.toThrow(/127\.0\.0\.1|listen/i);
+  });
+
+  it('accepts a LAN-mode configuration', async () => {
+    const value = await setup();
+    await initializeConfig({
+      ...validInput(value),
+      tailscaleBaseUrl: 'http://192.168.5.10:8787',
+      lanMode: true,
+    });
+
+    const stored = await loadConfig(value.configDir);
+
+    expect(stored.listen).toEqual({ host: '0.0.0.0', port: 8787 });
+    expect(stored.tailscale.baseUrl).toBe('http://192.168.5.10:8787');
   });
 });
 describe('loadConfig validation', () => {

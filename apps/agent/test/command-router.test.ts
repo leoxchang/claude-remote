@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { AttachmentStore } from '../src/attachment/attachment-store.js';
 import { AgentOperations } from '../src/app/agent-operations.js';
 import { AgentError } from '../src/command/errors.js';
 import { CommandRouter } from '../src/command/router.js';
@@ -12,6 +17,18 @@ const DEVICE: DeviceRecord = {
   createdAt: '2026-11-10T00:00:00.000Z',
   revokedAt: null,
 };
+
+const tempRoots: string[] = [];
+
+function addTempRoot(root: string): void {
+  tempRoots.push(root);
+}
+
+afterEach(() => {
+  for (const root of tempRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 const base = (type: string, commandId: string): Record<string, unknown> => ({
   protocolVersion: 1,
@@ -80,7 +97,10 @@ function summary(sessionId = 'session_01') {
   };
 }
 
-function harness(overrides: Partial<OperationSpies> = {}): Harness {
+function harness(
+  overrides: Partial<OperationSpies> = {},
+  attachments?: AttachmentStore,
+): Harness {
   const operations = {
     listWorkspaces: vi.fn(() => ({
       workspaces: [{ workspaceId: 'default', displayName: 'Fixture' }],
@@ -132,6 +152,7 @@ function harness(overrides: Partial<OperationSpies> = {}): Harness {
   return {
     router: new CommandRouter({
       operations: operations as unknown as AgentOperations,
+      ...(attachments === undefined ? {} : { attachments }),
     }),
     operations,
   };
@@ -251,6 +272,93 @@ describe('CommandRouter', () => {
     const result = await router.route(promptSend('cmd_1', 'a'.repeat(16_384)), DEVICE);
 
     expect(result.payload).toMatchObject({ status: 'ok' });
+  });
+
+  it('accepts an image-only prompt and links it to the run', async () => {
+    const root = mkdtempSync(join(tmpdir(), 's06-router-attach-'));
+    const attachments = new AttachmentStore(root);
+    const saved = attachments.save({
+      deviceId: DEVICE.deviceId,
+      mediaType: 'image/jpeg',
+      bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+    });
+    const { router, operations } = harness({}, attachments);
+    addTempRoot(root);
+
+    const result = await router.route(
+      {
+        ...(base('prompt.send', 'cmd_img') as object),
+        sessionId: 'session_01',
+        payload: { text: '', attachments: [saved] },
+      },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({ status: 'ok' });
+    expect(operations.sendPrompt).toHaveBeenCalledWith(
+      undefined,
+      'session_01',
+      '',
+      'cmd_img',
+      'trace_cmd_img',
+      DEVICE.deviceId,
+      [saved],
+    );
+    expect(attachments.loadForRun('run_01')).toHaveLength(1);
+  });
+
+  it('rejects attachments when no attachment store is wired', async () => {
+    const { router, operations } = harness();
+
+    const result = await router.route(
+      {
+        ...(base('prompt.send', 'cmd_img') as object),
+        sessionId: 'session_01',
+        payload: {
+          text: '看图',
+          attachments: [
+            {
+              attachmentId: 'att_12345678',
+              mediaType: 'image/jpeg',
+              size: 4,
+            },
+          ],
+        },
+      },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({
+      status: 'error',
+      error: { code: 'INVALID_MESSAGE' },
+    });
+    expect(operations.sendPrompt).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsupported attachment media type', async () => {
+    const root = mkdtempSync(join(tmpdir(), 's06-router-bad-attach-'));
+    addTempRoot(root);
+    const { router, operations } = harness({}, new AttachmentStore(root));
+
+    const result = await router.route(
+      {
+        ...(base('prompt.send', 'cmd_img') as object),
+        sessionId: 'session_01',
+        payload: {
+          text: '看图',
+          attachments: [
+            { attachmentId: 'att_12345678', mediaType: 'image/gif', size: 4 },
+          ],
+        },
+      },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({
+      status: 'error',
+      error: { code: 'INVALID_MESSAGE' },
+    });
+    expect(operations.sendPrompt).not.toHaveBeenCalled();
   });
 
   it('maps a missing session to SESSION_NOT_FOUND', async () => {

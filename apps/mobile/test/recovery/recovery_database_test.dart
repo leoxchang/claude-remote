@@ -39,9 +39,10 @@ void main() {
         'cached_events',
         'cached_sessions',
         'drafts',
+        'user_messages',
       ]),
     );
-    expect(recoverySchemaVersion, 2);
+    expect(recoverySchemaVersion, 4);
   });
 
   test('enforces one active execution intent per session', () async {

@@ -1,4 +1,5 @@
 import { AgentError } from '../command/errors.js';
+import { AttachmentRequest } from '../attachment/attachment-store.js';
 import { defaultSessionTitle } from '../session/session-title.js';
 import {
   SessionListInput,
@@ -185,6 +186,7 @@ export class DurableAgentOperations implements AgentOperations {
     commandId: string,
     traceId: string,
     deviceId: string,
+    attachments: readonly AttachmentRequest[] = [],
   ): Promise<PromptAccepted> {
     const execution = this.deps.admission.send({
       identity: {
@@ -192,10 +194,22 @@ export class DurableAgentOperations implements AgentOperations {
         type: 'prompt.send',
         ...(workspaceId === undefined ? {} : { workspaceId }),
         sessionId,
-        payload: { text },
+        payload: {
+          text,
+          ...(attachments.length === 0
+            ? {}
+            : {
+                attachments: attachments.map((attachment) => ({
+                  attachmentId: attachment.attachmentId,
+                  mediaType: attachment.mediaType,
+                  size: attachment.size,
+                })),
+              }),
+        },
       },
       actor: { deviceId },
       text,
+      attachmentCount: attachments.length,
       traceId,
       now: this.now(),
     });

@@ -80,8 +80,27 @@ void main() {
       );
       await factory.connect();
       expect(uri.toString(), 'wss://mac.example.ts.net/ws/asr');
-      expect(headers, {'Authorization': 'Bearer secret_token'});
+      expect(headers, {'Authorization': 'Bearer device_1.secret_token'});
       expect(uri.toString(), isNot(contains('secret_token')));
+    });
+
+    test('uses ws /ws/asr for a LAN http credential', () async {
+      late Uri uri;
+      final channel = FakeChannel();
+      final factory = IoVoiceAsrClientFactory(
+        credential: const DeviceCredential(
+          deviceId: 'device_1',
+          deviceToken: 'secret_token',
+          baseUrl: 'http://192.168.5.10:8787',
+        ),
+        openChannel: (openedUri, _) {
+          uri = openedUri;
+          return channel;
+        },
+      );
+      await factory.connect();
+
+      expect(uri.toString(), 'ws://192.168.5.10:8787/ws/asr');
     });
   });
 

@@ -79,11 +79,13 @@ function send(
   context: ReturnType<typeof setup>,
   overrides: Partial<CommandIdentity> = {},
   text = 'S04_ADMISSION_PROMPT',
+  attachmentCount = 0,
 ) {
   return context.admission.send({
     identity: identity(overrides),
     actor: { deviceId: 'device_1' },
     text,
+    attachmentCount,
     traceId: 'trace_1',
     now: NOW,
   });
@@ -163,6 +165,18 @@ describe('PromptAdmission', () => {
           .prepare('SELECT count(*) AS total FROM commands')
           .get(),
       ).toEqual({ total: 0 });
+    } finally {
+      context.db.close();
+    }
+  });
+
+  it('accepts an image-only prompt when attachments are declared', () => {
+    const context = setup();
+    try {
+      const execution = send(context, {}, '', 1);
+
+      expect(execution.result).toMatchObject({ status: 'queued' });
+      expect(execution.duplicate).toBe(false);
     } finally {
       context.db.close();
     }

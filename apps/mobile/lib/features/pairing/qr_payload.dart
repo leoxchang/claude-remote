@@ -23,8 +23,6 @@ final class PairingQrPayload {
   /// 当前唯一支持的二维码版本。
   static const int supportedVersion = 1;
 
-  static const String _tailnetSuffix = '.ts.net';
-
   /// 校验并解析二维码原文；任何不合规输入都抛 [PairingPayloadException]。
   factory PairingQrPayload.parse(String raw, {DateTime? now}) {
     final Object? decoded;
@@ -46,9 +44,7 @@ final class PairingQrPayload {
     }
     final baseUrl = _requiredString(decoded, 'baseUrl');
     final uri = Uri.tryParse(baseUrl);
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        !uri.host.endsWith(_tailnetSuffix)) {
+    if (uri == null || !_isAllowedBaseUrl(uri)) {
       throw const PairingPayloadException('INVALID_QR');
     }
     final expiresAt = decoded['expiresAt'];
@@ -79,4 +75,31 @@ String _requiredString(Map<String, Object?> map, String key) {
     throw const PairingPayloadException('INVALID_QR');
   }
   return value;
+}
+
+/// https 任意主机；http 仅私有 IPv4（局域网直连）。
+bool _isAllowedBaseUrl(Uri uri) {
+  if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) {
+    return false;
+  }
+  if (uri.path.isNotEmpty && uri.path != '/') return false;
+  if (uri.scheme == 'https') return true;
+  return uri.scheme == 'http' && _isPrivateIpv4(uri.host);
+}
+
+bool _isPrivateIpv4(String host) {
+  final parts = host.split('.');
+  if (parts.length != 4) return false;
+  final octets = <int>[];
+  for (final part in parts) {
+    if (!RegExp(r'^\d{1,3}$').hasMatch(part)) return false;
+    final value = int.tryParse(part);
+    if (value == null || value > 255) return false;
+    octets.add(value);
+  }
+  final first = octets[0];
+  final second = octets[1];
+  if (first == 10 || first == 127) return true;
+  if (first == 192 && second == 168) return true;
+  return first == 172 && second >= 16 && second <= 31;
 }

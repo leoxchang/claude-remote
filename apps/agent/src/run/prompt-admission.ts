@@ -36,6 +36,8 @@ export interface SendPromptInput {
   identity: CommandIdentity;
   actor: { deviceId: string };
   text: string;
+  /** 本次 prompt 附带的图片数量；允许只有图片没有文字。 */
+  attachmentCount?: number;
   traceId: string;
   now: number;
 }
@@ -74,7 +76,11 @@ export class PromptAdmission {
       throw new AgentError('INVALID_MESSAGE');
     }
     const text = input.text;
-    if (text.trim().length === 0 || Buffer.byteLength(text, 'utf8') > MAX_PROMPT_BYTES) {
+    const attachmentCount = input.attachmentCount ?? 0;
+    if (
+      (text.trim().length === 0 && attachmentCount === 0) ||
+      Buffer.byteLength(text, 'utf8') > MAX_PROMPT_BYTES
+    ) {
       throw new AgentError('INVALID_MESSAGE');
     }
     const sessionId = input.identity.sessionId;

@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentSdkAdapter, QueryFactoryParams } from '../src/adapter/agent-sdk-adapter.js';
 import {
@@ -359,5 +363,92 @@ describe('AgentSdkAdapter tool denial', () => {
 
     expect(calls[0]?.options.hooks).toBeUndefined();
     expect(calls[0]?.options.permissionMode).toBe('default');
+  });
+});
+
+describe('AgentSdkAdapter image attachments', () => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+  let directory: string;
+
+  beforeEach(() => {
+    directory = mkdtempSync(join(tmpdir(), 's06-adapter-'));
+  });
+
+  afterEach(() => {
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it('sends image content blocks alongside the text', async () => {
+    const path = join(directory, 'a.jpg');
+    writeFileSync(path, jpeg);
+    const calls: QueryFactoryParams[] = [];
+    const adapter = new AgentSdkAdapter({
+      queryFactory: (params) => {
+        calls.push(params);
+        return fakeQuery([]) as unknown as Query;
+      },
+      loadAttachments: (runId) =>
+        runId === 'run_01' ? [{ path, mediaType: 'image/jpeg' }] : [],
+    });
+
+    start(adapter, input());
+
+    const messages: unknown[] = [];
+    for await (const message of calls[0]?.prompt ?? []) messages.push(message);
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as { message: { content: unknown } }).message.content)
+      .toEqual([
+        { type: 'text', text: 'hello' },
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: jpeg.toString('base64'),
+          },
+        },
+      ]);
+  });
+
+  it('sends only image blocks when the prompt text is empty', async () => {
+    const path = join(directory, 'a.jpg');
+    writeFileSync(path, jpeg);
+    const calls: QueryFactoryParams[] = [];
+    const adapter = new AgentSdkAdapter({
+      queryFactory: (params) => {
+        calls.push(params);
+        return fakeQuery([]) as unknown as Query;
+      },
+      loadAttachments: () => [{ path, mediaType: 'image/jpeg' }],
+    });
+
+    start(adapter, input({ text: '' }));
+
+    const messages: unknown[] = [];
+    for await (const message of calls[0]?.prompt ?? []) messages.push(message);
+    const content = (messages[0] as { message: { content: unknown[] } }).message
+      .content;
+    expect(content).toHaveLength(1);
+    expect(content[0]).toMatchObject({ type: 'image' });
+  });
+
+  it('skips an image file that disappeared before the run started', async () => {
+    const calls: QueryFactoryParams[] = [];
+    const adapter = new AgentSdkAdapter({
+      queryFactory: (params) => {
+        calls.push(params);
+        return fakeQuery([]) as unknown as Query;
+      },
+      loadAttachments: () => [
+        { path: join(directory, 'missing.jpg'), mediaType: 'image/jpeg' },
+      ],
+    });
+
+    start(adapter, input());
+
+    const messages: unknown[] = [];
+    for await (const message of calls[0]?.prompt ?? []) messages.push(message);
+    expect((messages[0] as { message: { content: unknown } }).message.content)
+      .toBe('hello');
   });
 });

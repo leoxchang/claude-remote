@@ -188,13 +188,17 @@ abstract final class S02Commands {
     required String traceId,
     required String sessionId,
     required String text,
+    List<Map<String, Object?>> attachments = const <Map<String, Object?>>[],
   }) {
     return CommandRequest<PromptAccepted>(
       commandId: commandId,
       traceId: traceId,
       type: 'prompt.send',
       sessionId: sessionId,
-      payload: {'text': text},
+      payload: {
+        'text': text,
+        if (attachments.isNotEmpty) 'attachments': attachments,
+      },
       decode: PromptAccepted.fromWire,
     );
   }

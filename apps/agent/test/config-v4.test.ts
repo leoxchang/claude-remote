@@ -36,6 +36,32 @@ describe('AgentConfigV4', () => {
     ).toThrow(/INVALID_CONFIG/);
   });
 
+  it('accepts LAN mode with a private http url', () => {
+    const lan = {
+      ...valid,
+      listen: { host: '0.0.0.0', port: 8787 },
+      tailscale: { baseUrl: 'http://192.168.5.10:8787' },
+    };
+
+    expect(parseAgentConfigV4(lan)).toEqual(lan);
+  });
+
+  it('rejects a listen address and scheme mismatch', () => {
+    expect(() =>
+      parseAgentConfigV4({
+        ...valid,
+        tailscale: { baseUrl: 'http://127.0.0.1:8787' },
+      }),
+    ).toThrow(/INVALID_CONFIG/);
+    expect(() =>
+      parseAgentConfigV4({
+        ...valid,
+        listen: { host: '0.0.0.0', port: 8787 },
+        tailscale: { baseUrl: 'https://mac.example-tailnet.ts.net' },
+      }),
+    ).toThrow(/INVALID_CONFIG/);
+  });
+
   it('returns null for V3 and resolves the database inside configDir', () => {
     const dir = mkdtempSync(join(tmpdir(), 's04-v4-'));
     const paths = resolveAgentPaths(dir);

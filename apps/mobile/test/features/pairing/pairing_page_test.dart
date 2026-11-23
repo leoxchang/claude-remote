@@ -60,6 +60,30 @@ void main() {
     expect(vault.values, isNotEmpty);
   });
 
+  testWidgets('pairs by pasting the payload from the Mac terminal', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appUnderTest(
+        client: MockClient((_) async => pairingSuccess()),
+        vault: vault,
+        capture: (_) => (_) {},
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('pairingManualEntry')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('pairingPayloadField')),
+      validQr(),
+    );
+    await tester.tap(find.byKey(const Key('pairingManualSubmit')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('配对成功'), findsOneWidget);
+    expect(vault.values, isNotEmpty);
+  });
+
   testWidgets('shows a retry affordance after a failed pairing', (
     tester,
   ) async {

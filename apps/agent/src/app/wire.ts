@@ -27,10 +27,13 @@ import {
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { AgentOperationsImpl } from './agent-operations.js';
 import { AgentLogger } from './logger.js';
+import {
+  AGENT_VERSION,
+  RUNTIME_VERSION,
+  SDK_VERSION,
+  agentVersions,
+} from './versions.js';
 
-const AGENT_VERSION = '0.0.0';
-const SDK_VERSION = '0.3.319';
-const RUNTIME_VERSION = '2.1.319';
 const CAPABILITIES = [
   'text',
   'message.delta',
@@ -206,6 +209,7 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
           desktopId: config.desktopId,
           listen: { host: config.listen.host, port: config.listen.port },
           activeDeviceId: deviceStore.active()?.deviceId ?? null,
+          versions: agentVersions(),
         }),
         onRevoke: (deviceId) => {
           connections.revoke(deviceId);
@@ -223,6 +227,7 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
                 workspaceId: config.workspaces[0].workspaceId,
                 displayName: config.workspaces[0].displayName,
               },
+        logger,
         onConnection: (socket, device) => {
           logger.info('connection.accepted', { deviceId: device.deviceId });
           void connections.accept(socket, device);

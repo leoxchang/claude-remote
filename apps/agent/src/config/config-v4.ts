@@ -2,8 +2,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { writeFileAtomicSync } from './atomic-file.js';
-import { CONFIG_FILE_MODE, resolveAgentPaths } from './paths.js';
+import {
+  AGENT_LISTEN_HOST,
+  CONFIG_FILE_MODE,
+  LAN_LISTEN_HOST,
+  ListenHost,
+  resolveAgentPaths,
+} from './paths.js';
 import { ConfigV2Error } from './config-v2.js';
+import { parseBaseUrl } from './base-url.js';
 
 /** V4 只保留 bootstrap 配置；项目与设备以 SQLite 为权威。 */
 export interface AgentConfigV4 {
@@ -13,7 +20,7 @@ export interface AgentConfigV4 {
     file: string;
   };
   listen: {
-    host: '127.0.0.1';
+    host: ListenHost;
     port: 8787;
   };
   tailscale: {
@@ -48,11 +55,15 @@ export function parseAgentConfigV4(input: unknown): AgentConfigV4 {
   }
   const listen = record['listen'];
   const tailscale = record['tailscale'];
+  const listenRecord =
+    typeof listen === 'object' && listen !== null
+      ? (listen as Record<string, unknown>)
+      : null;
+  const listenHost = listenRecord?.['host'];
   if (
-    typeof listen !== 'object' ||
-    listen === null ||
-    (listen as Record<string, unknown>)['host'] !== '127.0.0.1' ||
-    (listen as Record<string, unknown>)['port'] !== 8787
+    listenRecord === null ||
+    (listenHost !== AGENT_LISTEN_HOST && listenHost !== LAN_LISTEN_HOST) ||
+    listenRecord['port'] !== 8787
   ) {
     throw new ConfigV2Error('INVALID_CONFIG');
   }
@@ -63,12 +74,27 @@ export function parseAgentConfigV4(input: unknown): AgentConfigV4 {
   ) {
     throw new ConfigV2Error('INVALID_CONFIG');
   }
+  const baseUrlRaw = (tailscale as Record<string, unknown>)['baseUrl'] as string;
+  let baseUrl: URL;
+  try {
+    baseUrl = parseBaseUrl(baseUrlRaw);
+  } catch {
+    throw new ConfigV2Error('INVALID_CONFIG');
+  }
+  // 局域网模式只允许私有 http；隧道模式只允许 https。
+  const lanMode = listenHost === LAN_LISTEN_HOST;
+  if (lanMode !== (baseUrl.protocol === 'http:')) {
+    throw new ConfigV2Error('INVALID_CONFIG');
+  }
   return {
     version: 4,
     desktopId,
     database: { file },
-    listen: { host: '127.0.0.1', port: 8787 },
-    tailscale: { baseUrl: (tailscale as { baseUrl: string }).baseUrl },
+    listen: {
+      host: lanMode ? LAN_LISTEN_HOST : AGENT_LISTEN_HOST,
+      port: 8787,
+    },
+    tailscale: { baseUrl: baseUrl.origin },
   };
 }
 

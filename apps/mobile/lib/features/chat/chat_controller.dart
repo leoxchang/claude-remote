@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,18 +10,24 @@ import '../../connection/command_client.dart';
 import '../../connection/connection_controller.dart';
 import '../../connection/persistent_command_coordinator.dart';
 import '../../data/agent_socket.dart';
+import '../../data/attachment_upload.dart';
 import '../../data/providers.dart' show commandClientProvider;
 import '../../domain/run.dart';
 import '../../domain/session.dart';
 import '../../domain/timeline.dart';
 import '../../protocol/messages.dart';
 import '../../protocol/s02_messages.dart';
+import '../../recovery/user_message.dart';
 import '../../voice/composer_draft_store.dart';
 import '../../voice/voice_draft_repository.dart';
+import 'pending_attachment.dart';
 import 'prompt_command_coordinator.dart';
 
 /// S01 单条 prompt 的 UTF-8 字节上限。
 const int maxPromptBytes = 16384;
+
+/// 单条 prompt 最多附带的图片数；与 Mac 端白名单一致。
+const int maxAttachmentsPerPrompt = 4;
 
 /// 工具输出在 App 内保留的最大预览字符数。
 const int maxToolPreviewChars = 256 * 1024;
@@ -49,6 +56,8 @@ final class ChatState {
     this.cacheNotice = false,
     this.pendingVoiceDraftId,
     this.pendingVoiceSessionId,
+    this.userMessages = const <UserMessage>[],
+    this.attachments = const <PendingAttachment>[],
   });
 
   final ConnectionStatus connection;
@@ -73,9 +82,22 @@ final class ChatState {
   final String? pendingVoiceDraftId;
   final String? pendingVoiceSessionId;
 
+  /// 本机保存的用户提问；只用于展示，不进入协议时间线。
+  final List<UserMessage> userMessages;
+
+  /// 已选待发送的图片；上传完成前不允许发送。
+  final List<PendingAttachment> attachments;
+
   int get draftBytes => utf8.encode(draft).length;
 
   bool get busy => activeRunId != null;
+
+  bool get hasAttachments => attachments.isNotEmpty;
+
+  bool get attachmentsReady =>
+      attachments.every((item) => item.isReady);
+
+  bool get hasContent => draftBytes > 0 || attachments.isNotEmpty;
 
   /// 有活跃 run 或全局槽已满时，发送按钮显示“排队”。
   bool get queueMode => busy || slotsFull;
@@ -87,7 +109,8 @@ final class ChatState {
       !syncing &&
       !archived &&
       composer == ComposerStatus.idle &&
-      draftBytes > 0 &&
+      hasContent &&
+      attachmentsReady &&
       draftBytes <= maxPromptBytes;
 
   /// 语音输入不要求已有草稿；只要求在线、未归档且 composer 空闲。
@@ -116,6 +139,8 @@ final class ChatState {
     bool? cacheNotice,
     Object? pendingVoiceDraftId = _unset,
     Object? pendingVoiceSessionId = _unset,
+    List<UserMessage>? userMessages,
+    List<PendingAttachment>? attachments,
   }) {
     return ChatState(
       connection: connection ?? this.connection,
@@ -146,6 +171,8 @@ final class ChatState {
       pendingVoiceSessionId: identical(pendingVoiceSessionId, _unset)
           ? this.pendingVoiceSessionId
           : pendingVoiceSessionId as String?,
+      userMessages: userMessages ?? this.userMessages,
+      attachments: attachments ?? this.attachments,
     );
   }
 
@@ -168,6 +195,9 @@ final class ChatController extends Notifier<ChatState> {
   PersistentCommandCoordinator? _persistentCommands;
   VoiceDraftStore? _voiceDrafts;
   ComposerDraftStore? _composerDrafts;
+  UserMessageStore? _userMessages;
+  Future<UploadedAttachment> Function(String path)? _uploadAttachment;
+  UserAttachmentStore? _userAttachments;
   Future<void> _draftWrites = Future<void>.value();
   int _sequence = 0;
 
@@ -196,6 +226,92 @@ final class ChatController extends Notifier<ChatState> {
     _composerDrafts = drafts;
   }
 
+  /// 本地用户提问记录；未装配时只在内存显示。
+  ///
+  /// 注入可能晚于 attachSession（会话列表先附着、聊天页后才建 runtime），
+  /// 因此这里要在已有会话时补一次恢复。
+  void attachUserMessages(UserMessageStore store) {
+    _userMessages = store;
+    final sessionId = _sessionId;
+    if (sessionId != null) unawaited(_restoreUserMessages(sessionId));
+  }
+
+  /// 图片上传入口；未装配时不能选图。
+  void attachAttachmentUploader(
+    Future<UploadedAttachment> Function(String path) upload,
+  ) {
+    _uploadAttachment = upload;
+  }
+
+  /// 提问图片的本地留存；未装配时发送后只保留内存预览。
+  void attachUserAttachmentStore(UserAttachmentStore store) {
+    _userAttachments = store;
+  }
+
+  /// 选中的图片立即上传；失败就从待发送列表移除并提示。
+  Future<void> addImage(String localPath) async {
+    if (state.attachments.any((item) => item.localPath == localPath)) return;
+    if (state.attachments.length >= maxAttachmentsPerPrompt) {
+      state = state.copyWith(error: '最多只能附加 $maxAttachmentsPerPrompt 张图片');
+      return;
+    }
+    final upload = _uploadAttachment;
+    if (upload == null) {
+      state = state.copyWith(error: '当前无法上传图片');
+      return;
+    }
+    int size;
+    try {
+      size = await File(localPath).length();
+    } on FileSystemException {
+      state = state.copyWith(error: '无法读取所选图片');
+      return;
+    }
+    state = state.copyWith(
+      attachments: [
+        ...state.attachments,
+        PendingAttachment(localPath: localPath, size: size),
+      ],
+      error: null,
+    );
+    try {
+      final uploaded = await upload(localPath);
+      final removedWhileUploading = !state.attachments.any(
+        (item) => item.localPath == localPath,
+      );
+      if (removedWhileUploading) return;
+      state = state.copyWith(
+        attachments: state.attachments
+            .map(
+              (item) => item.localPath == localPath
+                  ? item.uploaded(
+                      attachmentId: uploaded.attachmentId,
+                      mediaType: uploaded.mediaType,
+                      size: uploaded.size,
+                    )
+                  : item,
+            )
+            .toList(growable: false),
+      );
+    } on Object {
+      state = state.copyWith(
+        attachments: state.attachments
+            .where((item) => item.localPath != localPath)
+            .toList(growable: false),
+        error: '图片上传失败，请重试',
+      );
+    }
+  }
+
+  /// 移除一张待发送图片；上传中的移除结果会被忽略。
+  void removeImage(String localPath) {
+    state = state.copyWith(
+      attachments: state.attachments
+          .where((item) => item.localPath != localPath)
+          .toList(growable: false),
+    );
+  }
+
   /// final 写入草稿后标记待消费的 voice draft；发送成功才清空。
   void setPendingVoiceDraft(String? voiceDraftId, {String? sessionId}) {
     state = state.copyWith(
@@ -219,11 +335,16 @@ final class ChatController extends Notifier<ChatState> {
 
   /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
   void attachSession(String sessionId) {
-    if (_sessionId == sessionId) return;
+    if (_sessionId == sessionId) {
+      // 重新进入同一会话时不重置状态，但仍从本机存储补回提问记录。
+      unawaited(_restoreUserMessages(sessionId));
+      return;
+    }
     _sessionId = sessionId;
     _coordinator = null;
     state = ChatState(connection: state.connection);
     unawaited(_restoreDraft(sessionId));
+    unawaited(_restoreUserMessages(sessionId));
   }
 
   /// 当前本地会话；未附着时为 null。
@@ -375,11 +496,30 @@ final class ChatController extends Notifier<ChatState> {
       return;
     }
     final text = state.draft;
+    final attachments = state.attachments;
     final request = S02Commands.promptSend(
       commandId: _nextId('cmd_prompt'),
       traceId: _nextId('trace'),
       sessionId: sessionId,
       text: text,
+      attachments: [
+        for (final attachment in attachments) attachment.toWire(),
+      ],
+    );
+    final attachmentPaths = await _copyAttachments(
+      request.commandId,
+      attachments,
+    );
+    unawaited(
+      _recordUserMessage(
+        UserMessage(
+          sessionId: sessionId,
+          commandId: request.commandId,
+          text: text,
+          attachmentPaths: attachmentPaths,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      ),
     );
     final coordinator =
         _coordinator ??= PromptCommandCoordinator(
@@ -499,6 +639,53 @@ final class ChatController extends Notifier<ChatState> {
     );
   }
 
+  /// 发送前把临时图片复制到支持目录；失败时退回原路径，不阻断发送。
+  Future<List<String>> _copyAttachments(
+    String commandId,
+    List<PendingAttachment> attachments,
+  ) async {
+    if (attachments.isEmpty) return const <String>[];
+    final store = _userAttachments;
+    if (store == null) {
+      return attachments.map((item) => item.localPath).toList(growable: false);
+    }
+    final paths = <String>[];
+    for (var index = 0; index < attachments.length; index += 1) {
+      final attachment = attachments[index];
+      try {
+        paths.add(
+          await store.copyUserAttachment(
+            commandId: commandId,
+            sourcePath: attachment.localPath,
+            index: index,
+          ),
+        );
+      } on Object {
+        paths.add(attachment.localPath);
+      }
+    }
+    return paths;
+  }
+
+  Future<void> _restoreUserMessages(String sessionId) async {
+    final store = _userMessages;
+    if (store == null) return;
+    final messages = await store.readUserMessages(sessionId);
+    if (_sessionId != sessionId) return;
+    state = state.copyWith(userMessages: messages);
+  }
+
+  /// 本地回显用户提问；同一 commandId 只记录一次。
+  Future<void> _recordUserMessage(UserMessage message) async {
+    if (state.userMessages.any(
+      (existing) => existing.commandId == message.commandId,
+    )) {
+      return;
+    }
+    state = state.copyWith(userMessages: [...state.userMessages, message]);
+    await _userMessages?.appendUserMessage(message);
+  }
+
   Future<void> _restoreDraft(String sessionId) async {
     final store = _composerDrafts;
     if (store != null) {
@@ -560,13 +747,19 @@ final class ChatController extends Notifier<ChatState> {
 
   void _applyAccepted(PromptAccepted accepted, {required String previewText}) {
     final queued = accepted.status == 'queued';
+    // 服务端事件可能先于命令结果到达：run.queued 已经加过队列项，
+    // 或者 run.started 已经把该 run 变成活跃 run，这里不能重复追加。
+    final alreadyKnown =
+        state.queue.any((run) => run.runId == accepted.runId) ||
+        state.activeRunId == accepted.runId;
     state = state.copyWith(
       draft: '',
+      attachments: const <PendingAttachment>[],
       composer: ComposerStatus.idle,
       activeRunId: queued ? state.activeRunId : accepted.runId,
       unknownCommandId: null,
       error: null,
-      queue: queued
+      queue: queued && !alreadyKnown
           ? [
               ...state.queue,
               QueuedRunSummary(
@@ -583,6 +776,7 @@ final class ChatController extends Notifier<ChatState> {
   }
 
   String _preview(String text) {
+    if (text.trim().isEmpty) return '[图片]';
     final single = text.trim().replaceAll(RegExp(r'\s+'), ' ');
     return single.length <= 40 ? single : '${single.substring(0, 40)}…';
   }
@@ -591,7 +785,8 @@ final class ChatController extends Notifier<ChatState> {
     if (state.archived) return '会话已归档，只能查看';
     if (state.connection != ConnectionStatus.ready) return 'Mac 未连接';
     if (state.syncing) return '正在同步，请稍候';
-    if (state.draftBytes == 0) return '请输入内容';
+    if (state.hasAttachments && !state.attachmentsReady) return '图片上传中，请稍候';
+    if (!state.hasContent) return '请输入内容或选择图片';
     return '当前不可发送';
   }
 

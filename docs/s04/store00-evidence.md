@@ -1,11 +1,11 @@
 # STORE-00 证据
 
-**日期：** 2026-11-13
+**日期：** 2026-11-13（iPhone 补测 2026-11-17）
 **STORE-00 Mac:** PASS
-**dataProtection:** false
-**IPHONE:** BLOCKED
+**dataProtection:** true
+**IPHONE:** PASS（2026-11-17，物理 iPhone 17e / iOS 27.2.1）
 
-**结论：** Mac 部分 **PASS（4/4）**；物理 iPhone 部分 **BLOCKED**（无设备连接）。按用户批准的口径，Mac 存储能力作为后续 Task 2–18 的硬门禁，iPhone Data Protection 在真机验收时补测；S04 不得宣称整体验收通过。
+**结论：** Mac 部分 **PASS（4/4）**；物理 iPhone 部分 **PASS**（`integration_test/s04_store_gate_test.dart` 真机全绿）。按用户批准的口径，Mac 存储能力作为后续 Task 2–18 的硬门禁，iPhone Data Protection 已于 2026-11-17 补测；S04 整体验收仍取决于 E2E-01–15。
 
 ## 1. 环境
 
@@ -38,8 +38,8 @@
 
 - 已实现 `apps/mobile/ios/Runner/S04StoreProtection.swift` 与 `integration_test/s04_store_gate_test.dart`：Application Support 内 sqflite WAL 数据库、v1→v2 迁移、重开、DB/WAL/SHM `NSFileProtectionComplete` 设置与回读。
 - `flutter build ios --simulator --debug` **PASS**（Swift 与 Xcode 工程引用可编译）。
-- 真机执行 `flutter test integration_test/s04_store_gate_test.dart -d <iphone>`：**NOT_RUN** — `flutter devices` 无物理设备/无线设备。
-- 锁屏后访问失败、解锁重开：**BLOCKED**，需真机手工执行；不得以降低保护级别绕过。
+- 真机执行 `flutter test integration_test/s04_store_gate_test.dart -d 00008150-0001754C0C13401C`：**PASS**（2026-11-17 12:5x，iPhone 17e / iOS 27.2.1，签名团队 2D3M44ZGFK）。用例 `recovery DB migrates, reopens and is Data Protected` 全绿：v1 写入 → v2 迁移保留数据、重开后数据仍可读、WAL 文件存在、`protectDatabase` 对 DB/WAL/SHM 回读 `protected=true`。Xcode build 14.5s，安装启动 21.9s，用例 2s。
+- 锁屏后访问失败、解锁重开：**NOT_RUN**，仍需真机手工执行；不得以降低保护级别绕过。
 
 ## 4. 未修改项
 

@@ -66,8 +66,17 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>连接同一局域网内的 Mac Agent</string>
 	<key>NSCameraUsageDescription</key>
-	<string>扫描 Mac 终端上的配对二维码</string>
+	<string>扫描 Mac 终端上的配对二维码，或拍照发送给 Mac 上的 Claude</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>选择相册中的图片发送给 Mac 上的 Claude</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>按住说话时把语音发送到 Mac 生成可编辑草稿</string>
 </dict>

@@ -12,6 +12,7 @@ final class TimelineMessage {
     required this.text,
     this.completed = false,
     this.contentTruncated = false,
+    this.createdAt = 0,
   });
 
   final String assistantMessageId;
@@ -19,16 +20,21 @@ final class TimelineMessage {
   final bool completed;
   final bool contentTruncated;
 
+  /// 首条事件的时间戳；与本地提问合并排序使用。
+  final int createdAt;
+
   TimelineMessage copyWith({
     String? text,
     bool? completed,
     bool? contentTruncated,
+    int? createdAt,
   }) {
     return TimelineMessage(
       assistantMessageId: assistantMessageId,
       text: text ?? this.text,
       completed: completed ?? this.completed,
       contentTruncated: contentTruncated ?? this.contentTruncated,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }
@@ -44,6 +50,7 @@ final class TimelineTool {
     this.isError = false,
     this.summary,
     this.outputTruncated = false,
+    this.createdAt = 0,
   });
 
   final String toolUseId;
@@ -55,12 +62,16 @@ final class TimelineTool {
   final String? summary;
   final bool outputTruncated;
 
+  /// 工具开始时间；与助手消息合并排序，还原 Claude Code 的执行顺序。
+  final int createdAt;
+
   TimelineTool copyWith({
     String? output,
     String? status,
     bool? isError,
     String? summary,
     bool? outputTruncated,
+    int? createdAt,
   }) {
     return TimelineTool(
       toolUseId: toolUseId,
@@ -71,6 +82,7 @@ final class TimelineTool {
       isError: isError ?? this.isError,
       summary: summary ?? this.summary,
       outputTruncated: outputTruncated ?? this.outputTruncated,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }
@@ -202,19 +214,22 @@ TimelineState _applyPayload(TimelineState state, TimelineEvent event) {
       return state.copyWith(
         messages: _upsertMessage(
           state.messages,
-          _mergeDelta(state.messages, payload),
+          _mergeDelta(state.messages, payload, event.timestamp),
         ),
       );
     case 'message.completed':
       return state.copyWith(
         messages: _upsertMessage(
           state.messages,
-          _completeMessage(state.messages, payload),
+          _completeMessage(state.messages, payload, event.timestamp),
         ),
       );
     case 'tool.started':
       return state.copyWith(
-        tools: _upsertTool(state.tools, _startTool(payload)),
+        tools: _upsertTool(
+          state.tools,
+          _startTool(payload, event.timestamp),
+        ),
       );
     case 'tool.output':
       return state.copyWith(
@@ -271,6 +286,7 @@ TimelineState _applySessionStatus(
 TimelineMessage _mergeDelta(
   List<TimelineMessage> messages,
   Map<String, Object?> payload,
+  int createdAt,
 ) {
   final id = _requiredString(payload, 'assistantMessageId');
   final existing = _findMessage(messages, id);
@@ -279,12 +295,14 @@ TimelineMessage _mergeDelta(
     text: '${existing?.text ?? ''}${_requiredString(payload, 'text')}',
     completed: existing?.completed ?? false,
     contentTruncated: existing?.contentTruncated ?? false,
+    createdAt: existing?.createdAt ?? createdAt,
   );
 }
 
 TimelineMessage _completeMessage(
   List<TimelineMessage> messages,
   Map<String, Object?> payload,
+  int createdAt,
 ) {
   final id = _requiredString(payload, 'assistantMessageId');
   final existing = _findMessage(messages, id);
@@ -294,6 +312,7 @@ TimelineMessage _completeMessage(
     text: truncated ? (existing?.text ?? '') : _completedText(payload),
     completed: true,
     contentTruncated: truncated,
+    createdAt: existing?.createdAt ?? createdAt,
   );
 }
 
@@ -309,12 +328,13 @@ String _completedText(Map<String, Object?> payload) {
       .join();
 }
 
-TimelineTool _startTool(Map<String, Object?> payload) {
+TimelineTool _startTool(Map<String, Object?> payload, int createdAt) {
   final input = payload['input'];
   return TimelineTool(
     toolUseId: _requiredString(payload, 'toolUseId'),
     toolName: _requiredString(payload, 'toolName'),
     input: input is Map ? input.cast<String, Object?>() : const {},
+    createdAt: createdAt,
   );
 }
 
@@ -334,6 +354,7 @@ TimelineTool _appendToolOutput(
     summary: existing?.summary,
     outputTruncated:
         (existing?.outputTruncated ?? false) || payload['truncated'] == true,
+    createdAt: existing?.createdAt ?? 0,
   );
 }
 
@@ -351,6 +372,7 @@ TimelineTool _completeTool(
     isError: payload['isError'] == true || (existing?.isError ?? false),
     summary: _stringOrNull(payload['summary']) ?? existing?.summary,
     outputTruncated: existing?.outputTruncated ?? false,
+    createdAt: existing?.createdAt ?? 0,
   );
 }
 
