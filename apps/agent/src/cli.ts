@@ -16,6 +16,8 @@ import { detectLanAddress, disableLan, enableLan, lanStatus } from './config/lan
 import { buildDiagnostics, writeDiagnostics } from './diagnostics/export.js';
 import { runDoctor } from './diagnostics/doctor.js';
 import { renderPairingQr } from './pairing/qr.js';
+import { readConfigV5IfExists } from './config/config-v5.js';
+import { readRelayConfig, relayLogin, removeRelayConfig } from './relay/login.js';
 import {
   installLaunchAgent,
   launchAgentStatus,
@@ -250,6 +252,63 @@ export function createCli(
       const bundle = await buildDiagnostics({ configDir });
       await writeDiagnostics(bundle, options.output);
       process.stdout.write(`diagnostics written to ${options.output}\n`);
+    });
+
+  const relay = program
+    .command('relay')
+    .description('cloud relay mode');
+
+  relay
+    .command('login')
+    .description('log in to the cloud relay and store credentials')
+    .requiredOption('--url <baseUrl>', 'relay base url')
+    .requiredOption('--username <username>', 'account username')
+    .requiredOption('--password <password>', 'account password')
+    .option('--name <desktopName>', 'desktop name shown on phones')
+    .action(
+      async (options: {
+        url: string;
+        username: string;
+        password: string;
+        name?: string;
+      }) => {
+        const result = await relayLogin({
+          configDir,
+          baseUrl: options.url,
+          username: options.username,
+          password: options.password,
+          ...(options.name === undefined ? {} : { desktopName: options.name }),
+        });
+        process.stdout.write(
+          `${JSON.stringify({ ok: true, ...result }, null, 2)}\n`,
+        );
+      },
+    );
+
+  relay
+    .command('status')
+    .description('show relay configuration (never prints the token)')
+    .action(() => {
+      const relayConfig = readRelayConfig(configDir);
+      const configV5 = readConfigV5IfExists(configDir);
+      const status =
+        relayConfig === null
+          ? { enabled: false }
+          : {
+              enabled: true,
+              baseUrl: relayConfig.baseUrl,
+              desktopId: configV5?.desktopId ?? null,
+              desktopName: relayConfig.desktopName,
+            };
+      process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+    });
+
+  relay
+    .command('logout')
+    .description('remove relay credentials from the local config')
+    .action(() => {
+      removeRelayConfig(configDir);
+      process.stdout.write('relay credentials removed\n');
     });
 
   const service = program
