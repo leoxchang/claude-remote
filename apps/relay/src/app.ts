@@ -42,6 +42,12 @@ const TUNNEL_ERROR_STATUS: Record<TunnelErrorCode, number> = {
 
 const BODY_TOO_LARGE_CODE = 'FST_ERR_CTP_BODY_TOO_LARGE';
 
+/**
+ * 代理路由的底层读取上限：高于契约 12 MiB 上限，
+ * 以便读完整请求后确定性返回 413（而非在传输中途断连导致客户端 EPIPE）。
+ */
+const PROXY_MAX_READ_BYTES = 64 * 1024 * 1024;
+
 /** 转发给桌面的查询参数：排除 desktopId，仅保留字符串值；空则缺省。 */
 function forwardedQuery(
   query: unknown,
@@ -263,6 +269,9 @@ export async function createRelayApp(
     path: string,
     body?: Buffer,
   ): Promise<FastifyReply> => {
+    if (body !== undefined && body.byteLength > limits.httpBodyBytes) {
+      return sendError(reply, 413, 'BODY_TOO_LARGE');
+    }
     const context = resolveProxyTarget(request, reply);
     if (context === null) return reply;
     const contentType = request.headers['content-type'];
@@ -310,12 +319,16 @@ export async function createRelayApp(
     scope.removeAllContentTypeParsers();
     scope.addContentTypeParser('*', { parseAs: 'buffer' }, rawBodyParser);
 
-    scope.post('/v1/attachments', async (request, reply) => {
-      const body = Buffer.isBuffer(request.body)
-        ? request.body
-        : Buffer.alloc(0);
-      return forwardProxy(request, reply, 'POST', '/v1/attachments', body);
-    });
+    scope.post(
+      '/v1/attachments',
+      { bodyLimit: PROXY_MAX_READ_BYTES },
+      async (request, reply) => {
+        const body = Buffer.isBuffer(request.body)
+          ? request.body
+          : Buffer.alloc(0);
+        return forwardProxy(request, reply, 'POST', '/v1/attachments', body);
+      },
+    );
 
     scope.get('/v1/approvals/:approvalId/content', async (request, reply) => {
       const { approvalId } = request.params as { approvalId: string };
