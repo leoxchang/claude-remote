@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -170,6 +170,17 @@ describe('设备', () => {
     calls.length = 0;
     expect(store.verifyPassword('alice', 'wrong')).toBeNull();
     expect(calls).toHaveLength(1);
+  });
+
+  it('数据目录 0700、数据库 0600：凭证哈希不暴露给本机其他用户（安全审查）', () => {
+    store = openRelayStore(dir);
+    store.createAccount('alice', 'pw-123456');
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    const dbFile = join(dir, 'relay.sqlite');
+    expect(statSync(dbFile).mode & 0o777).toBe(0o600);
+    const walFile = `${dbFile}-wal`;
+    expect(existsSync(walFile)).toBe(true);
+    expect(statSync(walFile).mode & 0o777).toBe(0o600);
   });
 
   it('touchLastSeen 记录最近断开时间', () => {

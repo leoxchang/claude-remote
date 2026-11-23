@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
@@ -22,6 +22,9 @@ import {
 
 const DB_FILE_NAME = 'relay.sqlite';
 const SCHEMA_VERSION = 1;
+const DATA_DIR_MODE = 0o700;
+const DB_FILE_MODE = 0o600;
+const UMASK_OWNER_ONLY = 0o177;
 
 interface AccountRow {
   account_id: string;
@@ -85,8 +88,13 @@ export function openRelayStore(
   maxDevices: number = DEFAULT_LIMITS.maxDevicesPerAccount,
   deps: StoreDeps = {},
 ): RelayStore {
-  mkdirSync(dataDir, { recursive: true });
-  return new SqliteRelayStore(join(dataDir, DB_FILE_NAME), maxDevices, deps);
+  // 凭证哈希只允许本进程用户读取：目录 0700、库文件预创建为 0600。
+  mkdirSync(dataDir, { recursive: true, mode: DATA_DIR_MODE });
+  chmodSync(dataDir, DATA_DIR_MODE);
+  const file = join(dataDir, DB_FILE_NAME);
+  closeSync(openSync(file, 'a', DB_FILE_MODE));
+  chmodSync(file, DB_FILE_MODE);
+  return new SqliteRelayStore(file, maxDevices, deps);
 }
 
 class SqliteRelayStore implements RelayStore {
@@ -98,10 +106,17 @@ class SqliteRelayStore implements RelayStore {
     private readonly maxDevices: number,
     deps: StoreDeps,
   ) {
-    this.db = new Database(file);
-    this.db.pragma('journal_mode = WAL');
+    // SQLite 创建 WAL/SHM 侧文件时同样受 umask 约束，open 期间收紧后恢复。
+    const previousUmask = process.umask(UMASK_OWNER_ONLY);
+    try {
+      this.db = new Database(file);
+      this.db.pragma('journal_mode = WAL');
+    } finally {
+      process.umask(previousUmask);
+    }
     this.verifyHash = deps.verifyHash ?? verifyPasswordHash;
     this.migrate();
+    tightenSidecars(file);
   }
 
   createAccount(username: string, password: string): AccountRecord {
@@ -313,4 +328,12 @@ function isUniqueViolation(error: unknown): boolean {
     'code' in error &&
     (error as { code?: unknown }).code === UNIQUE_VIOLATION
   );
+}
+
+/** WAL/SHM 侧文件可能先于 umask 恢复被创建，迁移后统一收紧。 */
+function tightenSidecars(file: string): void {
+  for (const suffix of ['-wal', '-shm']) {
+    const sidecar = `${file}${suffix}`;
+    if (existsSync(sidecar)) chmodSync(sidecar, DB_FILE_MODE);
+  }
 }
