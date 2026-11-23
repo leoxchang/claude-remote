@@ -21,6 +21,13 @@ import { PromptAdmission } from '../run/prompt-admission.js';
 import { RecoveryService } from '../run/recovery-service.js';
 import { RunPromptController } from '../run/run-prompt-controller.js';
 import { createTrustedDevices, TrustedDevices } from '../relay/trusted-devices.js';
+import {
+  RelayConnector,
+  RelayConnectorState,
+  RelayHttpDispatch,
+  startRelayFromConfig,
+} from '../relay/connector.js';
+import { RelayLink } from '../relay/link.js';
 import { SessionSyncService } from '../sync/session-sync-service.js';
 import { SnapshotService } from '../sync/snapshot-service.js';
 import { AgentDatabase } from '../storage/database.js';
@@ -76,10 +83,23 @@ export interface DurableWiring {
   health: StorageHealth;
   /** 信任设备叠加；云端手机经此放行审批与 prompt 读取。 */
   relayDevices: TrustedDevices;
+  /** 云端链路接入器；未配置 relay 时为 null。 */
+  relay(): { state(): RelayConnectorState } | null;
   start(listen?: { host: string; port: number }): Promise<void>;
   close(): Promise<void>;
   address(): { host: string; port: number } | null;
 }
+
+const RELAY_ROUTE_NOT_FOUND_BODY = JSON.stringify({
+  error: { code: 'ROUTE_NOT_FOUND', message: 'ROUTE_NOT_FOUND' },
+});
+
+/** Task 8 之前的中转代答占位：真实分发在 http-handlers 抽取后接入。 */
+const relayHttpDispatchPlaceholder: RelayHttpDispatch = () => ({
+  status: 404,
+  contentType: 'application/json',
+  body: Buffer.from(RELAY_ROUTE_NOT_FOUND_BODY),
+});
 
 /** S04 唯一装配路径：SQLite 投影为权威，Journal 只发布已提交事件。 */
 export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
@@ -301,6 +321,8 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
   let phoneServer: FastifyInstance | null = null;
   let adminServer: FastifyInstance | null = null;
   let asrRuntime: AsrRuntime | null = null;
+  let relaySession: { link: RelayLink; connector: RelayConnector } | null =
+    null;
 
   return {
     operations,
@@ -308,6 +330,9 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     retention,
     health,
     relayDevices,
+    relay() {
+      return relaySession === null ? null : relaySession.link;
+    },
     async start(listen = { host: PHONE_LISTEN.host, port: PHONE_LISTEN.port }) {
       adminServer = await createAdminServer({
         socketPath: paths.socketPath,
@@ -365,8 +390,28 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
         listen,
         maxActiveRuns: MAX_ACTIVE_RUNS,
       });
+      relaySession = startRelayFromConfig({
+        config,
+        connections,
+        relayDevices,
+        asrAccept: (socket, deviceId) => {
+          asrRuntime?.gateway.acceptAuthenticated(socket, deviceId);
+        },
+        httpDispatch: relayHttpDispatchPlaceholder,
+        logger,
+      });
+      if (relaySession !== null) {
+        logger.info('relay.link_started', {
+          baseUrl: config.relay?.baseUrl ?? null,
+        });
+      }
     },
     async close() {
+      if (relaySession !== null) {
+        relaySession.connector.closeAll(1006, 'agent shutdown');
+        relaySession.link.stop();
+        relaySession = null;
+      }
       broker.invalidateAll('agent_shutdown');
       asrRuntime?.close('agent_shutdown');
       asrRuntime = null;

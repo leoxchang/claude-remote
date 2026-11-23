@@ -48,6 +48,8 @@ export interface RelayLinkHandlers {
     contentType?: string;
     body: Buffer;
   }): void;
+  /** 链路断开（非用户 stop）且未致命时通知；连接层据此清理虚拟通道。 */
+  onDisconnected?(): void;
 }
 
 /** 重连退避参数；测试可缩短。 */
@@ -177,6 +179,7 @@ export function startRelayLink(options: RelayLinkOptions): RelayLink {
       socket = null;
       clearTimers();
       if (stopped) return;
+      handlers.onDisconnected?.();
       if (FATAL_CLOSE_CODES.has(code)) {
         status = 'stopped';
         lastError = String(code);
