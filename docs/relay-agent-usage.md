@@ -54,8 +54,9 @@ claude-remote-agent doctor    # 含 relay 配置检查项
 
 ## 故障排查
 
-- `state` 长期 `connecting`：检查 `baseUrl` 可达性与服务端 TLS；
-  `lastError` 为 HTTP 401/401 → 凭证失效，重新 `relay login`。
-- 云端吊销了本机：`lastError=4004`，重新登录即可恢复。
+- `state` 长期 `connecting`：检查 `baseUrl` 可达性与服务端 TLS。
+- `lastError` 为 `HTTP_401` / `HTTP_403`：升级被拒（凭证失效或配置错误），
+  重新 `relay login` 后**重启 agent** 使新凭证生效。
+- 云端吊销了本机：`lastError=4004`，重新登录并重启即可恢复。
 - 两台机器误用同一份凭证（如复制了配置目录）：后连者生效，先连者停止重连
   （`lastError=4000`）。

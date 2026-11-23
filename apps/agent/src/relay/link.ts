@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { IncomingMessage } from 'node:http';
 
 import { WebSocket } from 'ws';
 
@@ -12,6 +13,8 @@ const FATAL_CLOSE_CODES = new Set([4000, 4002, 4004]);
 const DEFAULT_BACKOFF_MS = 500;
 const DEFAULT_MAX_BACKOFF_MS = 30_000;
 const DEFAULT_JITTER = 0.2;
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
 
 /** 桌面端 hello 载荷（契约 §5.1）。 */
 export interface RelayLinkHello {
@@ -107,6 +110,7 @@ export function startRelayLink(options: RelayLinkOptions): RelayLink {
   let lastEpoch: number | null = null;
   let lastError: string | null = null;
   let stopped = false;
+  let fatalStop = false;
   let attempt = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -175,11 +179,24 @@ export function startRelayLink(options: RelayLinkOptions): RelayLink {
       handleMessage(String(data));
     });
 
+    // 升级阶段被拒（如凭证吊销后的重连）：401/403 视为致命，停止重试。
+    current.on('unexpected-response', (_request, response: IncomingMessage) => {
+      const statusCode = response.statusCode ?? 0;
+      response.resume();
+      current.terminate();
+      if (statusCode === HTTP_UNAUTHORIZED || statusCode === HTTP_FORBIDDEN) {
+        fatalStop = true;
+        status = 'stopped';
+        lastError = `HTTP_${statusCode}`;
+        logger.warn('relay.fatal', { code: lastError });
+      }
+    });
+
     current.on('close', (code: number) => {
       if (socket !== current) return;
       socket = null;
       clearTimers();
-      if (stopped) return;
+      if (stopped || fatalStop) return;
       handlers.onDisconnected?.();
       if (FATAL_CLOSE_CODES.has(code)) {
         status = 'stopped';

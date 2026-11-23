@@ -1,4 +1,5 @@
 import { AddressInfo } from 'node:net';
+import { createServer, Server } from 'node:http';
 
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -13,6 +14,7 @@ export type HelloBehavior = (
 export interface FakeRelay {
   httpBase: string;
   connectCount(): number;
+  upgradeCount(): number;
   authorizations(): Array<string | undefined>;
   received(): Array<Record<string, unknown>>;
   currentSocket(): WebSocket | null;
@@ -25,17 +27,39 @@ export interface FakeRelay {
   stop(): Promise<void>;
 }
 
+/** upgradeStatus 非空时所有升级请求以该 HTTP 状态拒绝（验证鉴权失败语义）。 */
 export async function startFakeRelay(
-  options: { onHello?: HelloBehavior; epoch?: number } = {},
+  options: { onHello?: HelloBehavior; epoch?: number; upgradeStatus?: number } = {},
 ): Promise<FakeRelay> {
-  const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
-  await new Promise<void>((resolve, reject) => {
-    wss.once('listening', () => resolve());
-    wss.once('error', reject);
+  const httpServer: Server = createServer((_request, response) => {
+    response.writeHead(404);
+    response.end();
   });
-  const port = (wss.address() as AddressInfo).port;
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on('upgrade', (request, socket, head) => {
+    upgrades += 1;
+    if (options.upgradeStatus !== undefined) {
+      socket.write(
+        `HTTP/1.1 ${options.upgradeStatus} Rejected\r\ncontent-length: 0\r\n\r\n`,
+      );
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(request, socket, head, (connection) => {
+      wss.emit('connection', connection, request);
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once('error', reject);
+    httpServer.listen(0, '127.0.0.1', () => {
+      httpServer.off('error', reject);
+      resolve();
+    });
+  });
+  const port = (httpServer.address() as AddressInfo).port;
 
   let connections = 0;
+  let upgrades = 0;
   let socket: WebSocket | null = null;
   const authHeaders: Array<string | undefined> = [];
   const messages: Array<Record<string, unknown>> = [];
@@ -89,6 +113,7 @@ export async function startFakeRelay(
   return {
     httpBase: `http://127.0.0.1:${port}`,
     connectCount: () => connections,
+    upgradeCount: () => upgrades,
     authorizations: () => [...authHeaders],
     received: () => [...messages],
     currentSocket: () => socket,
@@ -120,7 +145,8 @@ export async function startFakeRelay(
     stop() {
       return new Promise<void>((resolve) => {
         for (const client of wss.clients) client.terminate();
-        wss.close(() => resolve());
+        wss.close();
+        httpServer.close(() => resolve());
       });
     },
   };

@@ -68,6 +68,17 @@ interface ChannelEntry {
   deviceId: string;
 }
 
+/** 合成云端设备的本地记录；命令路由与通道注入共用，避免两处漂移。 */
+export function relayDeviceRecord(deviceId: string): DeviceRecord {
+  return {
+    deviceId,
+    deviceName: `relay:${deviceId}`,
+    tokenHash: '',
+    createdAt: new Date().toISOString(),
+    revokedAt: null,
+  };
+}
+
 /** 把 relay 通道映射到 ConnectionManager / AsrGateway。 */
 export function createRelayConnector(
   options: RelayConnectorOptions,
@@ -115,16 +126,9 @@ export function createRelayConnector(
       activateDevice(input.deviceId);
 
       if (input.kind === 'control') {
-        const device: DeviceRecord = {
-          deviceId: input.deviceId,
-          deviceName: `relay:${input.deviceId}`,
-          tokenHash: '',
-          createdAt: new Date().toISOString(),
-          revokedAt: null,
-        };
         void options.connections.accept(
           socket as unknown as Parameters<ConnectionManager['accept']>[0],
-          device,
+          relayDeviceRecord(input.deviceId),
         );
         return;
       }
@@ -177,8 +181,9 @@ export function createRelayConnector(
     const entry = channels.get(channelId);
     if (entry === undefined) return;
     channels.delete(channelId);
+    // 只触发 socket 关闭；引用计数的释放统一由 socket 的 close 监听器完成
+    // （remoteClose 会同步触发监听器，这里不得重复 release）。
     entry.socket.remoteClose(code, reason);
-    releaseDevice(entry.deviceId);
   }
 
   const connector: RelayConnector = {

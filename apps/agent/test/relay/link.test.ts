@@ -395,6 +395,30 @@ describe('RelayLink 重连与终止', () => {
     expect(link.state().status).toBe('connecting');
   });
 
+  it('升级被拒绝 401/403 → 停止重连并记录 HTTP_lastError', async () => {
+    for (const statusCode of [401, 403]) {
+      relay = await startFakeRelay({ upgradeStatus: statusCode });
+      const { handlers } = recordingHandlers();
+      link = startRelayLink({
+        baseUrl: relay.httpBase,
+        credential: CREDENTIAL,
+        hello: HELLO,
+        handlers,
+        logger: SILENT_LOGGER,
+        backoff: FAST_BACKOFF,
+      });
+      await waitUntil(() => link?.state().status === 'stopped');
+      expect(link.state().lastError).toBe(`HTTP_${statusCode}`);
+      const attempts = relay.upgradeCount();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(relay.upgradeCount()).toBe(attempts);
+      link.stop();
+      link = null;
+      await relay.stop();
+      relay = null;
+    }
+  });
+
   it('stop() 后不再重连', async () => {
     relay = await startFakeRelay();
     const { handlers } = recordingHandlers();

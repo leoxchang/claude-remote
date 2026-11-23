@@ -28,6 +28,7 @@ import {
 } from '../relay/connector.js';
 import { createRelayHttpDispatch } from '../relay/http-dispatch.js';
 import { RelayLink } from '../relay/link.js';
+import { relayDeviceRecord } from '../relay/connector.js';
 import { buildRelayStatus } from '../relay/status.js';
 import { SessionSyncService } from '../sync/session-sync-service.js';
 import { SnapshotService } from '../sync/snapshot-service.js';
@@ -291,9 +292,12 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     deviceId: string,
     raw: string,
   ): Promise<void> => {
-    const device = deviceStore
-      .list()
-      .find((entry) => entry.deviceId === deviceId);
+    // 云端手机不在本地 device store：只要其通道经 relay 存活，即按合成设备路由命令。
+    const device =
+      deviceStore.list().find((entry) => entry.deviceId === deviceId) ??
+      (relayDevices.isActive(deviceId)
+        ? relayDeviceRecord(deviceId)
+        : undefined);
     if (device === undefined) return;
     const command = parseCommand(raw);
     const result = await router.route(command, device);

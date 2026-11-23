@@ -200,6 +200,32 @@ describe('connector 控制通道（fake relay + 真实 ConnectionManager）', ()
     });
   });
 
+  it('同设备 control+asr 双通道：关 control 后仍活跃，关 asr 后才释放（引用计数）', async () => {
+    const { relay, relayDevices } = await setup();
+    relay.send({
+      type: 'channel.open',
+      payload: { channelId: 'ch_c', kind: 'control', deviceId: 'dev_phone' },
+    });
+    relay.send({
+      type: 'channel.open',
+      payload: { channelId: 'ch_a', kind: 'asr', deviceId: 'dev_phone' },
+    });
+    await waitUntil(() => relayDevices.isActive('dev_phone'));
+
+    relay.send({
+      type: 'channel.close',
+      payload: { channelId: 'ch_c', code: 1000, reason: 'control closed' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(relayDevices.isActive('dev_phone')).toBe(true);
+
+    relay.send({
+      type: 'channel.close',
+      payload: { channelId: 'ch_a', code: 1000, reason: 'asr closed' },
+    });
+    await waitUntil(() => !relayDevices.isActive('dev_phone'));
+  });
+
   it('relay 断链 → 虚拟连接关闭并回收信任设备；重连后新通道正常', async () => {
     const { relay, relayDevices, link, readyMessages } = await setup();
     relay.send({
