@@ -10,6 +10,8 @@ import { DeviceRecord, RelayStore, StoreError } from '../storage/store.js';
 export const ADMIN_SOCKET_FILE = 'relay-admin.sock';
 
 const SOCKET_MODE = 0o600;
+/** 创建 socket 期间收紧 umask，消除 chmod 之前的权限窗口（TOCTOU）。 */
+const UMASK_OWNER_ONLY = 0o177;
 const MAX_REQUEST_BYTES = 64 * 1024;
 const LINE_SEPARATOR = '\n';
 
@@ -54,13 +56,18 @@ export async function startAdminSocket(deps: AdminDeps): Promise<Server> {
   const server = createServer((socket) => {
     handleConnection(deps, socket);
   });
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(socketPath, () => {
-      server.off('error', reject);
-      resolve();
+  const previousUmask = process.umask(UMASK_OWNER_ONLY);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(socketPath, () => {
+        server.off('error', reject);
+        resolve();
+      });
     });
-  });
+  } finally {
+    process.umask(previousUmask);
+  }
   chmodSync(socketPath, SOCKET_MODE);
   return server;
 }

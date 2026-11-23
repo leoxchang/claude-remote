@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { connect, Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,12 +15,14 @@ let store: RelayStore;
 let adminServer: Server;
 let onAccountDisabled: Mock<(accountId: string) => void>;
 let onDeviceRevoked: Mock<(device: DeviceRecord) => void>;
+let previousUmask: number;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'relay-admin-'));
   store = openRelayStore(dir);
   onAccountDisabled = vi.fn<(accountId: string) => void>();
   onDeviceRevoked = vi.fn<(device: DeviceRecord) => void>();
+  previousUmask = process.umask();
   adminServer = await startAdminSocket({
     store,
     dataDir: dir,
@@ -152,6 +154,12 @@ describe('admin socket', () => {
       ok: true,
       result: [expect.objectContaining({ role: 'desktop' })],
     });
+  });
+
+  it('socket 文件权限为 0600 且创建后恢复进程 umask', () => {
+    const mode = statSync(join(dir, ADMIN_SOCKET_FILE)).mode & 0o777;
+    expect(mode).toBe(0o600);
+    expect(process.umask()).toBe(previousUmask);
   });
 
   it('未知 op 与畸形 JSON 返回 INVALID_REQUEST', async () => {
