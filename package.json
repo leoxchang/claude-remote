@@ -39,6 +39,7 @@
     "test:s05:live": "vitest run --config vitest.s05-live.config.ts",
     "verify:s05": "tsx scripts/s05/verify-gate.ts",
     "test:relay": "vitest run --root apps/relay",
+    "test:relay:contract": "vitest run --config vitest.relay-contract.config.ts",
     "coverage:relay": "vitest run --root apps/relay --coverage"
   },
   "dependencies": {

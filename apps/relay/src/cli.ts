@@ -6,6 +6,7 @@ import { AdminRequest, startAdminSocket } from './admin/admin-socket.js';
 import { sendAdminRequest } from './admin/client.js';
 import { createRelayApp } from './app.js';
 import { loadConfig } from './config.js';
+import { ConnectionRegistry } from './routing/registry.js';
 import { openRelayStore } from './storage/sqlite-store.js';
 
 /** CLI 入口：默认 serve，admin 子命令经 unix socket 操作运行中的 relay。 */
@@ -87,7 +88,8 @@ export async function runCli(argv: string[]): Promise<void> {
 async function serve(): Promise<void> {
   const config = loadConfig(process.env);
   const store = openRelayStore(config.dataDir);
-  const app = await createRelayApp({ store, logger: true });
+  const registry = new ConnectionRegistry();
+  const app = await createRelayApp({ store, registry, logger: true });
   await app.listen({ host: config.host, port: config.port });
   await startAdminSocket({ store, dataDir: config.dataDir });
 
