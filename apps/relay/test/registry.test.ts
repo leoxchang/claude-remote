@@ -143,4 +143,39 @@ describe('ConnectionRegistry 吊销联动', () => {
     registry.detachDesktop(oldLink);
     expect(registry.isOnline('dev_desktop')).toBe(true);
   });
+
+  it('attachDesktop 取代时旧链路手机通道立即 4010 并清空（Review Focus 4）', () => {
+    const registry = new ConnectionRegistry();
+    const desktopDevice = device('dev_desktop', 'desktop');
+    const phoneSocket = new FakeSocket();
+    const asrSocket = new FakeSocket();
+    const desktop1 = registry.attachDesktop(
+      desktopDevice,
+      new FakeSocket() as unknown as WebSocket,
+      1,
+    );
+    const controlLink = registry.attachPhone(
+      device('dev_phone', 'phone'),
+      'dev_desktop',
+      'control',
+      phoneSocket as unknown as WebSocket,
+    );
+    const asrLink = registry.attachPhone(
+      device('dev_phone', 'phone'),
+      'dev_desktop',
+      'asr',
+      asrSocket as unknown as WebSocket,
+    );
+    desktop1.channels.set(controlLink.channelId, controlLink);
+    desktop1.channels.set(asrLink.channelId, asrLink);
+
+    registry.attachDesktop(
+      desktopDevice,
+      new FakeSocket() as unknown as WebSocket,
+      2,
+    );
+    expect(phoneSocket.closed).toEqual([{ code: 4010, reason: 'desktop gone' }]);
+    expect(asrSocket.closed).toEqual([{ code: 4010, reason: 'desktop gone' }]);
+    expect(desktop1.channels.size).toBe(0);
+  });
 });

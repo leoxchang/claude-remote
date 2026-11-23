@@ -69,26 +69,38 @@ CREATE TABLE devices (
 CREATE INDEX devices_account ON devices(account_id);
 `;
 
+/** 存储可选依赖；verifyHash 仅测试注入（计数/防时序枚举验证）。 */
+export interface StoreDeps {
+  verifyHash?(password: string, stored: string): boolean;
+}
+
 const UNIQUE_VIOLATION = 'SQLITE_CONSTRAINT_UNIQUE';
+
+/** 用户不存在时也对其校验一次的固定哈希，防登录时序枚举。 */
+const DUMMY_PASSWORD_HASH = hashPassword('relay-dummy-auth-password');
 
 /** 打开（必要时创建）data 目录下的 SQLite 注册表；maxDevices 仅测试用。 */
 export function openRelayStore(
   dataDir: string,
   maxDevices: number = DEFAULT_LIMITS.maxDevicesPerAccount,
+  deps: StoreDeps = {},
 ): RelayStore {
   mkdirSync(dataDir, { recursive: true });
-  return new SqliteRelayStore(join(dataDir, DB_FILE_NAME), maxDevices);
+  return new SqliteRelayStore(join(dataDir, DB_FILE_NAME), maxDevices, deps);
 }
 
 class SqliteRelayStore implements RelayStore {
   private readonly db: Database.Database;
+  private readonly verifyHash: (password: string, stored: string) => boolean;
 
   constructor(
     file: string,
     private readonly maxDevices: number,
+    deps: StoreDeps,
   ) {
     this.db = new Database(file);
     this.db.pragma('journal_mode = WAL');
+    this.verifyHash = deps.verifyHash ?? verifyPasswordHash;
     this.migrate();
   }
 
@@ -121,9 +133,10 @@ class SqliteRelayStore implements RelayStore {
     const row = this.db
       .prepare('SELECT * FROM accounts WHERE username = ?')
       .get(username) as AccountRow | undefined;
-    if (row === undefined || !verifyPasswordHash(password, row.password_hash)) {
-      return null;
-    }
+    // 用户不存在时仍对固定假哈希执行一次校验，避免时序侧信道暴露用户名是否存在。
+    const stored = row?.password_hash ?? DUMMY_PASSWORD_HASH;
+    const matches = this.verifyHash(password, stored);
+    if (row === undefined || !matches) return null;
     return toAccountRecord(row);
   }
 

@@ -21,10 +21,25 @@ const channelDataSchema = z.object({
 });
 
 const MAX_CLOSE_REASON_BYTES = 123;
+const CLOSE_NORMAL = 1000;
+const CLOSE_INTERNAL_ERROR = 1011;
+const RESERVED_NO_STATUS = 1005;
+const RESERVED_ABNORMAL = 1006;
+const RESERVED_NO_CODE = 1004;
 
-/** ws 合法关闭码：1000 或 3000-4999；越界传入 socket.close 会抛 RangeError。 */
+/** 规范允许发送的关闭码：1000–1014（除 1004/1005/1006）或 3000–4999。 */
 function isValidCloseCode(code: number): boolean {
-  return code === 1000 || (code >= 3000 && code <= 4999);
+  if (code === RESERVED_NO_CODE || code === RESERVED_NO_STATUS || code === RESERVED_ABNORMAL) {
+    return false;
+  }
+  return (code >= 1000 && code <= 1014) || (code >= 3000 && code <= 4999);
+}
+
+/** 手机侧 close code 归一化：保留码不得透传给 Agent（契约 §5.2）。 */
+function normalizeCloseCode(code: number): number {
+  if (isValidCloseCode(code)) return code;
+  if (code === RESERVED_ABNORMAL) return CLOSE_INTERNAL_ERROR;
+  return CLOSE_NORMAL;
 }
 
 const channelCloseSchema = z.object({
@@ -52,7 +67,7 @@ export interface PhoneChannelDeps {
   limits: RelayLimits;
 }
 
-/** 升级后建立通道：开通道、双向拼接、关闭联动。 */
+/** 升级后建立通道：开通道、双向拼接、心跳与关闭联动。 */
 export function acceptPhoneChannel(deps: PhoneChannelDeps): void {
   const desktop = deps.registry.desktopFor(deps.desktopId);
   if (desktop === undefined) {
@@ -65,6 +80,11 @@ export function acceptPhoneChannel(deps: PhoneChannelDeps): void {
     deps.kind,
     deps.socket,
   );
+  // 升级与登记之间桌面可能被取代：此时通道归旧链路，立即关闭。
+  if (deps.registry.desktopFor(deps.desktopId) !== desktop) {
+    deps.socket.close(CLOSE_DESKTOP_GONE, 'desktop gone');
+    return;
+  }
   desktop.channels.set(link.channelId, link);
   desktop.send({
     type: 'channel.open',
@@ -76,6 +96,19 @@ export function acceptPhoneChannel(deps: PhoneChannelDeps): void {
     },
   });
 
+  // 手机链路心跳（契约 §2.1/§4.2）：15s ping / 45s 无 pong 断开（测试可覆盖）。
+  let lastPongAt = Date.now();
+  const heartbeatTimer = setInterval(() => {
+    if (Date.now() - lastPongAt > deps.limits.pongTimeoutMs) {
+      deps.socket.terminate();
+      return;
+    }
+    deps.socket.ping();
+  }, deps.limits.pingIntervalMs);
+  deps.socket.on('pong', () => {
+    lastPongAt = Date.now();
+  });
+
   deps.socket.on('message', (data: RawData, isBinary: boolean) => {
     const target = deps.registry.desktopFor(deps.desktopId);
     if (target === undefined) {
@@ -85,17 +118,21 @@ export function acceptPhoneChannel(deps: PhoneChannelDeps): void {
     splicePhoneToDesktop(link, target, toBuffer(data), isBinary, deps.limits);
   });
   deps.socket.on('close', (code: number, reason: Buffer) => {
+    clearInterval(heartbeatTimer);
     deps.registry.detachPhone(link);
     const target = deps.registry.desktopFor(deps.desktopId);
-    target?.channels.delete(link.channelId);
-    target?.send({
-      type: 'channel.close',
-      payload: {
-        channelId: link.channelId,
-        code,
-        reason: reason.toString('utf8'),
-      },
-    });
+    // 仅当通道仍登记在该桌面连接上才通知；被取代清空的旧通道不发伪造 channel.close。
+    if (target !== undefined && target.channels.get(link.channelId) === link) {
+      target.channels.delete(link.channelId);
+      target.send({
+        type: 'channel.close',
+        payload: {
+          channelId: link.channelId,
+          code: normalizeCloseCode(code),
+          reason: reason.toString('utf8'),
+        },
+      });
+    }
   });
   deps.socket.on('error', () => {
     deps.socket.terminate();

@@ -47,7 +47,7 @@ const responseSchema = z.object({
 });
 
 interface Pending {
-  desktopId: string;
+  link: DesktopLink;
   timer: ReturnType<typeof setTimeout>;
   resolve(response: HttpTunnelResponse): void;
   reject(error: unknown): void;
@@ -70,7 +70,7 @@ export class HttpTunnel {
         reject(new TunnelError('GATEWAY_TIMEOUT'));
       }, this.limits.httpTimeoutMs);
       this.pending.set(requestId, {
-        desktopId: desktop.desktopId,
+        link: desktop,
         timer,
         resolve,
         reject,
@@ -117,10 +117,10 @@ export class HttpTunnel {
     return true;
   }
 
-  /** 桌面断开时只 reject 该桌面的 pending。 */
-  failDesktop(desktopId: string): void {
+  /** 桌面连接断开时只 reject 该连接实例的 pending（旧代次关闭不误杀新代次）。 */
+  failDesktop(desktop: DesktopLink): void {
     for (const [requestId, pending] of [...this.pending.entries()]) {
-      if (pending.desktopId !== desktopId) continue;
+      if (pending.link !== desktop) continue;
       this.pending.delete(requestId);
       clearTimeout(pending.timer);
       pending.reject(new TunnelError('DESKTOP_OFFLINE'));

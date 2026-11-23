@@ -129,12 +129,17 @@ export async function createRelayApp(
         store: options.store,
         registry,
         limits,
-        onReadyMessage: (link, text) =>
-          handleHttpResponseMessage(tunnel, text) ||
-          handleDesktopMessage(registry, link, text, limits),
+        onReadyMessage: (link, text) => {
+          // 旧代次桌面连接的消息一律忽略（契约 §5.1：云端只接受最新代次）。
+          if (registry.desktopFor(link.desktopId) !== link) return true;
+          return (
+            handleHttpResponseMessage(tunnel, text) ||
+            handleDesktopMessage(registry, link, text, limits)
+          );
+        },
         onClose: (link) => {
           closeDesktopChannels(registry, link);
-          tunnel.failDesktop(link.desktopId);
+          tunnel.failDesktop(link);
         },
       });
     },

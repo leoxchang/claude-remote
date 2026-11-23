@@ -4,6 +4,10 @@ import { newPrefixedId } from '../security/credentials.js';
 import { DeviceRecord } from '../storage/store.js';
 import { PhoneLink } from './phone-link.js';
 
+/** 目标电脑被取代/断开时关闭手机通道的 code（契约 §4.2）。 */
+const CLOSE_DESKTOP_GONE = 4010;
+const CLOSE_SUPERSEDED = 4000;
+
 /** 云端发给桌面连接的出站消息信封。 */
 export interface DesktopOutboundMessage {
   type: string;
@@ -56,7 +60,7 @@ export class ConnectionRegistry {
     if (this.phones.get(key) === link) this.phones.delete(key);
   }
 
-  /** 挂载桌面连接；同 desktopId 旧连接立即以 4000 关闭。 */
+  /** 挂载桌面连接；同 desktopId 旧连接立即失效：先清空其手机通道（4010），再关闭旧 socket。 */
   attachDesktop(
     device: DeviceRecord,
     socket: WebSocket,
@@ -77,9 +81,19 @@ export class ConnectionRegistry {
     const previous = this.desktops.get(device.deviceId);
     this.desktops.set(device.deviceId, link);
     if (previous !== undefined) {
-      previous.socket.close(4000, 'superseded');
+      this.closeChannelsOf(previous);
+      previous.socket.close(CLOSE_SUPERSEDED, 'superseded');
     }
     return link;
+  }
+
+  /** 关闭并清空某桌面连接承载的全部手机通道。 */
+  private closeChannelsOf(link: DesktopLink): void {
+    for (const phone of [...link.channels.values()]) {
+      this.detachPhone(phone);
+      phone.socket.close(CLOSE_DESKTOP_GONE, 'desktop gone');
+    }
+    link.channels.clear();
   }
 
   /** 仅当仍是当前连接时移除（被取代的旧连接清理时不误删新连接）。 */
@@ -103,6 +117,7 @@ export class ConnectionRegistry {
     const desktop = this.desktops.get(deviceId);
     if (desktop !== undefined) {
       this.desktops.delete(deviceId);
+      this.closeChannelsOf(desktop);
       desktop.socket.close(code, 'closed');
     }
     for (const [key, link] of [...this.phones.entries()]) {
@@ -112,16 +127,18 @@ export class ConnectionRegistry {
     }
   }
 
-  /** 吊销/禁用联动：关闭该账号全部桌面连接与手机通道。 */
+  /** 吊销/禁用联动：关闭该账号全部桌面连接与手机通道（一律 4004）。 */
   closeAccount(accountId: string, code: number): void {
-    for (const link of [...this.desktops.values()]) {
-      if (link.accountId !== accountId) continue;
-      this.desktops.delete(link.desktopId);
-      link.socket.close(code, 'closed');
-    }
+    // 先关手机通道：禁用语义下所有存活连接统一 4004，而非桌面级联的 4010。
     for (const [key, link] of [...this.phones.entries()]) {
       if (link.accountId !== accountId) continue;
       this.phones.delete(key);
+      link.socket.close(code, 'closed');
+    }
+    for (const link of [...this.desktops.values()]) {
+      if (link.accountId !== accountId) continue;
+      this.desktops.delete(link.desktopId);
+      this.closeChannelsOf(link);
       link.socket.close(code, 'closed');
     }
   }

@@ -88,6 +88,7 @@ async function errorCodeOf(response: Response): Promise<string> {
 function connectWs(
   url: string,
   authHeader?: string,
+  options: { autoPong?: boolean } = {},
 ): Promise<
   { ok: true; socket: WebSocket } | { ok: false; status: number }
 > {
@@ -96,6 +97,7 @@ function connectWs(
       ...(authHeader === undefined
         ? {}
         : { headers: { authorization: authHeader } }),
+      ...(options.autoPong === undefined ? {} : { autoPong: options.autoPong }),
     });
     socket.once('open', () => resolve({ ok: true, socket }));
     socket.once('unexpected-response', (_request, response) => {
@@ -369,6 +371,160 @@ describe('HTTP 代答（进程内）', () => {
     );
     expect(unauthenticated.status).toBe(401);
   });
+});
+
+describe('取代与代次隔离（C1/I1/I2）', () => {
+  it('桌面被取代：旧链路手机立即 4010，且旧代次无法向新通道注入数据', async () => {
+    const { wsUrl } = await startApp();
+    const desktopCredential = createDesktopCredential();
+    const phone = createPhoneCredential();
+    const first = await openDesktop(wsUrl, desktopCredential);
+
+    const control1 = await connectWs(
+      `${wsUrl}/ws?desktopId=${desktopCredential.deviceId}`,
+      bearerOf(phone),
+    );
+    if (!control1.ok) throw new Error('first control upgrade failed');
+    await first.next();
+
+    // 旧桌面暂停读，关闭握手将被延迟——取代后的清理不得依赖旧连接的 close 事件。
+    first.socket.pause();
+    const phoneClosed = new Promise<number>((resolve) => {
+      control1.socket.once('close', (code: number) => resolve(code));
+    });
+    const second = await openDesktop(wsUrl, desktopCredential);
+    expect(await phoneClosed).toBe(4010);
+
+    // 新通道建立后，旧代次注入同一 channelId 必须被忽略。
+    const phone2 = createPhoneCredential();
+    const control2 = await connectWs(
+      `${wsUrl}/ws?desktopId=${desktopCredential.deviceId}`,
+      bearerOf(phone2),
+    );
+    if (!control2.ok) throw new Error('second control upgrade failed');
+    const open = await second.next();
+    const channelId = (open['payload'] as { channelId: string }).channelId;
+
+    first.socket.send(
+      JSON.stringify({
+        type: 'channel.data',
+        payload: { channelId, binary: false, data: 'FROM-OLD-GENERATION' },
+      }),
+    );
+    const received = await new Promise<string>((resolve) => {
+      let settled = false;
+      control2.socket.once('message', (data) => {
+        settled = true;
+        resolve(data.toString());
+      });
+      setTimeout(() => {
+        if (!settled) resolve('NONE');
+      }, 300);
+    });
+    expect(received).toBe('NONE');
+    first.socket.resume();
+  });
+
+  it('手机链路心跳：不应答 ping 超时断开（I2）', async () => {
+    const { wsUrl } = await startApp({
+      pingIntervalMs: 20,
+      pongTimeoutMs: 60,
+    });
+    const desktopCredential = createDesktopCredential();
+    const phone = createPhoneCredential();
+    await openDesktop(wsUrl, desktopCredential);
+
+    const phoneConnection = await connectWs(
+      `${wsUrl}/ws?desktopId=${desktopCredential.deviceId}`,
+      bearerOf(phone),
+      { autoPong: false },
+    );
+    if (!phoneConnection.ok) throw new Error('phone upgrade failed');
+    const code = await new Promise<number>((resolve) => {
+      phoneConnection.socket.once('close', (closeCode: number) =>
+        resolve(closeCode),
+      );
+    });
+    expect(code).toBe(1006);
+  });
+
+  it('channel.close 合法码 1011 透传；手机异常断连归一为 1011（I1）', async () => {
+    const { wsUrl } = await startApp();
+    const desktopCredential = createDesktopCredential();
+    const phone = createPhoneCredential();
+    const desktop = await openDesktop(wsUrl, desktopCredential);
+
+    const control = await connectWs(
+      `${wsUrl}/ws?desktopId=${desktopCredential.deviceId}`,
+      bearerOf(phone),
+    );
+    if (!control.ok) throw new Error('control upgrade failed');
+    const open = await desktop.next();
+    const channelId = (open['payload'] as { channelId: string }).channelId;
+
+    const closed = new Promise<number>((resolve) => {
+      control.socket.once('close', (code: number) => resolve(code));
+    });
+    desktop.socket.send(
+      JSON.stringify({
+        type: 'channel.close',
+        payload: { channelId, code: 1011, reason: 'internal error' },
+      }),
+    );
+    expect(await closed).toBe(1011);
+
+    const abnormal = await connectWs(
+      `${wsUrl}/ws?desktopId=${desktopCredential.deviceId}`,
+      bearerOf(phone),
+    );
+    if (!abnormal.ok) throw new Error('abnormal upgrade failed');
+    const secondOpen = await desktop.next();
+    const secondChannelId = (secondOpen['payload'] as { channelId: string })
+      .channelId;
+    const notice = desktop.next();
+    abnormal.socket.terminate();
+    expect(await notice).toMatchObject({
+      type: 'channel.close',
+      payload: { channelId: secondChannelId, code: 1011 },
+    });
+  });
+
+  it('默认上限下 12MiB 代答体经 20MiB 桌面消息上限通过（C2）', async () => {
+    const { httpUrl, wsUrl } = await startApp();
+    const desktopCredential = createDesktopCredential();
+    const phone = createPhoneCredential();
+    const desktop = await openDesktop(wsUrl, desktopCredential);
+
+    const body = Buffer.alloc(12 * 1024 * 1024, 7);
+    const pending = fetch(
+      `${httpUrl}/v1/attachments?desktopId=${desktopCredential.deviceId}`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: bearerOf(phone),
+          'content-type': 'application/octet-stream',
+        },
+        body,
+      },
+    );
+    const request = await desktop.next();
+    desktop.socket.send(
+      JSON.stringify({
+        type: 'http.response',
+        payload: {
+          requestId: (request['payload'] as Record<string, string>)['requestId'],
+          status: 200,
+          contentType: 'application/octet-stream',
+          bodyBase64: body.toString('base64'),
+        },
+      }),
+    );
+    const response = await pending;
+    expect(response.status).toBe(200);
+    const received = Buffer.from(await response.arrayBuffer());
+    expect(received.length).toBe(body.length);
+    expect(desktop.socket.readyState).toBe(WebSocket.OPEN);
+  }, 30000);
 });
 
 describe('吊销联动（进程内）', () => {

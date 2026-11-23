@@ -214,6 +214,28 @@ export async function nextPhoneText(
   return frame.data.toString('utf8');
 }
 
+/** 打开原始桌面连接（不自动握手），用于版本协商等失败路径断言。 */
+export function openRawDesktop(
+  baseUrl: string,
+  credential: Credential,
+): Promise<WebSocket> {
+  return connectWebSocket(wsUrl(baseUrl, '/v1/desktop/ws'), credential);
+}
+
+/** 取 socket 的下一条文本 JSON 消息。 */
+export function nextSocketMessage(
+  socket: WebSocket,
+  timeoutMs = 5000,
+): Promise<Record<string, unknown>> {
+  return new Promise((resolveMessage, reject) => {
+    const timer = setTimeout(() => reject(new Error('message timeout')), timeoutMs);
+    socket.once('message', (data) => {
+      clearTimeout(timer);
+      resolveMessage(JSON.parse(data.toString()) as Record<string, unknown>);
+    });
+  });
+}
+
 /** 断言 socket 以指定 code 关闭。 */
 export function expectClose(
   socket: WebSocket,

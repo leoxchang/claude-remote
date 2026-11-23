@@ -232,3 +232,43 @@ describe('契约 §4/§5.2 控制通道', () => {
     expect(desktop.socket.readyState).toBe(WebSocket.OPEN);
   });
 });
+
+describe('契约 §5.1 代次隔离（Review Focus 4）', () => {
+  it('桌面被取代时挂载手机立即 4010，旧代次无法向新通道注入数据', async () => {
+    const { relay, desktop, phone, desktopCredential } = await setup();
+    const control = await openPhone(
+      relay.baseUrl,
+      phone,
+      desktopCredential.deviceId,
+      'control',
+    );
+    await desktop.nextMessage();
+
+    // 旧桌面暂停读：关闭握手被延迟，取代后的清理不得依赖旧连接的 close 事件。
+    desktop.socket.pause();
+    const phoneClosed = expectClose(control, 4010);
+    const second = await openDesktop(relay.baseUrl, desktopCredential);
+    await phoneClosed;
+
+    const control2 = await openPhone(
+      relay.baseUrl,
+      phone,
+      desktopCredential.deviceId,
+      'control',
+    );
+    const open = await second.nextMessage();
+    const channelId = (open['payload'] as { channelId: string }).channelId;
+
+    desktop.socket.send(
+      JSON.stringify({
+        type: 'channel.data',
+        payload: { channelId, binary: false, data: 'FROM-OLD-GENERATION' },
+      }),
+    );
+    await expect(nextPhoneText(control2, 300)).rejects.toThrow('message timeout');
+    expect(control2.readyState).toBe(WebSocket.OPEN);
+    desktop.socket.resume();
+    control2.close();
+    second.close();
+  });
+});

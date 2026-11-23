@@ -211,4 +211,59 @@ describe('契约 §5.4 HTTP 代答', () => {
     );
     expect(unauthenticated.status).toBe(401);
   });
+
+  it('重复 http.response 只生效一次，连接存活', async () => {
+    const { relay, desktop, phone, desktopId } = await setup();
+    const pending = fetch(proxyUrl(relay, '/v1/runs/run_dup/prompt', desktopId), {
+      headers: authHeaders(phone),
+    });
+    const request = await desktop.nextMessage();
+    const payload = request['payload'] as Record<string, string>;
+    const response = {
+      type: 'http.response',
+      payload: {
+        requestId: payload['requestId'],
+        status: 200,
+        bodyBase64: Buffer.from('once').toString('base64'),
+      },
+    };
+    desktop.send(response);
+    desktop.send(response);
+    expect(await (await pending).text()).toBe('once');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(desktop.socket.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it('请求体超过 12 MiB → 413 BODY_TOO_LARGE（契约 §2.1）', async () => {
+    const { relay, phone, desktopId } = await setup();
+    const response = await fetch(proxyUrl(relay, '/v1/attachments', desktopId), {
+      method: 'POST',
+      headers: { ...authHeaders(phone), 'content-type': 'application/octet-stream' },
+      body: Buffer.alloc(13 * 1024 * 1024, 1),
+    });
+    expect(response.status).toBe(413);
+    expect(await errorCodeOf(response)).toBe('BODY_TOO_LARGE');
+  }, 30000);
+
+  it('恰好 12 MiB 代答体通过（C2 边界）', async () => {
+    const { relay, desktop, phone, desktopId } = await setup();
+    const body = Buffer.alloc(12 * 1024 * 1024, 9);
+    const pending = fetch(proxyUrl(relay, '/v1/runs/run_big/prompt', desktopId), {
+      headers: authHeaders(phone),
+    });
+    const request = await desktop.nextMessage();
+    desktop.send({
+      type: 'http.response',
+      payload: {
+        requestId: (request['payload'] as Record<string, string>)['requestId'],
+        status: 200,
+        contentType: 'application/octet-stream',
+        bodyBase64: body.toString('base64'),
+      },
+    });
+    const response = await pending;
+    expect(response.status).toBe(200);
+    expect(Buffer.from(await response.arrayBuffer()).length).toBe(body.length);
+    expect(desktop.socket.readyState).toBe(WebSocket.OPEN);
+  }, 30000);
 });

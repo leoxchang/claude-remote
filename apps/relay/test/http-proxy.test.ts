@@ -76,7 +76,7 @@ describe('HttpTunnel', () => {
     expect(tunnel.handleResponse({ bogus: true })).toBe(false);
   });
 
-  it('桌面断开只 reject 该桌面的 pending（DESKTOP_OFFLINE）', async () => {
+  it('桌面断开只 reject 该连接实例的 pending（DESKTOP_OFFLINE）', async () => {
     const tunnel = new HttpTunnel({ httpTimeoutMs: 5000, httpBodyBytes: 1024 });
     const first = fakeDesktop('dev_a');
     const second = fakeDesktop('dev_b');
@@ -93,7 +93,7 @@ describe('HttpTunnel', () => {
       path: '/v1/runs/r2/prompt',
     });
 
-    tunnel.failDesktop('dev_a');
+    tunnel.failDesktop(first.link);
     expect(await firstFailure).toBe('DESKTOP_OFFLINE');
 
     const secondId = second.sent[0]?.payload['requestId'] as string;
@@ -106,6 +106,28 @@ describe('HttpTunnel', () => {
     const response = await secondRequest;
     expect(response.status).toBe(200);
     expect(response.body.toString('utf8')).toBe('ok');
+  });
+
+  it('同 desktopId 的旧连接实例关闭不误杀新实例 pending（I3）', async () => {
+    const tunnel = new HttpTunnel({ httpTimeoutMs: 5000, httpBodyBytes: 1024 });
+    const oldGeneration = fakeDesktop('dev_same');
+    const newGeneration = fakeDesktop('dev_same');
+    const pending = tunnel.request(newGeneration.link, {
+      deviceId: 'dev_p',
+      method: 'GET',
+      path: '/v1/runs/r1/prompt',
+    });
+
+    tunnel.failDesktop(oldGeneration.link);
+
+    const requestId = newGeneration.sent[0]?.payload['requestId'] as string;
+    tunnel.handleResponse({
+      requestId,
+      status: 200,
+      bodyBase64: Buffer.from('alive').toString('base64'),
+    });
+    const response = await pending;
+    expect(response.body.toString('utf8')).toBe('alive');
   });
 
   it('响应体超 httpBodyBytes → GATEWAY_ERROR', async () => {

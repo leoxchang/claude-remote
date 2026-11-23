@@ -155,6 +155,23 @@ describe('设备', () => {
     expect(store.nextConnectionEpoch(deviceId)).toBe(3);
   });
 
+  it('未知用户名同样执行一次哈希校验（防时序枚举，I5）', () => {
+    const calls: string[] = [];
+    store = openRelayStore(dir, undefined, {
+      verifyHash: (_password, stored) => {
+        calls.push(stored);
+        return false;
+      },
+    });
+    store.createAccount('alice', 'pw-123456');
+    calls.length = 0;
+    expect(store.verifyPassword('ghost', 'pw-123456')).toBeNull();
+    expect(calls).toHaveLength(1);
+    calls.length = 0;
+    expect(store.verifyPassword('alice', 'wrong')).toBeNull();
+    expect(calls).toHaveLength(1);
+  });
+
   it('touchLastSeen 记录最近断开时间', () => {
     store = openRelayStore(dir);
     const account = store.createAccount('alice', 'pw-123456');

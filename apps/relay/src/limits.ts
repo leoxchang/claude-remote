@@ -20,7 +20,8 @@ export const DEFAULT_LIMITS: RelayLimits = {
   controlFrameBytes: 65536,
   asrFrameBytes: 262144,
   httpBodyBytes: 12582912,
-  desktopMessageBytes: 16777216,
+  /** 须容纳 12 MiB 代答体 base64 后的 16 MiB 与信封余量（契约 §2.1）。 */
+  desktopMessageBytes: 20971520,
   httpTimeoutMs: 30000,
   handshakeTimeoutMs: 10000,
   pingIntervalMs: 15000,
