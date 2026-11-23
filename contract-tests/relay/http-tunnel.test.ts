@@ -66,6 +66,11 @@ function authHeaders(phone: Credential): Record<string, string> {
   return { authorization: bearer(phone) };
 }
 
+async function errorCodeOf(response: Response): Promise<string> {
+  const body = (await response.json()) as { error: { code: string } };
+  return body.error.code;
+}
+
 describe('契约 §5.4 HTTP 代答', () => {
   it('POST attachments 代答，请求体/响应体逐字节一致', async () => {
     const { relay, desktop, phone, desktopId } = await setup();
@@ -130,7 +135,7 @@ describe('契约 §5.4 HTTP 代答', () => {
     });
     const response = await pending;
     expect(response.status).toBe(404);
-    expect((await response.json()).error.code).toBe('APPROVAL_NOT_FOUND');
+    expect(await errorCodeOf(response)).toBe('APPROVAL_NOT_FOUND');
   });
 
   it('白名单外路径 404 ROUTE_NOT_FOUND 且不产生 http.request', async () => {
@@ -140,7 +145,7 @@ describe('契约 §5.4 HTTP 代答', () => {
       { headers: authHeaders(phone) },
     );
     expect(response.status).toBe(404);
-    expect((await response.json()).error.code).toBe('ROUTE_NOT_FOUND');
+    expect(await errorCodeOf(response)).toBe('ROUTE_NOT_FOUND');
     await expect(desktop.nextMessage(300)).rejects.toThrow('message timeout');
   });
 
@@ -151,7 +156,7 @@ describe('契约 §5.4 HTTP 代答', () => {
       { headers: authHeaders(phone) },
     );
     expect(offline.status).toBe(503);
-    expect((await offline.json()).error.code).toBe('DESKTOP_OFFLINE');
+    expect(await errorCodeOf(offline)).toBe('DESKTOP_OFFLINE');
 
     await openDesktop(relay.baseUrl, desktopCredential);
     await createAccount(relay, 'bob', PASSWORD);
@@ -161,7 +166,7 @@ describe('契约 §5.4 HTTP 代答', () => {
       { headers: authHeaders(bobPhone) },
     );
     expect(crossAccount.status).toBe(404);
-    expect((await crossAccount.json()).error.code).toBe('DESKTOP_NOT_FOUND');
+    expect(await errorCodeOf(crossAccount)).toBe('DESKTOP_NOT_FOUND');
   });
 
   it('迟到的未知 requestId 响应被丢弃，连接存活且后续代答正常（Review Focus 5）', async () => {

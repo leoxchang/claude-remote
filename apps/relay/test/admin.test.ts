@@ -162,6 +162,32 @@ describe('admin socket', () => {
     expect(process.umask()).toBe(previousUmask);
   });
 
+  it('未知用户/设备返回稳定错误码', async () => {
+    expect(
+      await sendAdminRequest(dir, { op: 'list-devices', username: 'ghost' }),
+    ).toMatchObject({ ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } });
+    expect(
+      await sendAdminRequest(dir, { op: 'disable-user', username: 'ghost' }),
+    ).toMatchObject({ ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } });
+    expect(
+      await sendAdminRequest(dir, { op: 'revoke-device', deviceId: 'dev_ghost' }),
+    ).toMatchObject({ ok: false, error: { code: 'DEVICE_NOT_FOUND' } });
+  });
+
+  it('超过 64KiB 的请求被直接断开且无响应', async () => {
+    const closed = await new Promise<boolean>((resolve) => {
+      const socket = connect(join(dir, ADMIN_SOCKET_FILE));
+      let received = '';
+      socket.on('data', (chunk) => {
+        received += chunk.toString('utf8');
+      });
+      socket.on('close', () => resolve(received.length === 0));
+      socket.on('error', () => resolve(received.length === 0));
+      socket.write('x'.repeat(70 * 1024));
+    });
+    expect(closed).toBe(true);
+  });
+
   it('未知 op 与畸形 JSON 返回 INVALID_REQUEST', async () => {
     const unknownOp = await sendRaw('{"op":"nope"}\n');
     expect(JSON.parse(unknownOp)).toMatchObject({

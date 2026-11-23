@@ -12,6 +12,7 @@ export const CLOSE_DESKTOP_GONE = 4010;
 
 const CLOSE_SUPERSEDED = 4000;
 const FRAME_TOO_LARGE_REASON = 'frame too large';
+const SLOW_CONSUMER_REASON = 'slow consumer';
 
 const channelDataSchema = z.object({
   channelId: z.string().min(1),
@@ -122,6 +123,22 @@ export function splicePhoneToDesktop(
     link.socket.close(CLOSE_SLOW_CONSUMER, FRAME_TOO_LARGE_REASON);
     return;
   }
+  // 背压（契约 §5.3）：桌面缓冲未清时按通道累计待发字节，
+  // 超通道上限或桌面总缓冲超限时关闭该通道（4003），而非无限缓冲。
+  const desktopBuffered = desktop.socket.bufferedAmount;
+  if (desktopBuffered > limits.desktopBufferBytes) {
+    link.socket.close(CLOSE_SLOW_CONSUMER, SLOW_CONSUMER_REASON);
+    return;
+  }
+  if (desktopBuffered > 0) {
+    link.pendingBytes += data.byteLength;
+    if (link.pendingBytes > limits.channelBufferBytes) {
+      link.socket.close(CLOSE_SLOW_CONSUMER, SLOW_CONSUMER_REASON);
+      return;
+    }
+  } else {
+    link.pendingBytes = 0;
+  }
   desktop.send({
     type: 'channel.data',
     payload: isBinary
@@ -142,6 +159,10 @@ export function spliceDesktopToPhone(
 ): void {
   const limit =
     link.kind === 'control' ? limits.controlFrameBytes : limits.asrFrameBytes;
+  if (link.socket.bufferedAmount > limits.channelBufferBytes) {
+    link.socket.close(CLOSE_SLOW_CONSUMER, SLOW_CONSUMER_REASON);
+    return;
+  }
   if (payload.binary) {
     const data = Buffer.from(payload.data, 'base64');
     if (data.byteLength > limit) {

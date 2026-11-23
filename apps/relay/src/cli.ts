@@ -6,6 +6,7 @@ import { AdminRequest, startAdminSocket } from './admin/admin-socket.js';
 import { sendAdminRequest } from './admin/client.js';
 import { createRelayApp } from './app.js';
 import { loadConfig } from './config.js';
+import { CLOSE_REVOKED } from './routing/desktop-link.js';
 import { ConnectionRegistry } from './routing/registry.js';
 import { openRelayStore } from './storage/sqlite-store.js';
 
@@ -91,7 +92,16 @@ async function serve(): Promise<void> {
   const registry = new ConnectionRegistry();
   const app = await createRelayApp({ store, registry, logger: true });
   await app.listen({ host: config.host, port: config.port });
-  await startAdminSocket({ store, dataDir: config.dataDir });
+  await startAdminSocket({
+    store,
+    dataDir: config.dataDir,
+    onAccountDisabled: (accountId) => {
+      registry.closeAccount(accountId, CLOSE_REVOKED);
+    },
+    onDeviceRevoked: (device) => {
+      registry.closeDevice(device.deviceId, CLOSE_REVOKED);
+    },
+  });
 
   const address = app.server.address();
   const port = address === null ? config.port : (address as AddressInfo).port;

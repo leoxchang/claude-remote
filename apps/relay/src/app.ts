@@ -14,7 +14,7 @@ import { registerLoginRoute } from './auth/login-route.js';
 import { registerDeviceRoutes } from './devices/device-routes.js';
 import { sendError } from './http/send-error.js';
 import { DEFAULT_LIMITS, RelayLimits } from './limits.js';
-import { acceptDesktopConnection } from './routing/desktop-link.js';
+import { acceptDesktopConnection, CLOSE_REVOKED } from './routing/desktop-link.js';
 import {
   acceptPhoneChannel,
   closeDesktopChannels,
@@ -84,6 +84,9 @@ export async function createRelayApp(
   registerDeviceRoutes(app, {
     store: options.store,
     isOnline: options.isOnline ?? ((deviceId) => registry.isOnline(deviceId)),
+    onRevoke: (device) => {
+      registry.closeDevice(device.deviceId, CLOSE_REVOKED);
+    },
   });
 
   const authenticated = new WeakMap<IncomingMessage, DeviceRecord>();
@@ -265,6 +268,16 @@ export async function createRelayApp(
     }
   };
 
+  // 错误处理器必须先于子插件注册，否则子上下文不继承（413 等映射会失效）。
+  app.setErrorHandler(async (error: FastifyError, _request, reply) => {
+    if (error.code === BODY_TOO_LARGE_CODE) {
+      return sendError(reply, 413, 'BODY_TOO_LARGE');
+    }
+    const statusCode = error.statusCode ?? 500;
+    if (statusCode >= 500) return sendError(reply, 500, 'INTERNAL_ERROR');
+    return sendError(reply, statusCode, 'INVALID_REQUEST');
+  });
+
   // 代答路由需要原始字节；用封装插件挂自定义 body 解析，避免影响登录等 JSON 路由。
   await app.register(async (scope) => {
     const rawBodyParser = (
@@ -304,15 +317,6 @@ export async function createRelayApp(
       }
       return forwardProxy(request, reply, 'GET', `/v1/runs/${runId}/prompt`);
     });
-  });
-
-  app.setErrorHandler(async (error: FastifyError, _request, reply) => {
-    if (error.code === BODY_TOO_LARGE_CODE) {
-      return sendError(reply, 413, 'BODY_TOO_LARGE');
-    }
-    const statusCode = error.statusCode ?? 500;
-    if (statusCode >= 500) return sendError(reply, 500, 'INTERNAL_ERROR');
-    return sendError(reply, statusCode, 'INVALID_REQUEST');
   });
 
   app.setNotFoundHandler(async (_request, reply) =>

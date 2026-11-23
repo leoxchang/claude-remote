@@ -98,19 +98,30 @@ export class ConnectionRegistry {
     return link !== undefined && link.socket.readyState === WebSocket.OPEN;
   }
 
-  /** 吊销/禁用联动（Task 10 接线）。 */
+  /** 吊销/禁用联动：关闭该设备的桌面连接与其全部手机通道。 */
   closeDevice(deviceId: string, code: number): void {
-    const link = this.desktops.get(deviceId);
-    if (link === undefined) return;
-    this.desktops.delete(deviceId);
-    link.socket.close(code, 'closed');
+    const desktop = this.desktops.get(deviceId);
+    if (desktop !== undefined) {
+      this.desktops.delete(deviceId);
+      desktop.socket.close(code, 'closed');
+    }
+    for (const [key, link] of [...this.phones.entries()]) {
+      if (link.deviceId !== deviceId) continue;
+      this.phones.delete(key);
+      link.socket.close(code, 'closed');
+    }
   }
 
-  /** 吊销/禁用联动（Task 10 接线）。 */
+  /** 吊销/禁用联动：关闭该账号全部桌面连接与手机通道。 */
   closeAccount(accountId: string, code: number): void {
     for (const link of [...this.desktops.values()]) {
       if (link.accountId !== accountId) continue;
       this.desktops.delete(link.desktopId);
+      link.socket.close(code, 'closed');
+    }
+    for (const [key, link] of [...this.phones.entries()]) {
+      if (link.accountId !== accountId) continue;
+      this.phones.delete(key);
       link.socket.close(code, 'closed');
     }
   }
