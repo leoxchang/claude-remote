@@ -275,6 +275,21 @@ describe('createRelayHttpDispatch', () => {
     expect(badJson.status).toBe(400);
   });
 
+  it('GET run prompt 白名单命中并返回正文', () => {
+    const read = vi.fn((runId: string) => ({ runId, text: 'hi' }));
+    const dispatch = createRelayHttpDispatch({
+      runPrompt: { read } as unknown as RunPromptController,
+    });
+    const result = dispatch({
+      deviceId: 'dev_phone',
+      method: 'GET',
+      path: '/v1/runs/run_1/prompt',
+      body: Buffer.alloc(0),
+    });
+    expect(result.status).toBe(200);
+    expect(read).toHaveBeenCalledWith('run_1', 'dev_phone');
+  });
+
   it('GET 审批内容经 query 透传 chunkIndex', () => {
     const readChunk = vi.fn(() => ({ approvalId: 'a1', chunkIndex: 0 }));
     const dispatch = createRelayHttpDispatch({

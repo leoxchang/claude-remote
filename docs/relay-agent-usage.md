@@ -25,7 +25,8 @@ RELAY_DATA_DIR=./relay-data node apps/relay/bin/claude-remote-relay.js admin cre
 
 ## 3. 电脑端登录云端
 
-Agent 需先 `init`（与直连模式相同）。然后在电脑上执行：
+Agent 需先 `init`。注意**先 `start` 一次**（完成配置升级到 v5，随后可 Ctrl-C 停止），
+再执行登录：
 
 ```bash
 claude-remote-agent relay login --url https://relay.example.com --username alice --password '<口令>' --name "我的 Mac"

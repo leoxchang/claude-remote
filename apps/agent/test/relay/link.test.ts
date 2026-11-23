@@ -319,6 +319,82 @@ describe('RelayLink 重连与终止', () => {
     }
   });
 
+  it('畸形入站消息一律忽略且连接存活', async () => {
+    relay = await startFakeRelay();
+    const { handlers, calls } = recordingHandlers();
+    link = startRelayLink({
+      baseUrl: relay.httpBase,
+      credential: CREDENTIAL,
+      hello: HELLO,
+      handlers,
+      logger: SILENT_LOGGER,
+      backoff: FAST_BACKOFF,
+    });
+    await waitUntil(() => link?.state().status === 'ready');
+
+    const invalidFrames: unknown[] = [
+      'not-json',
+      42,
+      { type: 'channel.open', payload: { channelId: 'x' } },
+      { type: 'channel.open', payload: { channelId: 'x', kind: 'video', deviceId: 'd' } },
+      { type: 'channel.data', payload: { channelId: 'x', binary: 'no', data: 'd' } },
+      { type: 'channel.close', payload: { channelId: 'x', code: '1000', reason: 'r' } },
+      {
+        type: 'http.request',
+        payload: {
+          requestId: 'r',
+          deviceId: 'd',
+          method: 'GET',
+          path: '/x',
+          query: { bad: 1 },
+        },
+      },
+      { type: 'relay.unknown', payload: {} },
+      { payload: {} },
+    ];
+    for (const frame of invalidFrames) {
+      relay.send(
+        typeof frame === 'string'
+          ? ({ raw: frame } as unknown as Record<string, unknown>)
+          : (frame as Record<string, unknown>),
+      );
+    }
+    // 直接塞一条非 JSON 原文，验证解析失败分支
+    relay.currentSocket()?.send('not-json-frame');
+    // 有效消息仍能分发
+    relay.send({
+      type: 'channel.data',
+      payload: { channelId: 'ch_ok', binary: false, data: 'still-alive' },
+    });
+    await waitUntil(() =>
+      calls.some(
+        (call) =>
+          call.kind === 'data' && call.input['data'] === 'still-alive',
+      ),
+    );
+    expect(link.state().status).toBe('ready');
+  });
+
+  it('webSocketFactory 抛错时按退避重试而不崩溃', async () => {
+    relay = await startFakeRelay();
+    const { handlers } = recordingHandlers();
+    let attempts = 0;
+    link = startRelayLink({
+      baseUrl: 'http://127.0.0.1:1',
+      credential: CREDENTIAL,
+      hello: HELLO,
+      handlers,
+      logger: SILENT_LOGGER,
+      backoff: FAST_BACKOFF,
+      webSocketFactory: () => {
+        attempts += 1;
+        throw new Error('factory boom');
+      },
+    });
+    await waitUntil(() => attempts >= 3);
+    expect(link.state().status).toBe('connecting');
+  });
+
   it('stop() 后不再重连', async () => {
     relay = await startFakeRelay();
     const { handlers } = recordingHandlers();

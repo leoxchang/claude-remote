@@ -83,6 +83,28 @@ describe('buildRelayStatus', () => {
     });
     expect(JSON.stringify(view)).not.toContain('tok_secret');
   });
+
+  it('终止态：lastError 透出、lastEpoch 为空', () => {
+    const configured: AgentConfigV5 = {
+      ...baseConfig,
+      relay: {
+        baseUrl: 'http://127.0.0.1:8788',
+        deviceId: 'dev_x',
+        deviceToken: 'tok_secret',
+        desktopName: 'Mac',
+      },
+    };
+    const view = buildRelayStatus(configured, {
+      status: 'stopped',
+      lastEpoch: null,
+      lastError: '4004',
+    });
+    expect(view).toMatchObject({
+      state: 'stopped',
+      lastEpoch: null,
+      lastError: '4004',
+    });
+  });
 });
 
 describe('doctor relay 检查项', () => {

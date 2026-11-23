@@ -104,6 +104,15 @@ describe('VirtualPhoneSocket', () => {
     expect(socket.readyState).toBe(3);
   });
 
+  it('close() 无参使用默认 1000/空 reason', () => {
+    const { transport, frames } = createTransport();
+    const socket = new VirtualPhoneSocket(transport);
+    socket.close();
+    expect(frames).toEqual([
+      { kind: 'close', data: { code: 1000, reason: '' } },
+    ]);
+  });
+
   it('terminate 本地 1006 且不发 sendClose', () => {
     const { transport, frames } = createTransport();
     const socket = new VirtualPhoneSocket(transport);

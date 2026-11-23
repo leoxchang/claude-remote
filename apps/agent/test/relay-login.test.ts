@@ -122,6 +122,51 @@ describe('relayLogin', () => {
     ).rejects.toThrow('INVALID_RESPONSE');
   });
 
+  it('非 JSON 错误体退回 HTTP 状态码', async () => {
+    writeInitializedConfig();
+    const textFetch = (async () =>
+      new Response('boom', { status: 500 })) as typeof fetch;
+    await expect(
+      relayLogin({
+        configDir: dir,
+        baseUrl: 'http://127.0.0.1:8788',
+        username: 'alice',
+        password: 'pw-123456',
+        desktopName: 'My Mac',
+        fetchImpl: textFetch,
+      }),
+    ).rejects.toThrow('500');
+  });
+
+  it('错误体 code 非字符串时退回 HTTP 状态码', async () => {
+    writeInitializedConfig();
+    await expect(
+      relayLogin({
+        configDir: dir,
+        baseUrl: 'http://127.0.0.1:8788',
+        username: 'alice',
+        password: 'pw-123456',
+        desktopName: 'My Mac',
+        fetchImpl: fakeFetch(429, { error: { code: 42 } }),
+      }),
+    ).rejects.toThrow('429');
+  });
+
+  it('登录响应 deviceToken 为空 → INVALID_RESPONSE 且不写配置', async () => {
+    writeInitializedConfig();
+    await expect(
+      relayLogin({
+        configDir: dir,
+        baseUrl: 'http://127.0.0.1:8788',
+        username: 'alice',
+        password: 'pw-123456',
+        desktopName: 'My Mac',
+        fetchImpl: fakeFetch(200, { ...LOGIN_OK, deviceToken: '' }),
+      }),
+    ).rejects.toThrow('INVALID_RESPONSE');
+    expect(readRelayConfig(dir)).toBeNull();
+  });
+
   it('未 init 的 configDir 抛 AGENT_NOT_INITIALIZED', async () => {
     await expect(
       relayLogin({

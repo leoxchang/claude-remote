@@ -136,4 +136,102 @@ describe('connector http.request 分发', () => {
     ).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'INTERNAL_ERROR' } });
     expect(link?.state().status).toBe('ready');
   });
+
+  it('重复 channel.open 与 asr 通道分发', async () => {
+    relay = await startFakeRelay();
+    const asrAccept = vi.fn();
+    const manager = new ConnectionManager({
+      desktopId: 'desk_test',
+      agentInstanceId: 'agent_test',
+      versions: { agent: '0.0.0', sdk: 'x', runtime: 'x' },
+      capabilities: [],
+    });
+    const connector = createRelayConnector({
+      connections: manager,
+      relayDevices: createTrustedDevices(() => false),
+      asrAccept,
+      httpDispatch: () => ({
+        status: 404,
+        contentType: 'application/json',
+        body: Buffer.from('{}'),
+      }),
+      logger: SILENT_LOGGER,
+    });
+    link = startRelayLink({
+      baseUrl: relay.httpBase,
+      credential: { deviceId: 'dev_desktop', deviceToken: 'tok' },
+      hello: {
+        appVersion: '0.0.0',
+        desktopName: 'Dispatch Mac',
+        platform: 'macos',
+        supportedContractVersions: [1],
+      },
+      handlers: connector.handlers,
+      logger: SILENT_LOGGER,
+      backoff: FAST_BACKOFF,
+    });
+    connector.attachLink(link);
+    await waitUntil(() => link?.state().status === 'ready');
+
+    relay.send({
+      type: 'channel.open',
+      payload: { channelId: 'ch_a', kind: 'asr', deviceId: 'dev_phone' },
+    });
+    relay.send({
+      type: 'channel.open',
+      payload: { channelId: 'ch_a', kind: 'asr', deviceId: 'dev_phone' },
+    });
+    await waitUntil(() => asrAccept.mock.calls.length === 1);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(asrAccept).toHaveBeenCalledTimes(1);
+    expect(link.state().status).toBe('ready');
+  });
+
+  it('http.request 携带 query 时透传给分发', async () => {
+    const dispatch = vi.fn<RelayHttpDispatch>(() => ({
+      status: 200,
+      contentType: 'application/json',
+      body: Buffer.from('{}'),
+    }));
+    const fakeRelay = await setupWithDispatch(dispatch);
+    fakeRelay.send({
+      type: 'http.request',
+      payload: {
+        requestId: 'req_q',
+        deviceId: 'dev_phone',
+        method: 'GET',
+        path: '/v1/approvals/a1/content',
+        query: { chunkIndex: '0' },
+      },
+    });
+    await fakeRelay.waitForMessage(
+      (message) => message['type'] === 'http.response',
+    );
+    expect(dispatch).toHaveBeenCalledWith({
+      deviceId: 'dev_phone',
+      method: 'GET',
+      path: '/v1/approvals/a1/content',
+      query: { chunkIndex: '0' },
+      body: Buffer.alloc(0),
+    });
+  });
+
+  it('未知 channelId 的 channel.data 被忽略，连接存活', async () => {
+    const dispatch = vi.fn<RelayHttpDispatch>(() => ({
+      status: 404,
+      contentType: 'application/json',
+      body: Buffer.from('{}'),
+    }));
+    const fakeRelay = await setupWithDispatch(dispatch);
+    fakeRelay.send({
+      type: 'channel.data',
+      payload: { channelId: 'ch_ghost', binary: false, data: 'x' },
+    });
+    fakeRelay.send({
+      type: 'channel.close',
+      payload: { channelId: 'ch_ghost', code: 1000, reason: 'x' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(link?.state().status).toBe('ready');
+  });
 });
