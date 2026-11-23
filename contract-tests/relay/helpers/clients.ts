@@ -186,6 +186,34 @@ export async function attemptPhone(
   }
 }
 
+/** 取手机连接的下一帧（文本或二进制）。 */
+export function nextPhoneFrame(
+  socket: WebSocket,
+  timeoutMs = 5000,
+): Promise<{ data: Buffer; isBinary: boolean }> {
+  return new Promise((resolveFrame, reject) => {
+    const timer = setTimeout(() => reject(new Error('message timeout')), timeoutMs);
+    socket.once('message', (data, isBinary: boolean) => {
+      clearTimeout(timer);
+      const buffer = Buffer.isBuffer(data)
+        ? data
+        : Array.isArray(data)
+          ? Buffer.concat(data)
+          : Buffer.from(data as ArrayBuffer);
+      resolveFrame({ data: buffer, isBinary });
+    });
+  });
+}
+
+/** 取手机连接的下一条文本帧。 */
+export async function nextPhoneText(
+  socket: WebSocket,
+  timeoutMs = 5000,
+): Promise<string> {
+  const frame = await nextPhoneFrame(socket, timeoutMs);
+  return frame.data.toString('utf8');
+}
+
 /** 断言 socket 以指定 code 关闭。 */
 export function expectClose(
   socket: WebSocket,

@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws';
 
+import { newPrefixedId } from '../security/credentials.js';
 import { DeviceRecord } from '../storage/store.js';
 import { PhoneLink } from './phone-link.js';
 
@@ -22,6 +23,38 @@ export interface DesktopLink {
 /** 内存连接表：按 desktopId 路由，新连接取代旧连接。 */
 export class ConnectionRegistry {
   private readonly desktops = new Map<string, DesktopLink>();
+  private readonly phones = new Map<string, PhoneLink>();
+
+  /** 挂载手机通道；同 (deviceId, kind) 旧连接立即以 4000 关闭，不同种类互不影响。 */
+  attachPhone(
+    device: DeviceRecord,
+    desktopId: string,
+    kind: 'control' | 'asr',
+    socket: WebSocket,
+  ): PhoneLink {
+    const link: PhoneLink = {
+      channelId: newPrefixedId('ch_'),
+      deviceId: device.deviceId,
+      accountId: device.accountId,
+      desktopId,
+      kind,
+      socket,
+      pendingBytes: 0,
+    };
+    const key = phoneKey(device.deviceId, kind);
+    const previous = this.phones.get(key);
+    this.phones.set(key, link);
+    if (previous !== undefined) {
+      previous.socket.close(4000, 'superseded');
+    }
+    return link;
+  }
+
+  /** 仅当仍是当前通道时移除。 */
+  detachPhone(link: PhoneLink): void {
+    const key = phoneKey(link.deviceId, link.kind);
+    if (this.phones.get(key) === link) this.phones.delete(key);
+  }
 
   /** 挂载桌面连接；同 desktopId 旧连接立即以 4000 关闭。 */
   attachDesktop(
@@ -81,4 +114,8 @@ export class ConnectionRegistry {
       link.socket.close(code, 'closed');
     }
   }
+}
+
+function phoneKey(deviceId: string, kind: 'control' | 'asr'): string {
+  return `${deviceId}:${kind}`;
 }

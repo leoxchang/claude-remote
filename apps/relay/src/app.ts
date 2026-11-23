@@ -6,6 +6,7 @@ import Fastify, {
   FastifyReply,
   FastifyRequest,
 } from 'fastify';
+import { WebSocket } from 'ws';
 
 import { authenticateBearer, AuthError } from './auth/authenticate.js';
 import { registerLoginRoute } from './auth/login-route.js';
@@ -13,6 +14,11 @@ import { registerDeviceRoutes } from './devices/device-routes.js';
 import { sendError } from './http/send-error.js';
 import { DEFAULT_LIMITS, RelayLimits } from './limits.js';
 import { acceptDesktopConnection } from './routing/desktop-link.js';
+import {
+  acceptPhoneChannel,
+  closeDesktopChannels,
+  handleDesktopMessage,
+} from './routing/splice.js';
 import { ConnectionRegistry } from './routing/registry.js';
 import { DeviceRecord, RelayStore } from './storage/store.js';
 import { CONTRACT_VERSION, RELAY_VERSION } from './version.js';
@@ -38,7 +44,11 @@ export async function createRelayApp(
     logger: options.logger === true,
     bodyLimit: limits.httpBodyBytes,
   });
-  await app.register(websocket);
+  // maxPayload 只能全局设置：取 16MiB 桌面消息上限的两倍，
+  // 具体限制由拼接层按契约判定（超限关闭 4003），而不是底层 1009。
+  await app.register(websocket, {
+    options: { maxPayload: limits.desktopMessageBytes * 2 },
+  });
 
   app.get('/v1/version', async () => ({
     contractVersion: CONTRACT_VERSION,
@@ -56,6 +66,10 @@ export async function createRelayApp(
   });
 
   const authenticated = new WeakMap<IncomingMessage, DeviceRecord>();
+  const phoneAuthResults = new WeakMap<
+    IncomingMessage,
+    { device: DeviceRecord; desktopId: string }
+  >();
   const desktopAuth = async (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -91,8 +105,74 @@ export async function createRelayApp(
         store: options.store,
         registry,
         limits,
+        onReadyMessage: (link, text) =>
+          handleDesktopMessage(registry, link, text),
+        onClose: (link) => {
+          closeDesktopChannels(registry, link);
+        },
       });
     },
+  );
+
+  const phoneAuth = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    let device: DeviceRecord;
+    try {
+      device = authenticateBearer(options.store, request.headers);
+    } catch (error: unknown) {
+      if (error instanceof AuthError) {
+        sendError(reply, 401, 'UNAUTHENTICATED');
+        return;
+      }
+      throw error;
+    }
+    const query = request.query as Record<string, unknown>;
+    const desktopId = query['desktopId'];
+    if (typeof desktopId !== 'string' || desktopId.length === 0) {
+      sendError(reply, 400, 'INVALID_REQUEST');
+      return;
+    }
+    const target = options.store.findDevice(desktopId);
+    if (
+      target === null ||
+      target.role !== 'desktop' ||
+      target.accountId !== device.accountId
+    ) {
+      sendError(reply, 404, 'DESKTOP_NOT_FOUND');
+      return;
+    }
+    if (!registry.isOnline(desktopId)) {
+      sendError(reply, 503, 'DESKTOP_OFFLINE');
+      return;
+    }
+    phoneAuthResults.set(request.raw, { device, desktopId });
+  };
+
+  const handlePhone =
+    (kind: 'control' | 'asr') =>
+    (socket: WebSocket, request: FastifyRequest): void => {
+      const context = phoneAuthResults.get(request.raw);
+      if (context === undefined) {
+        socket.close();
+        return;
+      }
+      acceptPhoneChannel({
+        socket,
+        device: context.device,
+        desktopId: context.desktopId,
+        kind,
+        registry,
+        limits,
+      });
+    };
+
+  app.get('/ws', { websocket: true, preValidation: phoneAuth }, handlePhone('control'));
+  app.get(
+    '/ws/asr',
+    { websocket: true, preValidation: phoneAuth },
+    handlePhone('asr'),
   );
 
   app.setNotFoundHandler(async (_request, reply) =>
