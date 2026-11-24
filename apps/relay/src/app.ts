@@ -12,6 +12,7 @@ import { WebSocket } from 'ws';
 import { authenticateBearer, AuthError } from './auth/authenticate.js';
 import { registerLoginRoute } from './auth/login-route.js';
 import { registerDeviceRoutes } from './devices/device-routes.js';
+import { AdminHttpOptions, registerAdminRoutes } from './admin/admin-http.js';
 import { sendError } from './http/send-error.js';
 import { DEFAULT_LIMITS, RelayLimits } from './limits.js';
 import { acceptDesktopConnection, CLOSE_REVOKED } from './routing/desktop-link.js';
@@ -68,6 +69,8 @@ export interface RelayAppOptions {
   logger?: boolean;
   isOnline?: (deviceId: string) => boolean;
   registry?: ConnectionRegistry;
+  /** 管理页与管理 API；令牌由调用方校验后传入，缺省即不注册（fail-closed）。 */
+  admin?: AdminHttpOptions;
 }
 
 /** 组装 Relay Fastify 应用；测试用 inject，运行时由 cli.ts listen。 */
@@ -94,6 +97,8 @@ export async function createRelayApp(
     contractVersion: CONTRACT_VERSION,
     relayVersion: RELAY_VERSION,
   }));
+
+  if (options.admin) registerAdminRoutes(app, options.admin);
 
   registerLoginRoute(app, {
     store: options.store,

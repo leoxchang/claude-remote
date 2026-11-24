@@ -3,6 +3,7 @@ import { AddressInfo } from 'node:net';
 import { Command } from 'commander';
 
 import { AdminRequest, startAdminSocket } from './admin/admin-socket.js';
+import { adminTokenFromEnv } from './admin/admin-http.js';
 import { sendAdminRequest } from './admin/client.js';
 import { createRelayApp } from './app.js';
 import { loadConfig } from './config.js';
@@ -90,7 +91,33 @@ async function serve(): Promise<void> {
   const config = loadConfig(process.env);
   const store = openRelayStore(config.dataDir);
   const registry = new ConnectionRegistry();
-  const app = await createRelayApp({ store, registry, logger: true });
+  const adminToken = adminTokenFromEnv(process.env.RELAY_ADMIN_TOKEN);
+  if (adminToken === undefined) {
+    process.stderr.write(
+      `${JSON.stringify({
+        level: 'warn',
+        msg: 'RELAY_ADMIN_TOKEN 未设置或长度不足 16，管理页未启用',
+      })}\n`,
+    );
+  }
+  const app = await createRelayApp({
+    store,
+    registry,
+    logger: true,
+    admin:
+      adminToken === undefined
+        ? undefined
+        : {
+            store,
+            token: adminToken,
+            onAccountDisabled: (accountId) => {
+              registry.closeAccount(accountId, CLOSE_REVOKED);
+            },
+            onDeviceRevoked: (device) => {
+              registry.closeDevice(device.deviceId, CLOSE_REVOKED);
+            },
+          },
+  });
   await app.listen({ host: config.host, port: config.port });
   await startAdminSocket({
     store,
