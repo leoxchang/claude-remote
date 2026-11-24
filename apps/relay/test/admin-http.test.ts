@@ -57,6 +57,72 @@ describe('adminTokenFromEnv', () => {
   });
 });
 
+describe('admin api 鉴权与账号列表', () => {
+  it('无 Authorization → 401 UNAUTHORIZED', async () => {
+    const app = await buildApp(makeAdmin());
+    const res = await app.inject({ method: 'GET', url: '/admin/api/accounts' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'UNAUTHORIZED' },
+    });
+  });
+
+  it('错误令牌 → 401 UNAUTHORIZED', async () => {
+    const app = await buildApp(makeAdmin());
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/api/accounts',
+      headers: { authorization: 'Bearer wrong-token-aaaaaaaaaaaa' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'UNAUTHORIZED' },
+    });
+  });
+
+  it('设备凭据不得访问 admin api', async () => {
+    const admin = makeAdmin();
+    const account = admin.store.createAccount('dev', 'dev-password-1');
+    const created = admin.store.createDevice({
+      accountId: account.accountId,
+      role: 'phone',
+      deviceName: 'iPhone',
+      platform: 'ios',
+      appVersion: '1.0.0',
+    });
+    const app = await buildApp(admin);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/api/accounts',
+      headers: {
+        authorization: `Bearer ${created.device.deviceId}.${created.deviceToken}`,
+      },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'UNAUTHORIZED' },
+    });
+  });
+
+  it('正确令牌 → 200 {ok:true, result:[...]}', async () => {
+    const admin = makeAdmin();
+    admin.store.createAccount('dev', 'dev-password-1');
+    const app = await buildApp(admin);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/api/accounts',
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { ok: boolean; result: Array<Record<string, unknown>> };
+    expect(body.ok).toBe(true);
+    expect(body.result).toHaveLength(1);
+    expect(body.result[0].username).toBe('dev');
+    expect(body.result[0]).not.toHaveProperty('passwordHash');
+    expect(body.result[0]).not.toHaveProperty('password');
+  });
+});
+
 describe('admin 路由 fail-closed', () => {
   it('无 admin 选项时 GET /admin 404', async () => {
     const app = await buildApp(undefined);
