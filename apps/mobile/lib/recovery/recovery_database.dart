@@ -7,19 +7,27 @@ import 'package:sqflite/sqflite.dart';
 /// RecoveryStore 的 v4 schema；v1–v3 数据全部保留，user_messages 增加本地图片路径。
 const int recoverySchemaVersion = 4;
 
+/// 直连模式的库文件名；沿用旧名，保证历史数据不迁移。
+const String defaultRecoveryFileName = 'recovery.db';
+
+/// 由凭证作用域推导库文件名；`null` 表示直连。
+String recoveryFileNameFor(String? scope) =>
+    scope == null ? defaultRecoveryFileName : 'recovery-$scope.db';
+
 /// 单个 App 本地数据库；文件位于 Application Support，永不使用 Documents。
 final class RecoveryDatabase {
   const RecoveryDatabase._();
 
-  /// 打开或创建 recovery.db；测试可注入 factory 与目录。
+  /// 打开或创建 recovery 库；测试可注入 factory、目录与文件名。
   static Future<Database> open({
     DatabaseFactory? factory,
     Future<Directory> Function()? supportDirectory,
+    String fileName = defaultRecoveryFileName,
   }) async {
     final selectedFactory = factory ?? databaseFactory;
     final directory = await (supportDirectory ?? getApplicationSupportDirectory)();
     await directory.create(recursive: true);
-    final path = p.join(directory.path, 'recovery.db');
+    final path = p.join(directory.path, fileName);
     return selectedFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(

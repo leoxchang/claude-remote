@@ -42,11 +42,13 @@ final class RecoveryStore implements ComposerDraftStore, UserMessageStore, UserA
   static Future<RecoveryStore> open({
     DatabaseFactory? factory,
     Future<Directory> Function()? supportDirectory,
+    String fileName = defaultRecoveryFileName,
   }) async {
     final directory = await (supportDirectory ?? getApplicationSupportDirectory)();
     final db = await RecoveryDatabase.open(
       factory: factory,
       supportDirectory: () async => directory,
+      fileName: fileName,
     );
     return RecoveryStore._(
       db,
