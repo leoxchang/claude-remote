@@ -88,4 +88,80 @@ export function registerAdminRoutes(
     const response = handleAdminRequest(options, { op: 'list-accounts' });
     return replyAdminResponse(reply, response);
   });
+
+  app.post('/admin/api/accounts', async (request, reply) => {
+    if (!assertAdminToken(request, reply, options.token)) return reply;
+    const body = bodyAsObject(request.body);
+    if (body === null) return sendError(reply, 400, 'INVALID_REQUEST');
+    const response = handleAdminRequest(options, {
+      op: 'create-user',
+      username: body['username'],
+      password: body['password'],
+    });
+    return replyAdminResponse(reply, response);
+  });
+
+  app.post(
+    '/admin/api/accounts/:username/disable',
+    async (request, reply) => {
+      if (!assertAdminToken(request, reply, options.token)) return reply;
+      const { username } = request.params as { username: string };
+      const response = handleAdminRequest(options, {
+        op: 'disable-user',
+        username,
+      });
+      return replyAdminResponse(reply, response);
+    },
+  );
+
+  app.post(
+    '/admin/api/accounts/:username/enable',
+    async (request, reply) => {
+      if (!assertAdminToken(request, reply, options.token)) return reply;
+      const { username } = request.params as { username: string };
+      const response = handleAdminRequest(options, {
+        op: 'enable-user',
+        username,
+      });
+      return replyAdminResponse(reply, response);
+    },
+  );
+
+  app.post(
+    '/admin/api/accounts/:username/reset-password',
+    async (request, reply) => {
+      if (!assertAdminToken(request, reply, options.token)) return reply;
+      const { username } = request.params as { username: string };
+      const body = bodyAsObject(request.body);
+      if (body === null) return sendError(reply, 400, 'INVALID_REQUEST');
+      const response = handleAdminRequest(options, {
+        op: 'reset-password',
+        username,
+        password: body['password'],
+      });
+      return replyAdminResponse(reply, response);
+    },
+  );
+
+  app.get('/admin/api/accounts/:username/devices', async (request, reply) => {
+    if (!assertAdminToken(request, reply, options.token)) return reply;
+    const { username } = request.params as { username: string };
+    const response = handleAdminRequest(options, { op: 'list-devices', username });
+    return replyAdminResponse(reply, response);
+  });
+
+  app.delete('/admin/api/devices/:deviceId', async (request, reply) => {
+    if (!assertAdminToken(request, reply, options.token)) return reply;
+    const { deviceId } = request.params as { deviceId: string };
+    const response = handleAdminRequest(options, { op: 'revoke-device', deviceId });
+    return replyAdminResponse(reply, response);
+  });
+}
+
+/** 请求体必须是 JSON 对象；数组、原始值与空体一律视为非法请求。 */
+function bodyAsObject(body: unknown): Record<string, unknown> | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return null;
+  }
+  return body as Record<string, unknown>;
 }

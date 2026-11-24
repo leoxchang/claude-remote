@@ -100,16 +100,17 @@ function handleRequest(deps: AdminCoreDeps, line: string): AdminResponse {
   } catch {
     return failure('INVALID_REQUEST');
   }
-  const parsed = requestSchema.safeParse(parsedJson);
-  if (!parsed.success) return failure('INVALID_REQUEST');
-  return handleAdminRequest(deps, parsed.data);
+  return handleAdminRequest(deps, parsedJson);
 }
 
 /** 管理请求的核心处理；socket 与 HTTP 入口共用，错误码即 CLI 语义。 */
 export function handleAdminRequest(
   deps: AdminCoreDeps,
-  request: AdminRequest,
+  input: unknown,
 ): AdminResponse {
+  const parsed = requestSchema.safeParse(input);
+  if (!parsed.success) return failure('INVALID_REQUEST');
+  const request = parsed.data;
   try {
     switch (request.op) {
       case 'create-user':
