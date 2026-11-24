@@ -16,6 +16,10 @@ final class FakeAgentSocket implements AgentSocket {
 
   @override
   Future<void> send(ProtocolMessage message) async {
+    // 与真实 WebSocket sink 一致：关闭后写入抛 StateError。
+    if (closed) {
+      throw StateError('Cannot add event after closing');
+    }
     sent.add(jsonEncode(message.toWire()));
   }
 

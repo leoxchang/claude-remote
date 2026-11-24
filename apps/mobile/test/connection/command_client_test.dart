@@ -132,4 +132,19 @@ void main() {
     final data = await future;
     expect(data['sessionId'], 'session_01');
   });
+
+  test('已关闭的连接上执行命令抛 NOT_CONNECTED 而非裸 StateError', () async {
+    await socket.close();
+
+    await expectLater(
+      client.execute(startRequest()),
+      throwsA(
+        isA<CommandFailure>().having(
+          (error) => error.code,
+          'code',
+          'NOT_CONNECTED',
+        ),
+      ),
+    );
+  });
 }

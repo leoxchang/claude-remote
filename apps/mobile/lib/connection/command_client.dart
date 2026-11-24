@@ -106,7 +106,12 @@ final class CommandClient implements CommandExecutor {
     try {
       final socket = _socket;
       if (socket == null) throw const CommandFailure('NOT_CONNECTED');
-      await socket.send(request.toMessage(++_sent));
+      try {
+        await socket.send(request.toMessage(++_sent));
+      } on StateError {
+        // WebSocket sink 已关闭时写入抛 StateError；对外统一为可识别的连接错误。
+        throw const CommandFailure('NOT_CONNECTED');
+      }
       final result = await completer.future.timeout(
         timeout,
         onTimeout: () {

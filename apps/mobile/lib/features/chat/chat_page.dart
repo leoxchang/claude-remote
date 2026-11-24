@@ -88,7 +88,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_runtime?.dispose());
+    // runtime 由 chatSessionRuntimeProvider 单例持有（与电脑的连接全 App 只有一条）；
+    // 页面离开只停止使用，销毁交给 provider 的 onDispose（凭证/电脑切换时）。
+    _runtime = null;
     _text.dispose();
     super.dispose();
   }
