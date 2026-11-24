@@ -31,4 +31,19 @@ void main() {
       'Authorization': 'Bearer device_1.secret_token',
     });
   });
+
+  test('cloud mode targets the selected desktop through the relay', () {
+    expect(
+      agentSocketUri(
+        const DeviceCredential(
+          deviceId: 'device_1',
+          deviceToken: 'secret_token',
+          baseUrl: 'https://relay.example.com',
+          desktopId: 'dev_desk1',
+          mode: ConnectionMode.cloud,
+        ),
+      ).toString(),
+      'wss://relay.example.com/ws?desktopId=dev_desk1',
+    );
+  });
 }

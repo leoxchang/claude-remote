@@ -7,12 +7,9 @@ import '../protocol/envelope.dart';
 import 'agent_socket.dart';
 import 'device_credential.dart';
 
-/// 主控制连接地址：https→wss，http（局域网）→ws。
-Uri agentSocketUri(DeviceCredential credential) {
-  final base = Uri.parse(credential.baseUrl);
-  final scheme = base.scheme == 'https' ? 'wss' : 'ws';
-  return base.replace(scheme: scheme, path: '/ws');
-}
+/// 主控制连接地址；直连按 baseUrl 推导，云端追加 desktopId（契约 §4.1）。
+Uri agentSocketUri(DeviceCredential credential) =>
+    credential.webSocketUri('/ws');
 
 /// 与服务端 `authenticateRequest` 一致的 Bearer 头：`<deviceId>.<token>`。
 Map<String, String> agentSocketHeaders(DeviceCredential credential) {

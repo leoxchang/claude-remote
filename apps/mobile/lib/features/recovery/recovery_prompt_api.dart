@@ -44,7 +44,7 @@ final class RecoveryPromptApi {
   Future<String> read(String runId) async {
     final DeviceCredential? credential = await credentials.read();
     if (credential == null) throw const RecoveryPromptException('UNAUTHENTICATED');
-    final uri = Uri.parse('${credential.baseUrl}/v1/runs/$runId/prompt');
+    final uri = credential.httpUri('/v1/runs/$runId/prompt');
     final response = await transport.get(uri, <String, String>{
       'authorization': 'Bearer ${credential.deviceId}.${credential.deviceToken}',
     });

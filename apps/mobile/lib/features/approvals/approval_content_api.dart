@@ -72,11 +72,10 @@ final class ApprovalContentApi {
     if (credential == null) {
       throw const ApprovalContentException('UNAUTHENTICATED');
     }
-    final uri = Uri.parse(
-      '${credential.baseUrl}/v1/approvals/${summary.approvalId}/content',
-    ).replace(queryParameters: <String, String>{
-      'chunkIndex': '$chunkIndex',
-    });
+    final uri = credential.httpUri(
+      '/v1/approvals/${summary.approvalId}/content',
+      <String, String>{'chunkIndex': '$chunkIndex'},
+    );
     final response = await transport.get(uri, <String, String>{
       'authorization': 'Bearer ${credential.deviceId}.${credential.deviceToken}',
     });

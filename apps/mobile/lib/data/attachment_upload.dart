@@ -133,7 +133,7 @@ final class AttachmentApi {
       throw const AttachmentUploadException('UNPAIRED');
     }
     final response = await transport.post(
-      Uri.parse('${credential.baseUrl}/v1/attachments'),
+      credential.httpUri('/v1/attachments'),
       {
         'authorization':
             'Bearer ${credential.deviceId}.${credential.deviceToken}',

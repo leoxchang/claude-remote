@@ -141,4 +141,31 @@ void main() {
       ),
     );
   });
+
+  test('cloud mode targets the selected desktop', () async {
+    await credentials.save(
+      const DeviceCredential(
+        deviceId: 'dev_phone1',
+        deviceToken: 'token_1',
+        baseUrl: 'https://relay.example.com',
+        desktopId: 'dev_desk1',
+        mode: ConnectionMode.cloud,
+      ),
+    );
+    final transport = _FakeTransport(
+      const AttachmentUploadResponse(
+        statusCode: 201,
+        body:
+            '{"attachmentId":"att_12345678","mediaType":"image/jpeg","size":4}',
+      ),
+    );
+    final api = AttachmentApi(credentials: credentials, transport: transport);
+
+    await api.uploadFile(image.path);
+
+    expect(
+      transport.calls.single.uri.queryParameters['desktopId'],
+      'dev_desk1',
+    );
+  });
 }

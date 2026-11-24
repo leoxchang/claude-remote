@@ -102,6 +102,28 @@ void main() {
 
       expect(uri.toString(), 'ws://192.168.5.10:8787/ws/asr');
     });
+
+    test('cloud mode routes the asr channel to the selected desktop', () async {
+      late Uri uri;
+      final channel = FakeChannel();
+      final factory = IoVoiceAsrClientFactory(
+        credential: const DeviceCredential(
+          deviceId: 'device_1',
+          deviceToken: 'secret_token',
+          baseUrl: 'https://relay.example.com',
+          desktopId: 'dev_desk1',
+          mode: ConnectionMode.cloud,
+        ),
+        openChannel: (openedUri, _) {
+          uri = openedUri;
+          return channel;
+        },
+      );
+      await factory.connect();
+
+      expect(uri.path, '/ws/asr');
+      expect(uri.queryParameters['desktopId'], 'dev_desk1');
+    });
   });
 
   group('IoVoiceAsrConnection', () {

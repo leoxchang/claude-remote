@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:claude_remote/data/credential_store.dart';
+import 'package:claude_remote/data/device_credential.dart';
 import 'package:claude_remote/features/recovery/recovery_prompt_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -79,5 +81,32 @@ void main() {
       throwsA(isA<RecoveryPromptException>()),
     );
     expect(transport.lastUri, isNull);
+  });
+
+  test('cloud mode forwards the selected desktop', () async {
+    final transport = FakeTransport(
+      http.Response.bytes(
+        utf8.encode(jsonEncode({'runId': 'run_1', 'text': '原 prompt'})),
+        200,
+      ),
+    );
+    final credentials = CredentialStore(
+      MemoryVault(<String, String>{
+        CredentialStore.credentialKey: jsonEncode(
+          const DeviceCredential(
+            deviceId: 'dev_phone1',
+            deviceToken: 'token',
+            baseUrl: 'https://relay.example.com',
+            desktopId: 'dev_desk1',
+            mode: ConnectionMode.cloud,
+          ).toJson(),
+        ),
+      }),
+    );
+    final api = RecoveryPromptApi(credentials: credentials, transport: transport);
+
+    await api.read('run_1');
+
+    expect(transport.lastUri?.queryParameters['desktopId'], 'dev_desk1');
   });
 }

@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:claude_remote/data/credential_store.dart';
+import 'package:claude_remote/data/device_credential.dart';
 import 'package:claude_remote/features/approvals/approval_content_api.dart';
 import 'package:claude_remote/features/approvals/approval_content_loader.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -210,5 +214,46 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('cloud mode keeps the chunk query and adds the desktop', () async {
+    final json = approvalJson();
+    final summary = summaryFor(json, chunkCount: 1);
+    final transport = FakeTransport(
+      chunks: <int, ApprovalTransportResponse>{
+        0: chunkResponse(
+          approvalId: summary.approvalId,
+          chunkIndex: 0,
+          chunkCount: 1,
+          byteLength: summary.content.byteLength,
+          sha256: summary.content.sha256,
+          text: json,
+        ),
+      },
+    );
+    final loader = ApprovalContentLoader(
+      ApprovalContentApi(
+        credentials: CredentialStore(
+          MemoryVault(<String, String>{
+            CredentialStore.credentialKey: jsonEncode(
+              const DeviceCredential(
+                deviceId: 'dev_phone1',
+                deviceToken: 'token',
+                baseUrl: 'https://relay.example.com',
+                desktopId: 'dev_desk1',
+                mode: ConnectionMode.cloud,
+              ).toJson(),
+            ),
+          }),
+        ),
+        transport: transport,
+      ),
+    );
+
+    await loader.load(summary);
+
+    final uri = transport.requested.single;
+    expect(uri.queryParameters['chunkIndex'], '0');
+    expect(uri.queryParameters['desktopId'], 'dev_desk1');
   });
 }
