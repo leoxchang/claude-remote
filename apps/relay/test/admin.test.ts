@@ -5,7 +5,12 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
-import { ADMIN_SOCKET_FILE, startAdminSocket } from '../src/admin/admin-socket.js';
+import {
+  ADMIN_SOCKET_FILE,
+  AdminCoreDeps,
+  handleAdminRequest,
+  startAdminSocket,
+} from '../src/admin/admin-socket.js';
 import { sendAdminRequest } from '../src/admin/client.js';
 import { openRelayStore } from '../src/storage/sqlite-store.js';
 import { DeviceRecord, RelayStore } from '../src/storage/store.js';
@@ -199,5 +204,54 @@ describe('admin socket', () => {
       ok: false,
       error: { code: 'INVALID_REQUEST' },
     });
+  });
+});
+
+describe('handleAdminRequest 导出', () => {
+  let coreDir: string;
+  let coreStore: RelayStore;
+  let coreDeps: AdminCoreDeps;
+
+  beforeEach(() => {
+    coreDir = mkdtempSync(join(tmpdir(), 'relay-admin-core-'));
+    coreStore = openRelayStore(coreDir);
+    coreDeps = { store: coreStore };
+  });
+
+  afterEach(() => {
+    coreStore.close();
+    rmSync(coreDir, { recursive: true, force: true });
+  });
+
+  it('与 socket 入口行为一致（list-accounts）', () => {
+    const response = handleAdminRequest(coreDeps, { op: 'list-accounts' });
+    expect(response).toEqual({ ok: true, result: [] });
+  });
+
+  it('非法请求对象返回 INVALID_REQUEST', () => {
+    const response = handleAdminRequest(coreDeps, {
+      op: 'no-such-op',
+    } as never);
+    expect(response).toEqual({
+      ok: false,
+      error: { code: 'INVALID_REQUEST', message: 'INVALID_REQUEST' },
+    });
+  });
+
+  it('create-user 与重复用户名（StoreError 透传）', () => {
+    expect(
+      handleAdminRequest(coreDeps, {
+        op: 'create-user',
+        username: 'alice',
+        password: 'pw-123456',
+      }).ok,
+    ).toBe(true);
+    expect(
+      handleAdminRequest(coreDeps, {
+        op: 'create-user',
+        username: 'alice',
+        password: 'x',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'USERNAME_TAKEN' } });
   });
 });

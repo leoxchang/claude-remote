@@ -15,12 +15,16 @@ const UMASK_OWNER_ONLY = 0o177;
 const MAX_REQUEST_BYTES = 64 * 1024;
 const LINE_SEPARATOR = '\n';
 
-/** admin socket 依赖；回调由即时断开接线使用。 */
-export interface AdminDeps {
+/** 管理操作的核心依赖；socket 与 HTTP 入口共用。 */
+export interface AdminCoreDeps {
   store: RelayStore;
-  dataDir: string;
   onAccountDisabled?(accountId: string): void;
   onDeviceRevoked?(device: DeviceRecord): void;
+}
+
+/** admin socket 依赖；回调由即时断开接线使用。 */
+export interface AdminDeps extends AdminCoreDeps {
+  dataDir: string;
 }
 
 const requestSchema = z.discriminatedUnion('op', [
@@ -89,7 +93,7 @@ function handleConnection(deps: AdminDeps, socket: Socket): void {
   });
 }
 
-function handleRequest(deps: AdminDeps, line: string): AdminResponse {
+function handleRequest(deps: AdminCoreDeps, line: string): AdminResponse {
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(line);
@@ -98,7 +102,14 @@ function handleRequest(deps: AdminDeps, line: string): AdminResponse {
   }
   const parsed = requestSchema.safeParse(parsedJson);
   if (!parsed.success) return failure('INVALID_REQUEST');
-  const request = parsed.data;
+  return handleAdminRequest(deps, parsed.data);
+}
+
+/** 管理请求的核心处理；socket 与 HTTP 入口共用，错误码即 CLI 语义。 */
+export function handleAdminRequest(
+  deps: AdminCoreDeps,
+  request: AdminRequest,
+): AdminResponse {
   try {
     switch (request.op) {
       case 'create-user':
@@ -139,7 +150,7 @@ function handleRequest(deps: AdminDeps, line: string): AdminResponse {
 }
 
 function setDisabled(
-  deps: AdminDeps,
+  deps: AdminCoreDeps,
   username: string,
   disabled: boolean,
 ): AdminResponse {
