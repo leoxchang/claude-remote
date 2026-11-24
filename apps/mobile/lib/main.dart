@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/providers.dart';
 import 'features/chat/chat_page.dart';
+import 'features/cloud/cloud_login_page.dart';
 import 'features/pairing/pairing_page.dart';
 import 'features/workspaces/workspace_page.dart';
 
@@ -22,6 +23,7 @@ class ClaudeRemoteApp extends StatelessWidget {
       routes: {
         StartPage.routeName: (_) => const StartPage(),
         PairingPage.routeName: (_) => const PairingPage(),
+        CloudLoginPage.routeName: (_) => const CloudLoginPage(),
         WorkspacePage.routeName: (_) => const WorkspacePage(),
         ChatPage.routeName: (_) => const ChatPage(),
       },

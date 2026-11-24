@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../data/providers.dart' show credentialProvider;
+import '../cloud/cloud_login_page.dart';
 import '../workspaces/workspace_page.dart';
 import 'pairing_controller.dart';
 
@@ -103,6 +104,15 @@ class _ScanView extends StatelessWidget {
             key: const Key('pairingManualEntry'),
             onPressed: onManual,
             child: const Text('无法扫码？手动输入配对信息'),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: TextButton(
+            key: const Key('cloudLoginEntry'),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(CloudLoginPage.routeName),
+            child: const Text('使用云端账号登录'),
           ),
         ),
       ],

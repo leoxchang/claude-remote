@@ -121,4 +121,17 @@ void main() {
     expect(find.textContaining('token_DO_NOT_LEAK_99'), findsNothing);
     expect(jsonEncode(vault.values), contains('token_DO_NOT_LEAK_99'));
   });
+
+  testWidgets('offers a cloud login entry next to the scanner', (tester) async {
+    await tester.pumpWidget(
+      appUnderTest(
+        client: MockClient((_) async => pairingSuccess()),
+        vault: vault,
+        capture: (onCode) => (value) {},
+      ),
+    );
+
+    expect(find.byKey(const Key('cloudLoginEntry')), findsOneWidget);
+    expect(find.text('使用云端账号登录'), findsOneWidget);
+  });
 }
