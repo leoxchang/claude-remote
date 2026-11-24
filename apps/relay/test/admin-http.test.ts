@@ -6,6 +6,7 @@ import { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  ADMIN_REQUESTS_PER_MINUTE,
   AdminHttpOptions,
   adminTokenFromEnv,
 } from '../src/admin/admin-http.js';
@@ -117,9 +118,10 @@ describe('admin api 鉴权与账号列表', () => {
     const body = res.json() as { ok: boolean; result: Array<Record<string, unknown>> };
     expect(body.ok).toBe(true);
     expect(body.result).toHaveLength(1);
-    expect(body.result[0].username).toBe('dev');
-    expect(body.result[0]).not.toHaveProperty('passwordHash');
-    expect(body.result[0]).not.toHaveProperty('password');
+    const first = body.result[0];
+    expect(first?.username).toBe('dev');
+    expect(first).not.toHaveProperty('passwordHash');
+    expect(first).not.toHaveProperty('password');
   });
 });
 
@@ -226,7 +228,7 @@ describe('admin api 写操作与断连回调', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { ok: boolean; result: Array<Record<string, unknown>> };
     expect(body.result).toHaveLength(1);
-    expect(body.result[0].role).toBe('desktop');
+    expect(body.result[0]?.role).toBe('desktop');
 
     const missing = await app.inject({
       method: 'GET',
@@ -309,6 +311,49 @@ describe('admin 路由 fail-closed', () => {
     expect(res.body).toContain('localStorage');
     expect(res.body).toContain('/admin/api');
     expect(res.body).toContain('confirm(');
+  });
+
+  it('空令牌或短令牌在注册层即被拒绝：页面与 API 都不存在', async () => {
+    for (const token of ['', 'abc']) {
+      const app = await buildApp({ store: makeStore(), token });
+      const page = await app.inject({ method: 'GET', url: '/admin' });
+      expect(page.statusCode).toBe(404);
+      const api = await app.inject({
+        method: 'GET',
+        url: '/admin/api/accounts',
+        headers: { authorization: 'Bearer ' },
+      });
+      expect(api.statusCode).toBe(404);
+    }
+  });
+
+  it('短令牌（trim 后 <16）同样被拒绝', async () => {
+    const app = await buildApp({ store: makeStore(), token: '  abc  ' });
+    expect((await app.inject({ method: 'GET', url: '/admin' })).statusCode).toBe(
+      404,
+    );
+  });
+
+  it('admin API 超过每分钟上限后返回 429（即使令牌正确）', async () => {
+    const app = await buildApp(makeAdmin());
+    const url = '/admin/api/accounts';
+    for (let i = 0; i < ADMIN_REQUESTS_PER_MINUTE; i += 1) {
+      const res = await app.inject({
+        method: 'GET',
+        url,
+        headers: { authorization: 'Bearer wrong-token-aaaaaaaaaaaaaaaa' },
+      });
+      expect(res.statusCode).toBe(401);
+    }
+    const blocked = await app.inject({
+      method: 'GET',
+      url,
+      headers: authHeader,
+    });
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json()).toEqual({
+      error: { code: 'RATE_LIMITED', message: 'RATE_LIMITED' },
+    });
   });
 });
 
