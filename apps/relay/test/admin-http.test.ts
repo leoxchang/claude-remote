@@ -302,5 +302,13 @@ describe('admin 路由 fail-closed', () => {
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).toContain('Claude Remote 管理');
   });
+
+  it('GET /admin 返回完整页面（令牌输入与账号列表）', async () => {
+    const app = await buildApp(makeAdmin());
+    const res = await app.inject({ method: 'GET', url: '/admin' });
+    expect(res.body).toContain('localStorage');
+    expect(res.body).toContain('/admin/api');
+    expect(res.body).toContain('confirm(');
+  });
 });
 
