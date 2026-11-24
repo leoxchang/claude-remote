@@ -5,4 +5,5 @@ coverage/
 .env.*
 !.env.example
 *.log
+.idea/
 docs/s00/evidence/private/
