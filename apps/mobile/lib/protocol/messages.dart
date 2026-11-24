@@ -90,8 +90,16 @@ final class TimelineEvent extends ProtocolMessage {
   final String? runId;
   final String? approvalId;
 
+  /// 事件身份字段必须随信封落库；缺了它们缓存无法回放。
   @override
-  Map<String, Object?> toWire() => _envelope(this);
+  Map<String, Object?> toWire() => {
+    ..._envelope(this),
+    'eventId': eventId,
+    'sessionId': sessionId,
+    'seq': seq,
+    if (runId != null) 'runId': runId,
+    if (approvalId != null) 'approvalId': approvalId,
+  };
 }
 
 /// 握手、桌面状态、快照和错误等不占用 seq 的控制消息。

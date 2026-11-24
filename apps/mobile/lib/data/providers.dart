@@ -12,14 +12,12 @@ import '../features/recovery/recovery_controller.dart';
 import '../features/recovery/recovery_prompt_api.dart';
 import '../domain/session.dart';
 import '../protocol/s04_messages.dart';
-import '../protocol/decoder.dart';
-import '../protocol/envelope.dart';
-import '../protocol/messages.dart';
 import '../voice/voice_asr_client.dart';
 import '../voice/voice_audio_capture.dart';
 import '../voice/voice_input_controller.dart';
 import '../voice/voice_interruption_bridge.dart';
 import 'recovery_providers.dart';
+import '../recovery/cached_event_replay.dart';
 import '../features/approvals/approval_command_coordinator.dart';
 import '../features/approvals/approval_content_api.dart';
 import '../features/approvals/approval_content_loader.dart';
@@ -44,6 +42,12 @@ final readyAgentSocketProvider =
     Provider<Future<AgentSocket> Function(DeviceCredential)>(
       (ref) => ReadyAgentSocket.connect,
     );
+
+/// 主控制连接的工厂；测试可覆盖此 provider 注入假连接。
+final controlSocketProvider =
+    Provider<AgentSocket Function(DeviceCredential)>(
+  (ref) => IoAgentSocket.connect,
+);
 
 /// 已配对环境下的命令客户端；未配对返回 null。
 ///
@@ -291,7 +295,8 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
     readSessionId: () => chat.sessionId,
     writeSessionId: chat.attachSession,
   );
-  AgentSocket createSocket() => IoAgentSocket.connect(credential);
+  final connectControl = ref.watch(controlSocketProvider);
+  AgentSocket createSocket() => connectControl(credential);
   final approvalClient = ref.watch(approvalCommandClientProvider);
   final approvals = await ref.watch(approvalControllerProvider.future);
   final persistent = await ref.watch(persistentCommandCoordinatorProvider.future);
@@ -343,18 +348,25 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
         if (sync != null) {
           final cursor = await recoveryStore.readCursor(record.sessionId);
           final cached = await recoveryStore.cache.readEvents(record.sessionId);
-          if (cached.isNotEmpty) {
-            for (final entry in cached) {
-              try {
-                final decoded = ProtocolDecoder.decode(entry.payloadJson);
-                if (decoded is TimelineEvent) chat.mergeEvent(decoded);
-              } on ProtocolDecodeException {
-                // 单条缓存损坏不影响后续同步。
-              }
+          final cachedEvents = decodeCachedEvents(cached);
+          if (cachedEvents != null) {
+            for (final event in cachedEvents) {
+              chat.mergeEvent(event);
             }
-            chat.setCacheNotice(true);
+            if (cachedEvents.isNotEmpty) chat.setCacheNotice(true);
+          } else {
+            // 缓存不可解码：清空缓存并把持久游标归零，随后从 seq 0 全量重新同步；
+            // 只清缓存不改游标会让下一次冷启动继续从中间开始，历史仍然缺失。
+            await recoveryStore.cache.clearSession(record.sessionId);
+            await recoveryStore.writeCursor(
+              sessionId: record.sessionId,
+              lastContiguousSeq: 0,
+            );
           }
-          sync.seedCursor(record.sessionId, cursor?.lastContiguousSeq ?? 0);
+          sync.seedCursor(
+            record.sessionId,
+            cachedEvents == null ? 0 : (cursor?.lastContiguousSeq ?? 0),
+          );
           try {
             final result = await sync.sync(record.sessionId);
             if (result.resyncRequired) {
