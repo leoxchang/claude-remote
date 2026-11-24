@@ -102,6 +102,14 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
     ref: 'https://s00.local/events.schema.json#/$defs/message.completed',
   },
   {
+    type: 'thinking.delta',
+    ref: 'https://s00.local/events.schema.json#/$defs/thinking.delta',
+  },
+  {
+    type: 'thinking.completed',
+    ref: 'https://s00.local/events.schema.json#/$defs/thinking.completed',
+  },
+  {
     type: 'tool.started',
     ref: 'https://s00.local/events.schema.json#/$defs/tool.started',
   },

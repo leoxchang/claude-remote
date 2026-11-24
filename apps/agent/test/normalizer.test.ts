@@ -16,6 +16,15 @@ const textDelta = (index: number, text: string): AdapterEvent => ({
   text,
 });
 
+const thinkingDelta = (index: number, text: string): AdapterEvent => ({
+  kind: 'thinkingDelta',
+  sessionId: SESSION,
+  runId: RUN,
+  assistantMessageId: 'msg_1',
+  contentBlockIndex: index,
+  text,
+});
+
 const completed = (text: string): AdapterEvent => ({
   kind: 'assistantCompleted',
   sessionId: SESSION,
@@ -41,6 +50,49 @@ function payloadOf(journal: EventJournal, type: string): Record<string, unknown>
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
+});
+
+describe('EventNormalizer thinking', () => {
+  it('keeps thinking deltas separate from assistant text', () => {
+    vi.useFakeTimers();
+    const { journal, normalizer } = setup();
+
+    normalizer.consume(thinkingDelta(0, '先看看目录'));
+    normalizer.consume(textDelta(1, '目录里有三个文件'));
+
+    const thinking = payloadOf(journal, 'thinking.delta');
+    expect(thinking).toHaveLength(1);
+    expect(thinking[0]).toMatchObject({
+      assistantMessageId: 'msg_1',
+      text: '先看看目录',
+    });
+
+    vi.advanceTimersByTime(50);
+
+    expect(payloadOf(journal, 'message.delta')[0]).toMatchObject({
+      text: '目录里有三个文件',
+    });
+  });
+
+  it('writes the completed thinking block once', () => {
+    const { journal, normalizer } = setup();
+
+    normalizer.consume({
+      kind: 'thinkingCompleted',
+      sessionId: SESSION,
+      runId: RUN,
+      assistantMessageId: 'msg_1',
+      content: [{ type: 'thinking', text: '完整思考' }],
+    });
+
+    const completedThinking = payloadOf(journal, 'thinking.completed');
+    expect(completedThinking).toHaveLength(1);
+    expect(completedThinking[0]).toMatchObject({
+      assistantMessageId: 'msg_1',
+      text: '完整思考',
+      contentTruncated: false,
+    });
+  });
 });
 
 describe('EventNormalizer deltas', () => {

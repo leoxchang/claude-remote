@@ -12,6 +12,21 @@ export type AdapterEvent =
       text: string;
     }
   | {
+      kind: 'thinkingDelta';
+      sessionId: string;
+      runId: string;
+      assistantMessageId: string;
+      contentBlockIndex: number;
+      text: string;
+    }
+  | {
+      kind: 'thinkingCompleted';
+      sessionId: string;
+      runId: string;
+      assistantMessageId: string;
+      content: Array<{ type: 'thinking'; text: string }>;
+    }
+  | {
       kind: 'assistantCompleted';
       sessionId: string;
       runId: string;

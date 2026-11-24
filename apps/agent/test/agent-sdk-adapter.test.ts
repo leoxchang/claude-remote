@@ -366,6 +366,52 @@ describe('AgentSdkAdapter tool denial', () => {
   });
 });
 
+describe('AgentSdkAdapter thinking', () => {
+  it('maps thinking deltas and thinking blocks', async () => {
+    const { adapter } = adapterWith([
+      {
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: { id: 'msg_thinking' },
+        },
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'thinking_delta', thinking: '想一想' },
+        },
+      },
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg_thinking',
+          content: [{ type: 'thinking', thinking: '想完了' }],
+        },
+      },
+      { type: 'result', subtype: 'success', session_id: 'claude_01' },
+    ]);
+    const events: AdapterEvent[] = [];
+
+    start(adapter, input({ onEvent: (event) => events.push(event) }));
+    await vi.waitFor(() => {
+      expect(events.some((event) => event.kind === 'runResult')).toBe(true);
+    });
+
+    expect(
+      events.find((event) => event.kind === 'thinkingDelta'),
+    ).toMatchObject({ text: '想一想', assistantMessageId: 'msg_thinking' });
+    expect(
+      events.find((event) => event.kind === 'thinkingCompleted'),
+    ).toMatchObject({
+      assistantMessageId: 'msg_thinking',
+      content: [{ type: 'thinking', text: '想完了' }],
+    });
+  });
+});
+
 describe('AgentSdkAdapter image attachments', () => {
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
   let directory: string;

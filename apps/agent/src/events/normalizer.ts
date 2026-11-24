@@ -27,6 +27,8 @@ export interface EventAppendPort {
 }
 
 interface PendingDelta {
+  /** 文本与思考分别合并，互不打断同一 assistantMessageId。 */
+  kind: 'text' | 'thinking';
   sessionId: string;
   runId: string;
   assistantMessageId: string;
@@ -48,7 +50,11 @@ export class EventNormalizer {
 
   /** 消费一个 adapter 事件。 */
   consume(event: AdapterEvent): void {
-    if (event.kind !== 'textDelta' && event.kind !== 'toolOutput') {
+    if (
+      event.kind !== 'textDelta' &&
+      event.kind !== 'thinkingDelta' &&
+      event.kind !== 'toolOutput'
+    ) {
       this.flush();
     }
     switch (event.kind) {
@@ -60,7 +66,13 @@ export class EventNormalizer {
         });
         break;
       case 'textDelta':
-        this.handleDelta(event);
+        this.handleDelta(event, 'text');
+        break;
+      case 'thinkingDelta':
+        this.handleDelta(event, 'thinking');
+        break;
+      case 'thinkingCompleted':
+        this.handleThinkingCompleted(event);
         break;
       case 'assistantCompleted':
         this.handleCompleted(event);
@@ -116,12 +128,12 @@ export class EventNormalizer {
     const pending = this.pending;
     if (pending === null) return;
     this.pending = null;
-    const key = `${pending.assistantMessageId}:${pending.contentBlockIndex}`;
+    const key = `${pending.kind}:${pending.assistantMessageId}:${pending.contentBlockIndex}`;
     const nextSeq = (this.deltaSeq.get(key) ?? 0) + 1;
     this.deltaSeq.set(key, nextSeq);
     this.journal.append({
       sessionId: pending.sessionId,
-      type: 'message.delta',
+      type: pending.kind === 'thinking' ? 'thinking.delta' : 'message.delta',
       payload: {
         assistantMessageId: pending.assistantMessageId,
         text: pending.text,
@@ -133,17 +145,22 @@ export class EventNormalizer {
   }
 
   private handleDelta(
-    event: Extract<AdapterEvent, { kind: 'textDelta' }>,
+    event:
+      | Extract<AdapterEvent, { kind: 'textDelta' }>
+      | Extract<AdapterEvent, { kind: 'thinkingDelta' }>,
+    kind: 'text' | 'thinking',
   ): void {
     const pending = this.pending;
     if (
       pending !== null &&
-      (pending.assistantMessageId !== event.assistantMessageId ||
+      (pending.kind !== kind ||
+        pending.assistantMessageId !== event.assistantMessageId ||
         pending.contentBlockIndex !== event.contentBlockIndex)
     ) {
       this.flush();
     }
     const current = this.pending ?? {
+      kind,
       sessionId: event.sessionId,
       runId: event.runId,
       assistantMessageId: event.assistantMessageId,
@@ -177,6 +194,18 @@ export class EventNormalizer {
       content: fits ? event.content : [],
       contentTruncated: !fits,
       ...(event.stopReason === undefined ? {} : { stopReason: event.stopReason }),
+    });
+  }
+
+  private handleThinkingCompleted(
+    event: Extract<AdapterEvent, { kind: 'thinkingCompleted' }>,
+  ): void {
+    const text = event.content.map((block) => block.text).join('');
+    const truncated = truncateUtf8(text, COMPLETED_BODY_BYTES);
+    this.append(event, 'thinking.completed', {
+      assistantMessageId: event.assistantMessageId,
+      text: truncated.text,
+      contentTruncated: truncated.truncated,
     });
   }
 

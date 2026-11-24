@@ -222,6 +222,19 @@ export class AgentSdkAdapter implements ManagedRunDriver {
         text: event.delta.text,
       });
     }
+    if (
+      event.type === 'content_block_delta' &&
+      event.delta.type === 'thinking_delta'
+    ) {
+      emit({
+        kind: 'thinkingDelta',
+        sessionId: input.sessionId,
+        runId: input.runId,
+        assistantMessageId: state.messageId ?? 'msg_unknown',
+        contentBlockIndex: event.index,
+        text: event.delta.thinking,
+      });
+    }
   }
 
   private mapAssistant(
@@ -231,13 +244,29 @@ export class AgentSdkAdapter implements ManagedRunDriver {
     emit: (event: AdapterEvent) => void,
   ): void {
     const textBlocks: Array<{ type: 'text'; text: string }> = [];
+    const thinkingBlocks: Array<{ type: 'thinking'; text: string }> = [];
     const toolBlocks: Array<Record<string, unknown>> = [];
     for (const block of content) {
       if (!isBlock(block)) continue;
       if (block['type'] === 'text' && typeof block['text'] === 'string') {
         textBlocks.push({ type: 'text', text: block['text'] });
       }
+      if (
+        block['type'] === 'thinking' &&
+        typeof block['thinking'] === 'string'
+      ) {
+        thinkingBlocks.push({ type: 'thinking', text: block['thinking'] });
+      }
       if (block['type'] === 'tool_use') toolBlocks.push(block);
+    }
+    if (thinkingBlocks.length > 0) {
+      emit({
+        kind: 'thinkingCompleted',
+        sessionId: input.sessionId,
+        runId: input.runId,
+        assistantMessageId: messageId,
+        content: thinkingBlocks,
+      });
     }
     if (textBlocks.length > 0) {
       emit({

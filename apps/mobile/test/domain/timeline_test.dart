@@ -331,6 +331,44 @@ void main() {
     expect(state.tools.single.createdAt, startedAt);
   });
 
+  test('merges thinking deltas and marks completion', () {
+    var state = applyEvent(
+      TimelineState.initial(sessionId),
+      event(
+        seq: 1,
+        type: 'thinking.delta',
+        payload: {'assistantMessageId': 'm1', 'text': '想'},
+      ),
+    );
+    state = applyEvent(
+      state,
+      event(
+        seq: 2,
+        type: 'thinking.delta',
+        payload: {'assistantMessageId': 'm1', 'text': '一想'},
+      ),
+    );
+
+    expect(state.thinkings.single.text, '想一想');
+    expect(state.thinkings.single.completed, isFalse);
+
+    state = applyEvent(
+      state,
+      event(
+        seq: 3,
+        type: 'thinking.completed',
+        payload: {
+          'assistantMessageId': 'm1',
+          'text': '想一想完',
+          'contentTruncated': false,
+        },
+      ),
+    );
+
+    expect(state.thinkings.single.text, '想一想完');
+    expect(state.thinkings.single.completed, isTrue);
+  });
+
   test('reducers never mutate the previous state', () {
     final previous = TimelineState.initial(sessionId);
     final next = applyEvent(

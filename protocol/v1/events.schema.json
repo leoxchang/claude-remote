@@ -423,6 +423,81 @@
         }
       ]
     },
+    "thinking.delta": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "thinking.delta"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "assistantMessageId",
+                "text"
+              ],
+              "properties": {
+                "assistantMessageId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "thinking.completed": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "$ref": "#/$defs/runTimelineEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "thinking.completed"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "assistantMessageId",
+                "text"
+              ],
+              "properties": {
+                "assistantMessageId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                },
+                "contentTruncated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "tool.started": {
       "allOf": [
         {

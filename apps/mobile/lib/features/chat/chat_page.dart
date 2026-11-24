@@ -178,6 +178,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
               child: MessageList(
                 messages: timeline?.messages ?? const [],
                 tools: timeline?.tools ?? const [],
+                thinkings: timeline?.thinkings ?? const [],
                 userMessages: state.userMessages,
               ),
             ),

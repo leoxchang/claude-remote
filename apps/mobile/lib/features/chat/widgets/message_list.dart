@@ -5,6 +5,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../../domain/timeline.dart';
 import '../../../recovery/user_message.dart';
+import 'thinking_block.dart';
 import 'tool_card.dart';
 
 /// 时间线消息、本地提问与工具卡片列表。
@@ -13,16 +14,21 @@ class MessageList extends StatelessWidget {
     super.key,
     required this.messages,
     required this.tools,
+    this.thinkings = const <TimelineThinking>[],
     this.userMessages = const <UserMessage>[],
   });
 
   final List<TimelineMessage> messages;
   final List<TimelineTool> tools;
+  final List<TimelineThinking> thinkings;
   final List<UserMessage> userMessages;
 
   @override
   Widget build(BuildContext context) {
-    if (messages.isEmpty && tools.isEmpty && userMessages.isEmpty) {
+    if (messages.isEmpty &&
+        tools.isEmpty &&
+        thinkings.isEmpty &&
+        userMessages.isEmpty) {
       return const Center(child: Text('还没有消息'));
     }
     // 助手文本、工具调用与本地提问按时间合并，还原 Claude Code 的执行顺序。
@@ -36,10 +42,16 @@ class MessageList extends StatelessWidget {
             attachmentPaths: message.attachmentPaths,
           ),
         ),
+      for (final thinking in thinkings)
+        (
+          at: thinking.createdAt,
+          order: 1,
+          child: ThinkingBlock(thinking: thinking),
+        ),
       for (final message in messages)
         (
           at: message.createdAt,
-          order: 1,
+          order: 2,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: _AssistantMarkdown(text: message.text),
@@ -48,7 +60,7 @@ class MessageList extends StatelessWidget {
       for (final tool in tools)
         (
           at: tool.createdAt,
-          order: 2,
+          order: 3,
           child: ToolCard(tool: tool),
         ),
     ];

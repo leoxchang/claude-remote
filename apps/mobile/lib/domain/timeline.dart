@@ -39,6 +39,38 @@ final class TimelineMessage {
   }
 }
 
+/// 模型的思考过程；默认折叠展示，不进入助手正文。
+final class TimelineThinking {
+  const TimelineThinking({
+    required this.assistantMessageId,
+    required this.text,
+    this.completed = false,
+    this.contentTruncated = false,
+    this.createdAt = 0,
+  });
+
+  final String assistantMessageId;
+  final String text;
+  final bool completed;
+  final bool contentTruncated;
+  final int createdAt;
+
+  TimelineThinking copyWith({
+    String? text,
+    bool? completed,
+    bool? contentTruncated,
+    int? createdAt,
+  }) {
+    return TimelineThinking(
+      assistantMessageId: assistantMessageId,
+      text: text ?? this.text,
+      completed: completed ?? this.completed,
+      contentTruncated: contentTruncated ?? this.contentTruncated,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+}
+
 /// 按 toolUseId 归并的工具卡片。
 final class TimelineTool {
   const TimelineTool({
@@ -94,6 +126,7 @@ final class TimelineState {
     this.lastSeq = 0,
     this.oldestIncludedSeq,
     this.messages = const <TimelineMessage>[],
+    this.thinkings = const <TimelineThinking>[],
     this.tools = const <TimelineTool>[],
     this.lastRunStatus,
     this.sessionStatus,
@@ -110,6 +143,7 @@ final class TimelineState {
   final int lastSeq;
   final int? oldestIncludedSeq;
   final List<TimelineMessage> messages;
+  final List<TimelineThinking> thinkings;
   final List<TimelineTool> tools;
   final RunStatus? lastRunStatus;
   final String? sessionStatus;
@@ -122,6 +156,7 @@ final class TimelineState {
     int? lastSeq,
     int? oldestIncludedSeq,
     List<TimelineMessage>? messages,
+    List<TimelineThinking>? thinkings,
     List<TimelineTool>? tools,
     RunStatus? lastRunStatus,
     String? sessionStatus,
@@ -135,6 +170,7 @@ final class TimelineState {
       lastSeq: lastSeq ?? this.lastSeq,
       oldestIncludedSeq: oldestIncludedSeq ?? this.oldestIncludedSeq,
       messages: messages ?? this.messages,
+      thinkings: thinkings ?? this.thinkings,
       tools: tools ?? this.tools,
       lastRunStatus: lastRunStatus ?? this.lastRunStatus,
       sessionStatus: sessionStatus ?? this.sessionStatus,
@@ -197,6 +233,7 @@ TimelineState applySnapshot(TimelineState previous, SessionSnapshot snapshot) {
     lastSeq: snapshot.lastSeq,
     oldestIncludedSeq: snapshot.oldestIncludedSeq,
     messages: _preserveLongerText(previous.messages, next.messages),
+    thinkings: _preserveLongerThinking(previous.thinkings, next.thinkings),
     tools: next.tools,
     lastRunStatus: snapshot.lastRunStatus ?? next.lastRunStatus,
     sessionStatus: snapshot.sessionStatus ?? next.sessionStatus,
@@ -222,6 +259,20 @@ TimelineState _applyPayload(TimelineState state, TimelineEvent event) {
         messages: _upsertMessage(
           state.messages,
           _completeMessage(state.messages, payload, event.timestamp),
+        ),
+      );
+    case 'thinking.delta':
+      return state.copyWith(
+        thinkings: _upsertThinking(
+          state.thinkings,
+          _mergeThinkingDelta(state.thinkings, payload, event.timestamp),
+        ),
+      );
+    case 'thinking.completed':
+      return state.copyWith(
+        thinkings: _upsertThinking(
+          state.thinkings,
+          _completeThinking(state.thinkings, payload, event.timestamp),
         ),
       );
     case 'tool.started':
@@ -265,6 +316,7 @@ TimelineState _applySessionStatus(
     lastSeq: state.lastSeq,
     oldestIncludedSeq: state.oldestIncludedSeq,
     messages: state.messages,
+    thinkings: state.thinkings,
     tools: state.tools,
     snapshotTruncated: state.snapshotTruncated,
     seenEvents: state.seenEvents,
@@ -280,6 +332,45 @@ TimelineState _applySessionStatus(
     lastRunStatus:
         RunStatus.tryParse(_stringOrNull(payload['lastRunStatus'])) ??
         state.lastRunStatus,
+  );
+}
+
+TimelineThinking _mergeThinkingDelta(
+  List<TimelineThinking> thinkings,
+  Map<String, Object?> payload,
+  int createdAt,
+) {
+  final id = _requiredString(payload, 'assistantMessageId');
+  final existing = _findThinking(thinkings, id);
+  return TimelineThinking(
+    assistantMessageId: id,
+    text: '${existing?.text ?? ''}${_requiredString(payload, 'text')}',
+    completed: existing?.completed ?? false,
+    contentTruncated: existing?.contentTruncated ?? false,
+    createdAt: existing?.createdAt ?? createdAt,
+  );
+}
+
+/// 完成事件给完整正文；被截断时保留已流式收到的内容。
+TimelineThinking _completeThinking(
+  List<TimelineThinking> thinkings,
+  Map<String, Object?> payload,
+  int createdAt,
+) {
+  final id = _requiredString(payload, 'assistantMessageId');
+  final existing = _findThinking(thinkings, id);
+  final truncated = payload['contentTruncated'] == true;
+  final text = payload['text'];
+  final streamed = existing?.text ?? '';
+  final resolved = truncated || text is! String
+      ? streamed
+      : (text.length >= streamed.length ? text : streamed);
+  return TimelineThinking(
+    assistantMessageId: id,
+    text: resolved,
+    completed: true,
+    contentTruncated: truncated,
+    createdAt: existing?.createdAt ?? createdAt,
   );
 }
 
@@ -381,6 +472,49 @@ TimelineMessage? _findMessage(List<TimelineMessage> messages, String id) {
     if (message.assistantMessageId == id) return message;
   }
   return null;
+}
+
+TimelineThinking? _findThinking(
+  List<TimelineThinking> thinkings,
+  String id,
+) {
+  for (final thinking in thinkings) {
+    if (thinking.assistantMessageId == id) return thinking;
+  }
+  return null;
+}
+
+List<TimelineThinking> _upsertThinking(
+  List<TimelineThinking> thinkings,
+  TimelineThinking next,
+) {
+  final index = thinkings.indexWhere(
+    (thinking) => thinking.assistantMessageId == next.assistantMessageId,
+  );
+  if (index < 0) return [...thinkings, next];
+  final copy = [...thinkings];
+  copy[index] = next;
+  return copy;
+}
+
+List<TimelineThinking> _preserveLongerThinking(
+  List<TimelineThinking> previous,
+  List<TimelineThinking> incoming,
+) {
+  final byId = {
+    for (final thinking in previous)
+      thinking.assistantMessageId: thinking,
+  };
+  return [
+    for (final thinking in incoming)
+      byId[thinking.assistantMessageId] != null &&
+              byId[thinking.assistantMessageId]!.text.length >
+                  thinking.text.length
+          ? thinking.copyWith(
+              text: byId[thinking.assistantMessageId]!.text,
+            )
+          : thinking,
+  ];
 }
 
 TimelineTool? _findTool(List<TimelineTool> tools, String id) {
