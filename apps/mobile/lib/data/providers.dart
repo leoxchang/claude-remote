@@ -39,11 +39,25 @@ final credentialProvider = FutureProvider<DeviceCredential?>((ref) async {
   return ref.watch(credentialStoreProvider).read();
 });
 
+/// 主控制连接的工厂；测试可覆盖此 provider 注入假 socket。
+final readyAgentSocketProvider =
+    Provider<Future<AgentSocket> Function(DeviceCredential)>(
+      (ref) => ReadyAgentSocket.connect,
+    );
+
 /// 已配对环境下的命令客户端；未配对返回 null。
+///
+/// 凭证/电脑切换或容器销毁时关闭本连接，避免旧电脑的控制 socket 悬挂。
 final commandClientProvider = FutureProvider<CommandClient?>((ref) async {
   final credential = await ref.watch(credentialProvider.future);
   if (credential == null) return null;
-  return CommandClient(await ReadyAgentSocket.connect(credential));
+  final socket = await ref.watch(readyAgentSocketProvider)(credential);
+  final client = CommandClient(socket);
+  ref.onDispose(() {
+    unawaited(socket.close());
+    unawaited(client.dispose());
+  });
+  return client;
 });
 
 /// 审批命令专用客户端；与聊天命令分离，避免共享未完成请求。

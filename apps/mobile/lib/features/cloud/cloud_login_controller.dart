@@ -96,6 +96,9 @@ final class CloudLoginController extends Notifier<CloudLoginState> {
       return credential;
     } on CloudApiException catch (error) {
       return _fail(_messageFor(error.code));
+    } on Object {
+      // Keychain 写入失败或未预期的传输错误：保持状态可重试。
+      return _fail('登录失败，请重试');
     }
   }
 

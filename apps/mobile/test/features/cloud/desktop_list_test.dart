@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:claude_remote/data/cloud_api.dart';
 import 'package:claude_remote/data/credential_store.dart';
 import 'package:claude_remote/data/device_credential.dart';
+import 'package:claude_remote/data/providers.dart' show credentialProvider;
 import 'package:claude_remote/data/recovery_providers.dart';
 import 'package:claude_remote/features/cloud/cloud_login_controller.dart';
 import 'package:claude_remote/features/cloud/desktop_list_controller.dart';
@@ -114,6 +115,24 @@ void main() {
     final state = container.read(desktopListControllerProvider);
     expect(state.error, 'NETWORK');
     expect(DesktopListController.messageFor('NETWORK'), contains('无法连接云端'));
+  });
+
+  test('a failing credential read stops loading with a retryable error', () async {
+    container = ProviderContainer(
+      overrides: [
+        credentialProvider.overrideWith((ref) async => throw StateError('boom')),
+        cloudApiProvider.overrideWithValue(
+          CloudApi(client: MockClient((_) async => desktopsResponse())),
+        ),
+        recoveryStoreProvider.overrideWith((ref) async => store),
+      ],
+    );
+
+    await container.read(desktopListControllerProvider.notifier).refresh();
+
+    final state = container.read(desktopListControllerProvider);
+    expect(state.loading, isFalse);
+    expect(state.error, 'REQUEST_FAILED');
   });
 
   test('select persists the desktop without changing identity', () async {

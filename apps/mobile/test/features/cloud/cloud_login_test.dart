@@ -110,6 +110,36 @@ void main() {
     expect(state.message, '账号或口令不正确');
   });
 
+  test('unexpected failures stop the spinner with a safe message', () async {
+    final vault = MemoryVault();
+    final container = ProviderContainer(
+      overrides: [
+        credentialStoreProvider.overrideWithValue(CredentialStore(vault)),
+        cloudPlatformProvider.overrideWithValue('ios'),
+        cloudApiProvider.overrideWithValue(
+          CloudApi(
+            client: MockClient((_) async => throw StateError('boom')),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final credential = await container
+        .read(cloudLoginControllerProvider.notifier)
+        .submit(
+          relayUrl: 'https://relay.example.com',
+          username: 'alice',
+          password: 'secret',
+        );
+
+    expect(credential, isNull);
+    expect(await CredentialStore(vault).read(), isNull);
+    final state = container.read(cloudLoginControllerProvider);
+    expect(state.status, CloudLoginStatus.failed);
+    expect(state.message, '登录失败，请重试');
+  });
+
   test('an invalid relay url never reaches the network', () async {
     final vault = MemoryVault();
     var calls = 0;

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../data/ip_address.dart';
+
 /// 二维码载荷校验失败；只暴露安全 code，不回显原始载荷。
 final class PairingPayloadException implements Exception {
   const PairingPayloadException(this.code);
@@ -84,22 +86,6 @@ bool _isAllowedBaseUrl(Uri uri) {
   }
   if (uri.path.isNotEmpty && uri.path != '/') return false;
   if (uri.scheme == 'https') return true;
-  return uri.scheme == 'http' && _isPrivateIpv4(uri.host);
+  return uri.scheme == 'http' && isPrivateIpv4(uri.host);
 }
 
-bool _isPrivateIpv4(String host) {
-  final parts = host.split('.');
-  if (parts.length != 4) return false;
-  final octets = <int>[];
-  for (final part in parts) {
-    if (!RegExp(r'^\d{1,3}$').hasMatch(part)) return false;
-    final value = int.tryParse(part);
-    if (value == null || value > 255) return false;
-    octets.add(value);
-  }
-  final first = octets[0];
-  final second = octets[1];
-  if (first == 10 || first == 127) return true;
-  if (first == 192 && second == 168) return true;
-  return first == 172 && second >= 16 && second <= 31;
-}

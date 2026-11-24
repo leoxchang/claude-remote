@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'ip_address.dart';
+
 /// 云端接口唯一支持的主契约版本（契约 §8）。
 const int cloudContractVersion = 1;
 
@@ -88,7 +90,8 @@ String normalizeRelayBaseUrl(String raw) {
       uri.userInfo.isNotEmpty ||
       uri.hasQuery ||
       uri.hasFragment ||
-      (uri.path.isNotEmpty && uri.path != '/');
+      (uri.path.isNotEmpty && uri.path != '/') ||
+      (uri.scheme == 'http' && !isPrivateIpv4(uri.host));
   if (invalid) throw const CloudApiException('INVALID_URL');
   return Uri(
     scheme: uri.scheme,
@@ -213,9 +216,10 @@ final class CloudApi {
   Future<http.Response> _send(Future<http.Response> Function() run) async {
     try {
       return await run().timeout(timeout);
-    } on TimeoutException {
-      throw const CloudApiException('NETWORK');
-    } on http.ClientException {
+    } on CloudApiException {
+      rethrow;
+    } on Exception {
+      // 超时、TLS/握手失败、socket 错误等一律视为网络不可用。
       throw const CloudApiException('NETWORK');
     }
   }

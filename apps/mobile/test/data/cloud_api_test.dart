@@ -225,6 +225,22 @@ void main() {
     expect(seen.headers['Authorization'], 'Bearer dev_phone1.tok_1');
   });
 
+  test('unexpected transport exceptions surface as NETWORK', () async {
+    final api = CloudApi(
+      client: MockClient((_) async => throw Exception('boom')),
+    );
+    try {
+      await api.listDesktops(
+        baseUrl: 'https://relay.example.com',
+        deviceId: 'dev_phone1',
+        deviceToken: 'tok_1',
+      );
+      fail('expected CloudApiException');
+    } on CloudApiException catch (error) {
+      expect(error.code, 'NETWORK');
+    }
+  });
+
   test('normalizeRelayBaseUrl accepts hosts and rejects paths and schemes', () {
     expect(
       normalizeRelayBaseUrl(' relay.example.com '),
@@ -238,12 +254,17 @@ void main() {
       normalizeRelayBaseUrl('http://127.0.0.1:8788'),
       'http://127.0.0.1:8788',
     );
+    expect(
+      normalizeRelayBaseUrl('http://192.168.5.10:8788'),
+      'http://192.168.5.10:8788',
+    );
     for (final raw in [
       '',
       'https://relay.example.com/api',
       'ftp://relay.example.com',
       'https://user:pass@relay.example.com',
       'https://relay.example.com?x=1',
+      'http://relay.example.com',
     ]) {
       expect(
         () => normalizeRelayBaseUrl(raw),

@@ -51,7 +51,13 @@ final class DesktopListController extends Notifier<DesktopListState> {
 
   /// 拉取账号下的电脑；令牌失效与网络失败只暴露稳定错误码。
   Future<void> refresh() async {
-    final credential = await ref.read(credentialProvider.future);
+    final DeviceCredential? credential;
+    try {
+      credential = await ref.read(credentialProvider.future);
+    } on Object {
+      state = const DesktopListState(error: 'REQUEST_FAILED');
+      return;
+    }
     if (credential == null || credential.mode != ConnectionMode.cloud) {
       state = const DesktopListState(error: 'NOT_CLOUD');
       return;
@@ -78,13 +84,23 @@ final class DesktopListController extends Notifier<DesktopListState> {
         error: error.code,
         selectedDesktopId: credential.desktopId,
       );
+    } on Object {
+      state = DesktopListState(
+        error: 'REQUEST_FAILED',
+        selectedDesktopId: credential.desktopId,
+      );
     }
   }
 
   /// 切换控制目标：写回 desktopId 并重建连接与本地存储作用域。
   Future<void> select(String desktopId) async {
     if (desktopId.isEmpty) return;
-    final credential = await ref.read(credentialProvider.future);
+    final DeviceCredential? credential;
+    try {
+      credential = await ref.read(credentialProvider.future);
+    } on Object {
+      return;
+    }
     if (credential == null || credential.mode != ConnectionMode.cloud) return;
     final selected = credential.withDesktop(desktopId);
     await ref.read(credentialStoreProvider).save(selected);
@@ -96,7 +112,12 @@ final class DesktopListController extends Notifier<DesktopListState> {
 
   /// 退出云端账号：尽力吊销本机云端设备，再清 Keychain 与当前电脑的本地数据。
   Future<void> logout() async {
-    final credential = await ref.read(credentialProvider.future);
+    final DeviceCredential? credential;
+    try {
+      credential = await ref.read(credentialProvider.future);
+    } on Object {
+      return;
+    }
     if (credential == null) {
       state = const DesktopListState();
       return;
