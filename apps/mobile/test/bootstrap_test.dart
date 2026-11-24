@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:claude_remote/data/providers.dart';
 import 'package:claude_remote/features/chat/chat_page.dart';
 import 'package:claude_remote/features/cloud/cloud_login_page.dart';
+import 'package:claude_remote/features/cloud/desktop_list_page.dart';
 import 'package:claude_remote/features/pairing/pairing_page.dart';
 import 'package:claude_remote/features/workspaces/workspace_page.dart';
 import 'package:claude_remote/main.dart';
@@ -57,6 +58,7 @@ void main() {
         StartPage.routeName,
         PairingPage.routeName,
         CloudLoginPage.routeName,
+        DesktopListPage.routeName,
         WorkspacePage.routeName,
         ChatPage.routeName,
       },

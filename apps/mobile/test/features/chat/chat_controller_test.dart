@@ -476,6 +476,16 @@ void main() {
 
     expect(state().attachments, isEmpty);
   });
+  test('resetForDeviceSwitch clears the attached session and drafts', () {
+    controller().updateDraft('draft');
+    expect(controller().sessionId, 'session_01');
+    expect(state().draft, 'draft');
+
+    controller().resetForDeviceSwitch();
+
+    expect(controller().sessionId, isNull);
+    expect(state().draft, isEmpty);
+  });
 }
 
 final class _MemoryUserMessages implements UserMessageStore {

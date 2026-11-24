@@ -1,4 +1,7 @@
+import 'package:claude_remote/data/device_credential.dart';
+import 'package:claude_remote/data/providers.dart' show credentialProvider;
 import 'package:claude_remote/domain/workspace.dart';
+import 'package:claude_remote/features/cloud/desktop_list_page.dart';
 import 'package:claude_remote/features/workspaces/workspace_controller.dart';
 import 'package:claude_remote/features/workspaces/workspace_page.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +25,7 @@ Future<void> pumpWorkspacePage(
   required List<WorkspaceSummary> workspaces,
   SchedulerSummary? scheduler,
   String? error,
+  DeviceCredential? credential,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -35,8 +39,14 @@ Future<void> pumpWorkspacePage(
             ),
           ),
         ),
+        credentialProvider.overrideWith((ref) async => credential),
       ],
-      child: const MaterialApp(home: WorkspacePage()),
+      child: MaterialApp(
+        home: const WorkspacePage(),
+        routes: {
+          DesktopListPage.routeName: (_) => const SizedBox.shrink(),
+        },
+      ),
     ),
   );
   await tester.pump();
@@ -83,5 +93,35 @@ void main() {
     );
 
     expect(find.text('项目不可用，请在本机重新授权'), findsOneWidget);
+  });
+
+  testWidgets('cloud mode exposes the desktop switcher', (tester) async {
+    await pumpWorkspacePage(
+      tester,
+      workspaces: const [],
+      credential: const DeviceCredential(
+        deviceId: 'dev_phone1',
+        deviceToken: 'tok_1',
+        baseUrl: 'https://relay.example.com',
+        desktopId: 'dev_a',
+        mode: ConnectionMode.cloud,
+      ),
+    );
+
+    expect(find.byKey(const Key('cloudDesktopButton')), findsOneWidget);
+  });
+
+  testWidgets('direct mode hides the desktop switcher', (tester) async {
+    await pumpWorkspacePage(
+      tester,
+      workspaces: const [],
+      credential: const DeviceCredential(
+        deviceId: 'device_01',
+        deviceToken: 'token',
+        baseUrl: 'https://mac.example.ts.net',
+      ),
+    );
+
+    expect(find.byKey(const Key('cloudDesktopButton')), findsNothing);
   });
 }

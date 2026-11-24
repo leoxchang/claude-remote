@@ -347,6 +347,22 @@ final class ChatController extends Notifier<ChatState> {
     unawaited(_restoreUserMessages(sessionId));
   }
 
+  /// 切换控制电脑时清空会话与全部存储引用。
+  ///
+  /// 凭证变化会让运行时 provider 重建并重新装配存储与协调器；
+  /// 旧连接由 chatSessionRuntimeProvider 的 dispose 断开。
+  void resetForDeviceSwitch() {
+    _sessionId = null;
+    _coordinator = null;
+    _persistentCommands = null;
+    _voiceDrafts = null;
+    _composerDrafts = null;
+    _userMessages = null;
+    _uploadAttachment = null;
+    _userAttachments = null;
+    state = const ChatState();
+  }
+
   /// 当前本地会话；未附着时为 null。
   String? get sessionId => _sessionId;
 

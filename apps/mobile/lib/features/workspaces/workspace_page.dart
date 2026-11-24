@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../sessions/session_page.dart';
+import '../../data/device_credential.dart';
+import '../../data/providers.dart' show credentialProvider;
 import '../../domain/workspace.dart';
+import '../cloud/desktop_list_page.dart';
 import 'workspace_controller.dart';
 
 /// 项目列表页；App 只能查看本机已授权的项目名称。
@@ -28,10 +31,19 @@ class _WorkspacePageState extends ConsumerState<WorkspacePage> {
   Widget build(BuildContext context) {
     final state = ref.watch(workspaceControllerProvider);
     final scheduler = state.scheduler;
+    final credential = ref.watch(credentialProvider).value;
     return Scaffold(
       appBar: AppBar(
         title: const Text('项目'),
         actions: [
+          if (credential?.mode == ConnectionMode.cloud)
+            IconButton(
+              key: const Key('cloudDesktopButton'),
+              tooltip: '电脑',
+              icon: const Icon(Icons.computer),
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(DesktopListPage.routeName),
+            ),
           IconButton(
             tooltip: '刷新',
             icon: const Icon(Icons.refresh),

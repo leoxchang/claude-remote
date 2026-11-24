@@ -361,12 +361,17 @@ final chatSessionRuntimeProvider = FutureProvider<ChatSessionRuntime?>((
       }
     },
   );
-  return ChatSessionRuntime(
+  final runtime = ChatSessionRuntime(
     connection: connection,
     session: session,
     chat: chat,
     approvals: approvals,
   );
+  // 凭证/电脑切换或容器销毁时断开旧连接，避免悬挂 socket。
+  ref.onDispose(() {
+    unawaited(runtime.dispose());
+  });
+  return runtime;
 });
 /// 语音输入控制器；未配对或存储不可用时返回 null，文字输入不受影响。
 final voiceInputControllerProvider =
