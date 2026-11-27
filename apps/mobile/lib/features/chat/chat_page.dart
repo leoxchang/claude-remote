@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../connection/chat_session_runtime.dart';
+import '../../connection/command_client.dart';
 import '../../data/providers.dart';
+import '../../domain/model_option.dart';
 import '../../protocol/s03_messages.dart';
 import '../../voice/voice_input_controller.dart';
 import '../../voice/voice_ui_state.dart';
@@ -16,6 +18,7 @@ import 'chat_controller.dart';
 import 'pending_attachment.dart';
 import 'widgets/composer.dart';
 import 'widgets/message_list.dart';
+import 'widgets/model_picker_sheet.dart';
 import 'widgets/pending_approval_card.dart';
 import 'widgets/queue_panel.dart';
 import 'widgets/run_controls.dart';
@@ -85,6 +88,88 @@ class _ChatPageState extends ConsumerState<ChatPage>
     _runtime?.connection.onLifecycle(state);
   }
 
+  /// 打开模型选择面板；归档会话在点击时不响应。
+  /// 清单加载中显示进度提示；旧 Agent 提示升级；其余失败允许重试拉取清单。
+  Future<void> _showModelPicker() async {
+    final state = ref.read(chatControllerProvider);
+    if (state.archived) return;
+    final controller = ref.read(chatControllerProvider.notifier);
+    final workspaceId = state.workspaceId;
+    if (workspaceId == null) {
+      await _showCatalogNotice('模型清单获取失败');
+      return;
+    }
+    final AsyncValue<ModelCatalog> catalog = ref.read(
+      modelCatalogProvider(workspaceId),
+    );
+    // Riverpod 3 失败后自动重试期间状态是 AsyncLoading 且仍带 error；
+    // 因此先看 error 再看 isLoading，避免把旧 Agent 的拒绝误判为加载中。
+    final error = catalog.error;
+    if (error is CommandFailure && error.code == 'UNKNOWN_MESSAGE_TYPE') {
+      await _showCatalogNotice('Mac 端版本过旧，请升级后重试');
+      return;
+    }
+    if (error != null) {
+      await _showCatalogNotice(
+        '模型清单获取失败',
+        retry: () => ref.invalidate(modelCatalogProvider(workspaceId)),
+      );
+      return;
+    }
+    if (catalog.isLoading) {
+      await _showCatalogNotice('正在获取模型清单…');
+      return;
+    }
+    final models = catalog.value?.models;
+    if (models == null) {
+      await _showCatalogNotice(
+        '模型清单获取失败',
+        retry: () => ref.invalidate(modelCatalogProvider(workspaceId)),
+      );
+      return;
+    }
+    final selected = state.model;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => ModelPickerSheet(
+        models: models,
+        selected: selected,
+        onSelect: controller.setSessionModel,
+      ),
+    );
+  }
+
+  Future<void> _showCatalogNotice(
+    String message, {
+    void Function()? retry,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(message),
+            ),
+            if (retry != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    retry();
+                  },
+                  child: const Text('重试'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -103,6 +188,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final approvals = ref.watch(approvalControllerProvider).value;
     final recovery = ref.watch(recoveryControllerProvider).value;
     final sessionId = controller.sessionId;
+    final workspaceId = state.workspaceId;
+    // 有 workspace 时拉取模型清单；chip 显示名优先取目录。
+    final catalog = workspaceId == null
+        ? null
+        : ref.watch(modelCatalogProvider(workspaceId));
     ref.watch(voiceInterruptionProvider);
     final voice = ref.watch(voiceInputControllerProvider).value;
     // 语音 final 写回 ChatState.draft 后同步到输入框，保持唯一文本来源。
@@ -148,6 +238,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
       appBar: AppBar(
         title: const Text('Claude Remote'),
         actions: [
+          ActionChip(
+            key: const Key('modelChip'),
+            tooltip: '会话模型',
+            label: Text(_modelChipLabel(state, catalog?.value)),
+            onPressed: () => unawaited(_showModelPicker()),
+          ),
           if (recovery != null && recovery.runs.isNotEmpty)
             IconButton(
               key: const Key('recoveryButton'),
@@ -246,6 +342,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ),
     );
   }
+}
+
+/// chip 文案：null 跟随 Mac 默认显示“默认”，目录拿不到时显示原始值。
+String _modelChipLabel(ChatState state, ModelCatalog? catalog) {
+  final model = state.model;
+  if (model == null) return '默认';
+  for (final option in catalog?.models ?? const <ModelOption>[]) {
+    if (option.value == model) return option.displayName;
+  }
+  return model;
 }
 
 /// 语音错误只显示固定安全文案。

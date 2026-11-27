@@ -137,7 +137,13 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         .read(sessionListControllerProvider.notifier)
         .resume(sessionId);
     if (summary == null || !mounted) return;
-    ref.read(chatControllerProvider.notifier).attachSession(summary.sessionId);
+    ref
+        .read(chatControllerProvider.notifier)
+        .attachSession(
+          summary.sessionId,
+          workspaceId: summary.workspaceId,
+          model: summary.model,
+        );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const ChatPage()),
     );

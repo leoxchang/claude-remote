@@ -10,6 +10,7 @@ final class SessionState {
     this.title = '',
     this.status = 'idle',
     this.claudeSessionId,
+    this.model,
     this.activeRunId,
     this.activeRunStatus,
     this.lastRunStatus,
@@ -28,6 +29,7 @@ final class SessionState {
       title: summary.title,
       status: summary.status,
       claudeSessionId: summary.claudeSessionId,
+      model: summary.model,
       activeRunId: summary.activeRunId,
       pendingApprovalCount: summary.pendingApprovalCount,
     );
@@ -38,6 +40,7 @@ final class SessionState {
   final String title;
   final String status;
   final String? claudeSessionId;
+  final String? model;
   final String? activeRunId;
   final RunStatus? activeRunStatus;
   final RunStatus? lastRunStatus;
@@ -52,6 +55,8 @@ final class SessionState {
     String? title,
     String? status,
     String? claudeSessionId,
+    String? model,
+    bool clearModel = false,
     String? activeRunId,
     bool clearActiveRun = false,
     RunStatus? activeRunStatus,
@@ -66,6 +71,7 @@ final class SessionState {
       title: title ?? this.title,
       status: status ?? this.status,
       claudeSessionId: claudeSessionId ?? this.claudeSessionId,
+      model: clearModel ? null : (model ?? this.model),
       activeRunId: clearActiveRun ? null : (activeRunId ?? this.activeRunId),
       activeRunStatus: clearActiveRun
           ? null
@@ -90,6 +96,7 @@ SessionState applySnapshotToSession(
     title: snapshot.title ?? previous.title,
     status: snapshot.sessionStatus ?? previous.status,
     claudeSessionId: snapshot.claudeSessionId ?? previous.claudeSessionId,
+    model: snapshot.hasModel ? snapshot.model : previous.model,
     activeRunId: snapshot.activeRunId,
     activeRunStatus: snapshot.activeRunStatus,
     lastRunStatus: snapshot.lastRunStatus ?? previous.lastRunStatus,
@@ -156,6 +163,7 @@ SessionState applyEventToSession(SessionState previous, TimelineEvent event) {
         pendingApprovalCount: 0,
         queue: queue,
         globalCapacity: previous.globalCapacity,
+        model: previous.model,
       );
     case 'session.status':
       final activeRunId = event.payload.containsKey('activeRunId')
@@ -169,6 +177,11 @@ SessionState applyEventToSession(SessionState previous, TimelineEvent event) {
       final activeStatus = RunStatus.tryParse(
         _stringOrNull(event.payload['status']),
       );
+      final hasModelKey = event.payload.containsKey('model');
+      final modelValue = event.payload['model'];
+      final model = hasModelKey
+          ? (modelValue is String ? modelValue : null)
+          : previous.model;
       return SessionState(
         sessionId: previous.sessionId,
         workspaceId: previous.workspaceId,
@@ -177,6 +190,7 @@ SessionState applyEventToSession(SessionState previous, TimelineEvent event) {
         claudeSessionId:
             _stringOrNull(event.payload['claudeSessionId']) ??
                 previous.claudeSessionId,
+        model: model,
         activeRunId: activeRunId,
         activeRunStatus: activeRunId == null
             ? null

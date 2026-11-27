@@ -147,6 +147,22 @@
     }
   },
   {
+    "name": "session.set-model.model-number",
+    "reason": "model 必须是字符串或 null",
+    "expectedKeyword": "type",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_set_model_bad",
+      "commandId": "cmd_set_model_bad",
+      "traceId": "trace_set_model_bad",
+      "sourceDeviceId": "device_phone_01",
+      "sessionId": "session_01",
+      "timestamp": 1762432800021,
+      "type": "session.set-model",
+      "payload": { "model": 42 }
+    }
+  },
+  {
     "name": "error result without error object",
     "reason": "an error command.result must describe the failure",
     "expectedKeyword": "required",

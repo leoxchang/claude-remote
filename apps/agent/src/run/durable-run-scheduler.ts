@@ -459,6 +459,7 @@ export class DurableRunScheduler {
         text: context.run.promptText ?? '',
         cwd: context.workspace.rootPath,
         deviceId: context.run.deviceId,
+        ...(context.session.model == null ? {} : { model: context.session.model }),
         permissionBroker: this.permissionGate,
         onEvent: (event) => {
           this.eventHandler?.(event, {

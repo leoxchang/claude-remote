@@ -82,6 +82,14 @@ const MESSAGE_TYPE_REFS: readonly MessageTypeRef[] = [
     ref: 'https://s00.local/commands.schema.json#/$defs/session.sync',
   },
   {
+    type: 'models.list',
+    ref: 'https://s00.local/commands.schema.json#/$defs/models.list',
+  },
+  {
+    type: 'session.set-model',
+    ref: 'https://s00.local/commands.schema.json#/$defs/session.set-model',
+  },
+  {
     type: 'command.result',
     ref: 'https://s00.local/commands.schema.json#/$defs/command.result',
   },

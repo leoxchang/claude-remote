@@ -27,6 +27,10 @@ import {
   SessionRepository,
   StoredSession,
 } from '../storage/repositories/session-repository.js';
+import {
+  ModelCatalogService,
+  ModelOption,
+} from '../model/model-catalog.js';
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import {
   AgentOperations,
@@ -35,6 +39,15 @@ import {
 
 const SESSION_ID_BYTES = 12;
 const MAX_SESSIONS_PER_PAGE = 100;
+
+/** session.status 广播的 state；queued 等协议层保留状态映射为 idle。 */
+function statusState(
+  status: SessionSummary['status'],
+): 'idle' | 'running' | 'waiting_approval' {
+  if (status === 'running') return 'running';
+  if (status === 'waiting_approval') return 'waiting_approval';
+  return 'idle';
+}
 
 export interface DurableAgentOperationsDeps {
   workspaces: WorkspaceManager;
@@ -46,6 +59,8 @@ export interface DurableAgentOperationsDeps {
   broker: DurablePermissionBroker;
   approvals: DurableApprovalStore;
   journal: DurableEventJournal;
+  /** 模型目录服务；models.list 与 session.set-model 校验使用。 */
+  models: ModelCatalogService;
   now?: () => number;
   generateSessionId?: () => string;
 }
@@ -169,6 +184,51 @@ export class DurableAgentOperations implements AgentOperations {
       });
     });
     return this.summary(updated);
+  }
+
+  async listModels(workspaceId: string): Promise<ModelOption[]> {
+    const workspace = this.deps.workspaces.assertUsable(workspaceId);
+    return this.catalog(workspace.rootPath);
+  }
+
+  async setSessionModel(
+    sessionId: string,
+    model: string | null,
+  ): Promise<SessionSummary> {
+    const session = this.requireSession(sessionId);
+    if (session.lifecycle === 'archived') {
+      throw new AgentError('SESSION_ARCHIVED');
+    }
+    const workspace = this.deps.workspaces.assertUsable(session.workspaceId);
+    if (model !== null) {
+      const catalog = await this.catalog(workspace.rootPath);
+      if (!catalog.some((entry) => entry.value === model)) {
+        throw new AgentError('INVALID_MESSAGE');
+      }
+    }
+    // 目录查询期间时间线可能追加了事件并推进 lastSeq；在事务内重读会话，
+    // 只替换 model，其余字段（含 lastSeq）取最新值，避免写回旧快照撞序号。
+    const { value: summary } = this.deps.journal.commit((tx, append) => {
+      const current = this.requireSession(sessionId);
+      if (current.lifecycle === 'archived') {
+        throw new AgentError('SESSION_ARCHIVED');
+      }
+      const updated: StoredSession = { ...current, model };
+      this.deps.sessions.update(updated);
+      const committed = this.summary(updated);
+      append({
+        sessionId,
+        type: 'session.status',
+        payload: {
+          state: statusState(committed.status),
+          status: committed.status,
+          title: updated.title,
+          model,
+        },
+      });
+      return committed;
+    });
+    return summary;
   }
 
   startSession(workspaceId: string): SessionSummary {
@@ -297,6 +357,16 @@ export class DurableAgentOperations implements AgentOperations {
       .find((run) => run.sessionId === sessionId);
   }
 
+  /** 查询目录；目录实现抛出的 AgentError 原样透传，其余按可重试内部错误上报。 */
+  private async catalog(cwd: string): Promise<ModelOption[]> {
+    try {
+      return await this.deps.models.list(cwd);
+    } catch (error: unknown) {
+      if (error instanceof AgentError) throw error;
+      throw new AgentError('INTERNAL_ERROR', 'INTERNAL_ERROR', true);
+    }
+  }
+
   private summary(session: StoredSession): SessionSummary {
     const active = this.activeRun(session.sessionId);
     const queuedCount = this.deps.runs.countBySessionStatus(
@@ -323,6 +393,7 @@ export class DurableAgentOperations implements AgentOperations {
       pendingApprovalCount: active?.pendingApprovalCount ?? 0,
       createdAt: session.createdAt,
       lastActivityAt: session.lastActivityAt,
+      model: session.model ?? null,
     };
   }
 }

@@ -24,6 +24,7 @@ import {
   createPhoneServer,
   PHONE_LISTEN,
 } from '../transport/phone-server.js';
+import { SdkModelCatalog } from '../model/sdk-model-catalog.js';
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { AgentOperationsImpl } from './agent-operations.js';
 import { AgentLogger } from './logger.js';
@@ -153,6 +154,7 @@ export async function wireAgent(options: WireOptions): Promise<AgentWiring> {
       const active = deviceStore.active();
       return active === null ? 0 : connections.currentEpoch(active.deviceId);
     },
+    models: new SdkModelCatalog(),
   });
   const router = new CommandRouter({ operations });
 

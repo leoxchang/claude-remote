@@ -17,6 +17,9 @@ final class SessionSnapshot {
     this.sessionStatus,
     this.claudeSessionId,
     this.title,
+    this.model,
+    this.hasModel = false,
+    this.workspaceId,
     this.queuedRuns = const <QueuedRunSummary>[],
     this.pendingApprovals = const <ApprovalSummary>[],
     this.hasPendingApprovals = false,
@@ -62,6 +65,9 @@ final class SessionSnapshot {
       sessionStatus: _stringOrNull(session['status']),
       claudeSessionId: _stringOrNull(session['claudeSessionId']),
       title: _stringOrNull(session['title']),
+      model: _stringOrNull(session['model']),
+      hasModel: session.containsKey('model'),
+      workspaceId: _stringOrNull(session['workspaceId']),
       queuedRuns: queued is List
           ? queued
               .whereType<Map<dynamic, dynamic>>()
@@ -91,6 +97,13 @@ final class SessionSnapshot {
   final String? sessionStatus;
   final String? claudeSessionId;
   final String? title;
+  final String? model;
+
+  /// session 对象是否携带 model 字段；缺失时 reducer 保留本地值。
+  final bool hasModel;
+
+  /// 会话所属 workspace；缺失时 App 保留本地值。
+  final String? workspaceId;
   final List<QueuedRunSummary> queuedRuns;
   final List<ApprovalSummary> pendingApprovals;
   final bool hasPendingApprovals;
@@ -111,6 +124,7 @@ final class SessionSummary {
     this.activeRunId,
     this.queuedCount = 0,
     this.pendingApprovalCount = 0,
+    this.model,
   });
 
   factory SessionSummary.fromWire(Map<String, Object?> wire) {
@@ -125,6 +139,7 @@ final class SessionSummary {
       activeRunId: _stringOrNull(wire['activeRunId']),
       queuedCount: _intOrZero(wire['queuedCount']),
       pendingApprovalCount: _intOrZero(wire['pendingApprovalCount']),
+      model: _stringOrNull(wire['model']),
     );
   }
 
@@ -139,6 +154,9 @@ final class SessionSummary {
   final int queuedCount;
   final int pendingApprovalCount;
 
+  /// 当前生效的模型；null 表示跟随 Mac 端默认模型。
+  final String? model;
+
   bool get isArchived => status == 'archived';
 
   SessionSummary copyWith({
@@ -149,6 +167,8 @@ final class SessionSummary {
     int? pendingApprovalCount,
     int? lastActivityAt,
     String? claudeSessionId,
+    String? model,
+    bool clearModel = false,
   }) {
     return SessionSummary(
       sessionId: sessionId,
@@ -160,7 +180,9 @@ final class SessionSummary {
       status: status ?? this.status,
       activeRunId: activeRunId ?? this.activeRunId,
       queuedCount: queuedCount ?? this.queuedCount,
-      pendingApprovalCount: pendingApprovalCount ?? this.pendingApprovalCount,
+      pendingApprovalCount:
+          pendingApprovalCount ?? this.pendingApprovalCount,
+      model: clearModel ? null : (model ?? this.model),
     );
   }
 }

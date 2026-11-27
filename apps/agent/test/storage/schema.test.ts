@@ -19,7 +19,7 @@ function objects(db: AgentDatabase): Map<string, string> {
 }
 
 describe('S04 initial schema', () => {
-  it('creates every table and unique index with schemaVersion 1', () => {
+  it('creates every table and unique index with schemaVersion 2', () => {
     const db = tempDatabase();
     try {
       const names = objects(db);
@@ -40,11 +40,11 @@ describe('S04 initial schema', () => {
       ]) {
         expect(names.get(table), table).toBe('table');
       }
-      expect(db.connection.pragma('user_version', { simple: true })).toBe(1);
+      expect(db.connection.pragma('user_version', { simple: true })).toBe(2);
       const meta = db.connection
         .prepare('SELECT schemaVersion, migrationState FROM schema_meta')
         .get() as { schemaVersion: number; migrationState: string };
-      expect(meta).toEqual({ schemaVersion: 1, migrationState: 'absent' });
+      expect(meta).toEqual({ schemaVersion: 2, migrationState: 'absent' });
     } finally {
       db.close();
     }

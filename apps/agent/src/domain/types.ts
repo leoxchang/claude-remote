@@ -58,6 +58,8 @@ export interface SessionRecord {
   runsById: ReadonlyMap<string, RunRecord>;
   lastSeq: number;
   lastRunStatus: TerminalRunStatus | null;
+  /** 会话使用的模型；null 表示跟随 Mac 默认。 */
+  model?: string | null;
 }
 
 /** 单次 run 记录；与一次 SDK query 同生命周期。 */

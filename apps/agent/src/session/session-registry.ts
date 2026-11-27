@@ -61,6 +61,7 @@ export class SessionRegistry {
       runsById: new Map(),
       lastSeq: 0,
       lastRunStatus: null,
+      model: null,
     };
     this.sessions.set(record.sessionId, record);
     return cloneSession(record);

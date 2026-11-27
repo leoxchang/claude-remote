@@ -237,4 +237,30 @@ describe('DurableRunScheduler', () => {
       context.db.close();
     }
   });
+
+  it('passes the session model to the driver', () => {
+    const context = setup();
+    try {
+      const session = context.sessions.get('s1')!;
+      context.sessions.update({ ...session, model: 'opus' });
+      context.insertQueued('s1');
+      context.scheduler.drain();
+      expect(context.driver.starts[0]?.model).toBe('opus');
+    } finally {
+      context.db.close();
+    }
+  });
+
+  it('passes a stale model value through unchanged', () => {
+    const context = setup();
+    try {
+      const session = context.sessions.get('s1')!;
+      context.sessions.update({ ...session, model: 'model-not-in-catalog' });
+      context.insertQueued('s1');
+      context.scheduler.drain();
+      expect(context.driver.starts[0]?.model).toBe('model-not-in-catalog');
+    } finally {
+      context.db.close();
+    }
+  });
 });

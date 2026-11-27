@@ -14,11 +14,16 @@ export const DATABASE_FILE_MODE = 0o600;
 export const DATABASE_DIR_MODE = 0o700;
 
 /** 当前 schema 版本。 */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
-const SCHEMA_PATH = fileURLToPath(
-  new URL('./migrations/001_initial.sql', import.meta.url),
-);
+/** 按版本排序的迁移脚本；migrate() 依序应用 user_version 之后的迁移。 */
+const MIGRATIONS: { version: number; url: URL }[] = [
+  { version: 1, url: new URL('./migrations/001_initial.sql', import.meta.url) },
+  {
+    version: 2,
+    url: new URL('./migrations/002_session_model.sql', import.meta.url),
+  },
+];
 
 /**
  * S04 权威 SQLite 数据库。
@@ -124,15 +129,21 @@ export class AgentDatabase {
       throw new AgentError('STORAGE_MIGRATION_CONFLICT');
     }
     if (version === SCHEMA_VERSION) return;
-    const sql = readFileSync(SCHEMA_PATH, 'utf8');
-    this.immediate((tx) => {
-      tx.exec(sql);
-      tx.pragma(`user_version = ${SCHEMA_VERSION}`);
-      tx.prepare(
-        `INSERT INTO schema_meta (id, schemaVersion, desktopId, migrationState, updatedAt)
-         VALUES (1, ?, NULL, 'absent', ?)`,
-      ).run(SCHEMA_VERSION, Date.now());
-    });
+    for (const migration of MIGRATIONS) {
+      if (migration.version <= version) continue;
+      const sql = readFileSync(fileURLToPath(migration.url), 'utf8');
+      this.immediate((tx) => {
+        tx.exec(sql);
+        tx.pragma(`user_version = ${migration.version}`);
+        // UPSERT：新库无 schema_meta 行，v1 升级库已有行，两种情况都落当前版本。
+        tx.prepare(
+          `INSERT INTO schema_meta (id, schemaVersion, desktopId, migrationState, updatedAt)
+           VALUES (1, ?, NULL, 'absent', ?)
+           ON CONFLICT(id) DO UPDATE
+           SET schemaVersion = excluded.schemaVersion, updatedAt = excluded.updatedAt`,
+        ).run(migration.version, Date.now());
+      });
+    }
   }
 }
 

@@ -116,6 +116,7 @@ describe('SessionRegistry.listSessions', () => {
       pendingApprovalCount: 0,
       createdAt: CREATED_AT,
       lastActivityAt: CREATED_AT,
+      model: null,
     });
     expect(JSON.stringify(summary)).not.toContain('hello');
   });

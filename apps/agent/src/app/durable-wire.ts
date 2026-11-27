@@ -50,6 +50,7 @@ import {
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { DurableAgentOperations } from './durable-agent-operations.js';
 import { AgentLogger } from './logger.js';
+import { SdkModelCatalog } from '../model/sdk-model-catalog.js';
 import {
   AGENT_VERSION,
   RUNTIME_VERSION,
@@ -242,6 +243,7 @@ export function wireDurableAgent(options: DurableWireOptions): DurableWiring {
     broker,
     approvals: approvalStore,
     journal,
+    models: new SdkModelCatalog(),
   });
   const router = new CommandRouter({
     operations,

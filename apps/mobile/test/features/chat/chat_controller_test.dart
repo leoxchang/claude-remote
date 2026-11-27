@@ -5,6 +5,7 @@ import 'package:claude_remote/connection/command_client.dart';
 import 'package:claude_remote/connection/connection_controller.dart';
 import 'package:claude_remote/data/attachment_upload.dart';
 import 'package:claude_remote/data/providers.dart';
+import 'package:claude_remote/domain/session.dart';
 import 'package:claude_remote/features/chat/chat_controller.dart';
 import 'package:claude_remote/protocol/messages.dart';
 import 'package:claude_remote/recovery/user_message.dart';
@@ -476,6 +477,175 @@ void main() {
 
     expect(state().attachments, isEmpty);
   });
+  test('attachSession seeds model and workspace from the summary', () {
+    controller().attachSession(
+      'session_02',
+      workspaceId: 'ws_a',
+      model: 'opus',
+    );
+
+    expect(state().model, 'opus');
+    expect(state().workspaceId, 'ws_a');
+  });
+
+  test('session.status updates the model', () {
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_status_model',
+        timestamp: 1,
+        type: 'session.status',
+        payload: const {'state': 'idle', 'model': 'sonnet'},
+        eventId: 'event_status_model',
+        sessionId: 'session_01',
+        seq: 1,
+      ),
+    );
+
+    expect(state().model, 'sonnet');
+  });
+
+  test('session.status clears or keeps the model per payload', () {
+    controller().attachSession('session_02', model: 'opus');
+
+    // 缺失 model 字段 → 保留本地值。
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_status_keep',
+        timestamp: 1,
+        type: 'session.status',
+        payload: const {'state': 'idle'},
+        eventId: 'event_status_keep',
+        sessionId: 'session_02',
+        seq: 1,
+      ),
+    );
+    expect(state().model, 'opus');
+
+    // 显式 null → 清空，回到跟随 Mac 默认。
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_status_clear',
+        timestamp: 2,
+        type: 'session.status',
+        payload: const {'state': 'idle', 'model': null},
+        eventId: 'event_status_clear',
+        sessionId: 'session_02',
+        seq: 2,
+      ),
+    );
+    expect(state().model, isNull);
+  });
+
+  test('mergeSnapshot updates the workspace id', () {
+    controller().attachSession('session_02');
+    expect(state().workspaceId, isNull);
+
+    controller().mergeSnapshot(
+      SessionSnapshot(
+        sessionId: null,
+        events: const <TimelineEvent>[],
+        lastSeq: 1,
+        workspaceId: 'ws_b',
+      ),
+    );
+    expect(state().workspaceId, 'ws_b');
+
+    // 快照缺 workspaceId → 保留本地值。
+    controller().mergeSnapshot(
+      SessionSnapshot(
+        sessionId: null,
+        events: const <TimelineEvent>[],
+        lastSeq: 2,
+      ),
+    );
+    expect(state().workspaceId, 'ws_b');
+  });
+
+  test('setSessionModel sends session.set-model and adopts the returned summary', () async {
+    final future = controller().setSessionModel('opus');
+    await pumpEventQueue();
+
+    expect(lastCommandType(socket), 'session.set-model');
+    final payload =
+        (jsonDecode(socket.sent.last) as Map<String, dynamic>)['payload']
+            as Map<String, dynamic>;
+    expect(payload['model'], 'opus');
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {'sessionId': 'session_01', 'model': 'opus'},
+      ),
+    );
+    await future;
+
+    expect(state().model, 'opus');
+    expect(state().error, isNull);
+  });
+
+  test('setSessionModel(null) clears back to the Mac default', () async {
+    final future = controller().setSessionModel(null);
+    await pumpEventQueue();
+
+    final payload =
+        (jsonDecode(socket.sent.last) as Map<String, dynamic>)['payload']
+            as Map<String, dynamic>;
+    expect(payload['model'], isNull);
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {'sessionId': 'session_01'},
+      ),
+    );
+    await future;
+
+    expect(state().model, isNull);
+    expect(state().error, isNull);
+  });
+
+  test('setSessionModel surfaces UNKNOWN_MESSAGE_TYPE', () async {
+    final future = controller().setSessionModel('opus');
+    await pumpEventQueue();
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        status: 'error',
+        error: {
+          'code': 'UNKNOWN_MESSAGE_TYPE',
+          'message': 'unknown',
+          'retryable': false,
+        },
+      ),
+    );
+    await future;
+
+    expect(state().error, contains('升级'));
+  });
+
+  test('ignores a late model result after switching sessions', () async {
+    final future = controller().setSessionModel('opus');
+    await pumpEventQueue();
+
+    expect(lastCommandType(socket), 'session.set-model');
+    final commandId = lastCommandId(socket);
+
+    // 命令在途时切到另一个会话；旧会话的结果不得覆盖新会话。
+    controller().attachSession('session_02', model: 'sonnet');
+
+    socket.emitMessage(
+      commandResult(
+        commandId: commandId,
+        data: {'sessionId': 'session_01', 'model': 'opus'},
+      ),
+    );
+    await future;
+
+    expect(state().model, 'sonnet');
+    expect(state().error, isNull);
+  });
+
   test('resetForDeviceSwitch clears the attached session and drafts', () {
     controller().updateDraft('draft');
     expect(controller().sessionId, 'session_01');

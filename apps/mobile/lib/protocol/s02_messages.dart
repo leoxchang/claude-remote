@@ -1,5 +1,6 @@
 import '../connection/command_client.dart';
 import '../data/agent_socket.dart' show JsonMap;
+import '../domain/model_option.dart';
 import '../domain/session.dart';
 import '../domain/workspace.dart';
 
@@ -216,6 +217,37 @@ abstract final class S02Commands {
       sessionId: sessionId,
       runId: runId,
       decode: QueueRemovedResult.fromWire,
+    );
+  }
+
+  static CommandRequest<ModelCatalog> modelsList({
+    required String commandId,
+    required String traceId,
+    required String workspaceId,
+  }) {
+    return CommandRequest<ModelCatalog>(
+      commandId: commandId,
+      traceId: traceId,
+      type: 'models.list',
+      payload: {'workspaceId': workspaceId},
+      decode: ModelCatalog.fromWire,
+    );
+  }
+
+  /// model 为 null 表示跟随 Mac 端默认模型；序列化为 JSON null。
+  static CommandRequest<SessionSummary> sessionSetModel({
+    required String commandId,
+    required String traceId,
+    required String sessionId,
+    required String? model,
+  }) {
+    return CommandRequest<SessionSummary>(
+      commandId: commandId,
+      traceId: traceId,
+      type: 'session.set-model',
+      sessionId: sessionId,
+      payload: {'model': model},
+      decode: SessionSummary.fromWire,
     );
   }
 }

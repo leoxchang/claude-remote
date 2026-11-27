@@ -73,6 +73,8 @@ type OperationSpies = Record<
   | 'cancelRun'
   | 'removeQueuedRun'
   | 'snapshot'
+  | 'listModels'
+  | 'setSessionModel'
   | 'activeCount'
   | 'queuedRunCount',
   ReturnType<typeof vi.fn>
@@ -144,6 +146,11 @@ function harness(
       timestamp: 0,
       type: 'session.snapshot' as const,
       payload: { sessionId },
+    })),
+    listModels: vi.fn(async () => [{ value: 'opus', displayName: 'Opus', description: '' }]),
+    setSessionModel: vi.fn(async (_sessionId: string, model: string | null) => ({
+      ...summary(),
+      model,
     })),
     activeCount: vi.fn(() => 0),
     queuedRunCount: vi.fn(() => 0),
@@ -461,5 +468,74 @@ describe('CommandRouter', () => {
 
     expect(result.payload).toMatchObject({ status: 'ok' });
     expect(operations.snapshot).toHaveBeenCalledWith('session_01');
+  });
+
+  it('routes models.list and returns the catalog', async () => {
+    const models = [{ value: 'opus', displayName: 'Opus', description: '' }];
+    const { router, operations } = harness({
+      listModels: vi.fn(async () => models),
+    });
+
+    const result = await router.route(
+      { ...base('models.list', 'cmd_1'), payload: { workspaceId: 'default' } },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({ status: 'ok', data: { models } });
+    expect(operations.listModels).toHaveBeenCalledWith('default');
+  });
+
+  it('rejects session.set-model without a sessionId', async () => {
+    const { router, operations } = harness();
+
+    const result = await router.route(
+      { ...base('session.set-model', 'cmd_1'), payload: { model: 'opus' } },
+      DEVICE,
+    );
+
+    // 信封 schema 要求 sessionId；校验层先于 dispatch 拒绝。
+    expect(result.payload).toMatchObject({
+      status: 'error',
+      error: { code: 'INVALID_MESSAGE' },
+    });
+    expect(operations.setSessionModel).not.toHaveBeenCalled();
+  });
+
+  it('maps an unknown session to SESSION_NOT_FOUND', async () => {
+    const { router } = harness({
+      setSessionModel: vi.fn(async () => {
+        throw new AgentError('SESSION_NOT_FOUND');
+      }),
+    });
+
+    const result = await router.route(
+      {
+        ...base('session.set-model', 'cmd_1'),
+        sessionId: 'session_404',
+        payload: { model: 'opus' },
+      },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({
+      status: 'error',
+      error: { code: 'SESSION_NOT_FOUND' },
+    });
+  });
+
+  it('passes model null through session.set-model', async () => {
+    const { router, operations } = harness();
+
+    const result = await router.route(
+      {
+        ...base('session.set-model', 'cmd_1'),
+        sessionId: 'session_01',
+        payload: { model: null },
+      },
+      DEVICE,
+    );
+
+    expect(result.payload).toMatchObject({ status: 'ok' });
+    expect(operations.setSessionModel).toHaveBeenCalledWith('session_01', null);
   });
 });

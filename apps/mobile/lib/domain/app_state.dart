@@ -345,5 +345,7 @@ SessionSummary _summaryFromState(
     queuedCount: state.queue.length,
     pendingApprovalCount: state.pendingApprovalCount,
     claudeSessionId: state.claudeSessionId,
+    model: state.model,
+    clearModel: state.model == null,
   );
 }

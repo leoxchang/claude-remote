@@ -10,7 +10,9 @@ import '../connection/persistent_command_coordinator.dart';
 import '../connection/session_sync_coordinator.dart';
 import '../features/recovery/recovery_controller.dart';
 import '../features/recovery/recovery_prompt_api.dart';
+import '../domain/model_option.dart';
 import '../domain/session.dart';
+import '../protocol/s02_messages.dart';
 import '../protocol/s04_messages.dart';
 import '../voice/voice_asr_client.dart';
 import '../voice/voice_audio_capture.dart';
@@ -62,6 +64,23 @@ final commandClientProvider = FutureProvider<CommandClient?>((ref) async {
     unawaited(client.dispose());
   });
   return client;
+});
+
+/// 会话工作区的模型清单；清单只来自 models.list，App 不内置。
+/// client 为 null（未配对）时抛错，调用方走 AsyncValue.error。
+final modelCatalogProvider =
+    FutureProvider.family<ModelCatalog, String>((ref, workspaceId) async {
+  final client = await ref.watch(commandClientProvider.future);
+  if (client == null) {
+    throw StateError('command client unavailable');
+  }
+  return client.execute(
+    S02Commands.modelsList(
+      commandId: 'cmd_models_${DateTime.now().microsecondsSinceEpoch}',
+      traceId: 'trace_models_${DateTime.now().microsecondsSinceEpoch}',
+      workspaceId: workspaceId,
+    ),
+  );
 });
 
 /// 审批命令专用客户端；与聊天命令分离，避免共享未完成请求。
