@@ -180,7 +180,7 @@ Expected: FAIL —— 列不存在、版本仍是 1、类型缺字段。
 - [ ] **Step 3: 改迁移链与持久化**
 
 - `002_session_model.sql`：`ALTER TABLE sessions ADD COLUMN model TEXT;`
-- `database.ts`：把单一 `SCHEMA_PATH` 换成 `MIGRATIONS: { version: number; url: URL }[]`（001、002），`SCHEMA_VERSION = 2`；`migrate()` 按 `user_version` 顺序应用未执行的迁移，每条迁移后把 `schema_meta.schemaVersion` 更新为当前版本（首条首次生成时 INSERT，其余 UPDATE，`migrationState` 保持 `absent`）。
+- `database.ts`：把单一 `SCHEMA_PATH` 换成 `MIGRATIONS: { version: number; url: URL }[]`（001、002），`SCHEMA_VERSION = 2`；`migrate()` 按 `user_version` 顺序应用未执行的迁移，每条迁移后把 `schema_meta.schemaVersion` 更新为当前版本——用幂等 UPSERT（`INSERT ... ON CONFLICT(id) DO UPDATE`，`migrationState` 保持 `absent`、`desktopId` 保持 NULL），这样新库与从 v1 升级的库都能正确落行。
 - `session-repository.ts`：`StoredSession` 增加 `model?: string | null`；`SELECT/INSERT/UPDATE` 都带上 `model`（写入 `record.model ?? null`，读取 `model: row.model ?? null`）。
 - `domain/types.ts`：`SessionRecord` 增加 `model?: string | null`；`session-registry.ts` 的 `create` 设 `model: null`。
 - `session-summary.ts`：`SessionSummary.model: string | null`，`toSessionSummary` 返回 `record.model ?? null`。
@@ -693,7 +693,9 @@ Expected: PASS。
 
 - [ ] **Step 5: 提交（如有零散修正）**
 
+只暂存你实际改动的文件；仓库里有未跟踪的 `apps/relay/data/`，禁止 `git add -A`。
+
 ```bash
-git add -A
+git add <实际改动文件>
 git commit -m "chore: verify model selection end to end"
 ```
