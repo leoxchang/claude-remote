@@ -476,6 +476,128 @@ void main() {
 
     expect(state().attachments, isEmpty);
   });
+  test('attachSession seeds model and workspace from the summary', () {
+    controller().attachSession(
+      'session_02',
+      workspaceId: 'ws_a',
+      model: 'opus',
+    );
+
+    expect(state().model, 'opus');
+    expect(state().workspaceId, 'ws_a');
+  });
+
+  test('session.status updates the model', () {
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_status_model',
+        timestamp: 1,
+        type: 'session.status',
+        payload: const {'state': 'idle', 'model': 'sonnet'},
+        eventId: 'event_status_model',
+        sessionId: 'session_01',
+        seq: 1,
+      ),
+    );
+
+    expect(state().model, 'sonnet');
+  });
+
+  test('session.status clears or keeps the model per payload', () {
+    controller().attachSession('session_02', model: 'opus');
+
+    // 缺失 model 字段 → 保留本地值。
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_status_keep',
+        timestamp: 1,
+        type: 'session.status',
+        payload: const {'state': 'idle'},
+        eventId: 'event_status_keep',
+        sessionId: 'session_02',
+        seq: 1,
+      ),
+    );
+    expect(state().model, 'opus');
+
+    // 显式 null → 清空，回到跟随 Mac 默认。
+    controller().mergeEvent(
+      TimelineEvent(
+        messageId: 'msg_status_clear',
+        timestamp: 2,
+        type: 'session.status',
+        payload: const {'state': 'idle', 'model': null},
+        eventId: 'event_status_clear',
+        sessionId: 'session_02',
+        seq: 2,
+      ),
+    );
+    expect(state().model, isNull);
+  });
+
+  test('setSessionModel sends session.set-model and adopts the returned summary', () async {
+    final future = controller().setSessionModel('opus');
+    await pumpEventQueue();
+
+    expect(lastCommandType(socket), 'session.set-model');
+    final payload =
+        (jsonDecode(socket.sent.last) as Map<String, dynamic>)['payload']
+            as Map<String, dynamic>;
+    expect(payload['model'], 'opus');
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {'sessionId': 'session_01', 'model': 'opus'},
+      ),
+    );
+    await future;
+
+    expect(state().model, 'opus');
+    expect(state().error, isNull);
+  });
+
+  test('setSessionModel(null) clears back to the Mac default', () async {
+    final future = controller().setSessionModel(null);
+    await pumpEventQueue();
+
+    final payload =
+        (jsonDecode(socket.sent.last) as Map<String, dynamic>)['payload']
+            as Map<String, dynamic>;
+    expect(payload['model'], isNull);
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        data: {'sessionId': 'session_01'},
+      ),
+    );
+    await future;
+
+    expect(state().model, isNull);
+    expect(state().error, isNull);
+  });
+
+  test('setSessionModel surfaces UNKNOWN_MESSAGE_TYPE', () async {
+    final future = controller().setSessionModel('opus');
+    await pumpEventQueue();
+
+    socket.emitMessage(
+      commandResult(
+        commandId: lastCommandId(socket),
+        status: 'error',
+        error: {
+          'code': 'UNKNOWN_MESSAGE_TYPE',
+          'message': 'unknown',
+          'retryable': false,
+        },
+      ),
+    );
+    await future;
+
+    expect(state().error, contains('升级'));
+  });
+
   test('resetForDeviceSwitch clears the attached session and drafts', () {
     controller().updateDraft('draft');
     expect(controller().sessionId, 'session_01');

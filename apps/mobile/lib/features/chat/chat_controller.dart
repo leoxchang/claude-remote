@@ -56,6 +56,8 @@ final class ChatState {
     this.cacheNotice = false,
     this.pendingVoiceDraftId,
     this.pendingVoiceSessionId,
+    this.model,
+    this.workspaceId,
     this.userMessages = const <UserMessage>[],
     this.attachments = const <PendingAttachment>[],
   });
@@ -81,6 +83,12 @@ final class ChatState {
   /// 尚未被普通发送消费的 voice draft。
   final String? pendingVoiceDraftId;
   final String? pendingVoiceSessionId;
+
+  /// 会话当前生效的模型；null 表示跟随 Mac 端默认模型。
+  final String? model;
+
+  /// 会话所属 workspace；attachSession 时从摘要种入。
+  final String? workspaceId;
 
   /// 本机保存的用户提问；只用于展示，不进入协议时间线。
   final List<UserMessage> userMessages;
@@ -139,6 +147,8 @@ final class ChatState {
     bool? cacheNotice,
     Object? pendingVoiceDraftId = _unset,
     Object? pendingVoiceSessionId = _unset,
+    Object? model = _unset,
+    Object? workspaceId = _unset,
     List<UserMessage>? userMessages,
     List<PendingAttachment>? attachments,
   }) {
@@ -171,6 +181,10 @@ final class ChatState {
       pendingVoiceSessionId: identical(pendingVoiceSessionId, _unset)
           ? this.pendingVoiceSessionId
           : pendingVoiceSessionId as String?,
+      model: identical(model, _unset) ? this.model : model as String?,
+      workspaceId: identical(workspaceId, _unset)
+          ? this.workspaceId
+          : workspaceId as String?,
       userMessages: userMessages ?? this.userMessages,
       attachments: attachments ?? this.attachments,
     );
@@ -334,7 +348,10 @@ final class ChatController extends Notifier<ChatState> {
   }
 
   /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
-  void attachSession(String sessionId) {
+  ///
+  /// workspaceId 与 model 来自会话列表摘要；冷启动本地记录缺失时留空，
+  /// 之后由 session.snapshot 补齐。
+  void attachSession(String sessionId, {String? workspaceId, String? model}) {
     if (_sessionId == sessionId) {
       // 重新进入同一会话时不重置状态，但仍从本机存储补回提问记录。
       unawaited(_restoreUserMessages(sessionId));
@@ -342,7 +359,11 @@ final class ChatController extends Notifier<ChatState> {
     }
     _sessionId = sessionId;
     _coordinator = null;
-    state = ChatState(connection: state.connection);
+    state = ChatState(
+      connection: state.connection,
+      model: model,
+      workspaceId: workspaceId,
+    );
     unawaited(_restoreDraft(sessionId));
     unawaited(_restoreUserMessages(sessionId));
   }
@@ -418,6 +439,7 @@ final class ChatController extends Notifier<ChatState> {
     var cancelling = state.cancelling;
     var archived = state.archived;
     RunStatus? lastRunStatus = state.lastRunStatus;
+    Object? nextModel = ChatState._unset;
 
     switch (event.type) {
       case 'run.queued':
@@ -456,6 +478,11 @@ final class ChatController extends Notifier<ChatState> {
           activeRunId = eventRunId;
         }
         if (event.payload['state'] == 'archived') archived = true;
+        // 缺失 model 字段保留本地值；显式 null 表示回到 Mac 默认。
+        if (event.payload.containsKey('model')) {
+          final payloadModel = event.payload['model'];
+          nextModel = payloadModel is String ? payloadModel : null;
+        }
         break;
       default:
         break;
@@ -466,6 +493,7 @@ final class ChatController extends Notifier<ChatState> {
       lastRunStatus: lastRunStatus,
       activeRunId: activeRunId,
       cancelling: cancelling,
+      model: nextModel,
       queue: queue,
       queuePreviews: previews,
       archived: archived,
@@ -479,12 +507,15 @@ final class ChatController extends Notifier<ChatState> {
     final remainingRunIds = snapshot.queuedRuns
         .map((run) => run.runId)
         .toSet();
+    // 快照缺 session.model 时保留本地值；显式 null 表示回到 Mac 默认。
+    final nextModel = snapshot.hasModel ? snapshot.model : ChatState._unset;
     state = state.copyWith(
       timeline: next,
       snapshotTruncated: snapshot.snapshotTruncated,
       lastRunStatus: snapshot.lastRunStatus ?? state.lastRunStatus,
       activeRunId: snapshot.activeRunId,
       syncing: false,
+      model: nextModel,
       queue: snapshot.queuedRuns,
       queuePreviews: {
         for (final entry in state.queuePreviews.entries)
@@ -632,6 +663,36 @@ final class ChatController extends Notifier<ChatState> {
       state = state.copyWith(error: _messageFor(error.code));
     } on CommandTimeout {
       state = state.copyWith(error: '移除请求超时，请重试');
+    }
+  }
+
+  /// 切换会话模型；只影响后续 run，null 表示跟随 Mac 端默认模型。
+  Future<void> setSessionModel(String? model) async {
+    final sessionId = _sessionId;
+    if (sessionId == null) return;
+    final client = await ref.read(commandClientProvider.future);
+    if (client == null) {
+      state = state.copyWith(error: '尚未连接 Mac');
+      return;
+    }
+    try {
+      final summary = await client.execute(
+        S02Commands.sessionSetModel(
+          commandId: _nextId('cmd_model'),
+          traceId: _nextId('trace'),
+          sessionId: sessionId,
+          model: model,
+        ),
+      );
+      state = state.copyWith(model: summary.model, error: null);
+    } on CommandFailure catch (error) {
+      state = state.copyWith(
+        error: error.code == 'UNKNOWN_MESSAGE_TYPE'
+            ? 'Mac 端版本过旧，请升级后重试'
+            : '切换失败（${error.code}）',
+      );
+    } on CommandTimeout {
+      state = state.copyWith(error: '切换模型超时，请重试');
     }
   }
 
