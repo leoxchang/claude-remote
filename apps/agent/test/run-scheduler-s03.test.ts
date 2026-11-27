@@ -198,4 +198,30 @@ describe('RunScheduler waiting_approval', () => {
     });
     expect(harness.scheduler.approvalContext(accepted.runId)).toBeNull();
   });
+
+  it('passes the session model to the driver', async () => {
+    const harness = await setup();
+    const session = harness.sessions.create({ workspaceId: harness.workspaceId });
+    harness.sessions.update(session.sessionId, (current) => ({
+      ...current,
+      model: 'opus',
+    }));
+    const accepted = enqueue(harness, session.sessionId);
+
+    expect(accepted.status).toBe('queued');
+    expect(harness.driver.started[0]?.model).toBe('opus');
+  });
+
+  it('passes a stale model value through unchanged', async () => {
+    const harness = await setup();
+    const session = harness.sessions.create({ workspaceId: harness.workspaceId });
+    harness.sessions.update(session.sessionId, (current) => ({
+      ...current,
+      model: 'model-not-in-catalog',
+    }));
+    const accepted = enqueue(harness, session.sessionId);
+
+    expect(accepted.status).toBe('queued');
+    expect(harness.driver.started[0]?.model).toBe('model-not-in-catalog');
+  });
 });

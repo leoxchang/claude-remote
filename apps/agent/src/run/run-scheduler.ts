@@ -517,6 +517,7 @@ export class RunScheduler {
     const generation = ++this.generation;
     let record: RunRecord | null = null;
     let claudeSessionId: string | null = null;
+    let sessionModel: string | null | undefined = undefined;
     this.sessions.update(sessionId, (current: SessionRecord) => {
       const head = current.queue.find((run) => run.runId === runId);
       if (head === undefined) return current;
@@ -526,6 +527,7 @@ export class RunScheduler {
         startedAt: now,
       };
       claudeSessionId = current.claudeSessionId;
+      sessionModel = current.model;
       return {
         ...current,
         queue: current.queue.filter((run) => run.runId !== runId),
@@ -548,6 +550,7 @@ export class RunScheduler {
         text: starting.text ?? '',
         cwd: workspace.rootPath,
         deviceId: starting.deviceId,
+        ...(sessionModel == null ? {} : { model: sessionModel }),
         permissionBroker: this.permissionBroker,
         onEvent: (event) => {
           this.eventHandler?.(event, { runId: starting.runId, generation });
