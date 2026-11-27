@@ -41,10 +41,37 @@ class FakeCatalog implements ModelCatalogService {
   }
 }
 
-interface Harness {
+/** 目录查询挂起的假服务；release() 之前 list() 不返回，便于插入并发事件。 */
+class BlockingCatalog implements ModelCatalogService {
+  private releaseGate: () => void = () => {};
+  private markStarted: () => void = () => {};
+  private readonly gate = new Promise<void>((resolve) => {
+    this.releaseGate = resolve;
+  });
+  private readonly startedSignal = new Promise<void>((resolve) => {
+    this.markStarted = resolve;
+  });
+
+  async list(): Promise<ModelOption[]> {
+    this.markStarted();
+    await this.gate;
+    return MODELS;
+  }
+
+  /** 等待 list() 开始挂起。 */
+  waitUntilStarted(): Promise<void> {
+    return this.startedSignal;
+  }
+
+  release(): void {
+    this.releaseGate();
+  }
+}
+
+interface Harness<T extends ModelCatalogService = FakeCatalog> {
   db: AgentDatabase;
   operations: DurableAgentOperations;
-  catalog: FakeCatalog;
+  catalog: T;
   journal: DurableEventJournal;
   sessions: SessionRepository;
   workspaceRoot: string;
@@ -72,6 +99,13 @@ function session(sessionId: string, overrides: Partial<StoredSession> = {}): Sto
 let harnesses: Harness[] = [];
 
 function makeHarness(options: { runningRunFor?: string } = {}): Harness {
+  return makeHarnessWithCatalog(new FakeCatalog(), options);
+}
+
+function makeHarnessWithCatalog<T extends ModelCatalogService>(
+  catalog: T,
+  options: { runningRunFor?: string } = {},
+): Harness<T> {
   const dir = mkdtempSync(join(tmpdir(), 's05-session-model-'));
   const root = mkdtempSync(join(tmpdir(), 's05-session-model-ws-'));
   const workspaceRoot = realpathSync(root);
@@ -107,7 +141,6 @@ function makeHarness(options: { runningRunFor?: string } = {}): Harness {
           ]
         : [],
   } as unknown as RunRepository;
-  const catalog = new FakeCatalog();
   const operations = new DurableAgentOperations({
     workspaces,
     sessions,
@@ -151,6 +184,63 @@ describe('DurableAgentOperations session model', () => {
     expect(summary.status).toBe('idle');
     expect(catalog.cwds).toHaveLength(1);
     expect(sessionsModel(db)).toBe('opus');
+  });
+
+  it('keeps the seq of an event appended while the catalog loads', async () => {
+    const catalog = new BlockingCatalog();
+    const { operations, journal, sessions } = makeHarnessWithCatalog(catalog);
+
+    const pending = operations.setSessionModel('s1', 'opus');
+    await catalog.waitUntilStarted();
+
+    // 目录查询挂起期间时间线推进；写回不能回滚 lastSeq。
+    const appended = journal.commit((tx, append) =>
+      append({
+        sessionId: 's1',
+        type: 'session.status',
+        payload: { state: 'idle', title: 'One' },
+      }),
+    );
+    expect(appended.events[0]?.seq).toBe(1);
+
+    catalog.release();
+    const summary = await pending;
+
+    expect(summary.model).toBe('opus');
+    expect(summary.status).toBe('idle');
+    expect(sessions.get('s1')?.model).toBe('opus');
+    expect(sessions.get('s1')?.lastSeq).toBe(2);
+    const statuses = journal
+      .recent('s1', 10)
+      .filter((event) => event.type === 'session.status');
+    expect(statuses[0]?.seq).toBe(1);
+    expect(statuses.at(-1)?.payload).toEqual({
+      state: 'idle',
+      status: 'idle',
+      title: 'One',
+      model: 'opus',
+    });
+  });
+
+  it('rejects SESSION_ARCHIVED when the session is archived while the catalog loads', async () => {
+    const catalog = new BlockingCatalog();
+    const { db, operations, sessions } = makeHarnessWithCatalog(catalog);
+
+    const pending = operations.setSessionModel('s1', 'opus');
+    await catalog.waitUntilStarted();
+    const session = sessions.get('s1');
+    expect(session).toBeDefined();
+    sessions.update({
+      ...(session as StoredSession),
+      lifecycle: 'archived',
+      status: 'archived',
+      archivedAt: NOW,
+    });
+
+    catalog.release();
+
+    await expect(pending).rejects.toMatchObject({ code: 'SESSION_ARCHIVED' });
+    expect(sessionsModel(db)).toBeNull();
   });
 
   it('broadcasts a truthful status while a run is active', async () => {

@@ -624,6 +624,28 @@ void main() {
     expect(state().error, contains('升级'));
   });
 
+  test('ignores a late model result after switching sessions', () async {
+    final future = controller().setSessionModel('opus');
+    await pumpEventQueue();
+
+    expect(lastCommandType(socket), 'session.set-model');
+    final commandId = lastCommandId(socket);
+
+    // 命令在途时切到另一个会话；旧会话的结果不得覆盖新会话。
+    controller().attachSession('session_02', model: 'sonnet');
+
+    socket.emitMessage(
+      commandResult(
+        commandId: commandId,
+        data: {'sessionId': 'session_01', 'model': 'opus'},
+      ),
+    );
+    await future;
+
+    expect(state().model, 'sonnet');
+    expect(state().error, isNull);
+  });
+
   test('resetForDeviceSwitch clears the attached session and drafts', () {
     controller().updateDraft('draft');
     expect(controller().sessionId, 'session_01');

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:claude_remote/connection/command_client.dart';
@@ -37,13 +38,24 @@ void main() {
   Future<ProviderContainer> pumpChat(
     WidgetTester tester, {
     ModelCatalog? models,
+    Future<ModelCatalog>? catalogFuture,
+    bool catalogRejectsAsOldAgent = false,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           commandClientProvider.overrideWith((ref) async => client),
           chatSessionRuntimeProvider.overrideWith((ref) async => null),
-          if (models != null)
+          if (catalogRejectsAsOldAgent)
+            modelCatalogProvider.overrideWith(
+              (ref, workspaceId) async =>
+                  throw const CommandFailure('UNKNOWN_MESSAGE_TYPE'),
+            )
+          else if (catalogFuture != null)
+            modelCatalogProvider.overrideWith(
+              (ref, workspaceId) => catalogFuture,
+            )
+          else if (models != null)
             modelCatalogProvider.overrideWith(
               (ref, workspaceId) async => models,
             ),
@@ -128,5 +140,40 @@ void main() {
     // 回填 command.result，避免请求超时定时器悬挂。
     socket.emitMessage(commandResult(commandId: sent['commandId'] as String));
     await tester.pump();
+  });
+
+  testWidgets('shows the upgrade hint when the Agent rejects models.list', (
+    tester,
+  ) async {
+    final container = await pumpChat(tester, catalogRejectsAsOldAgent: true);
+    chatOf(container)
+        .attachSession('session_01', model: 'opus', workspaceId: 'ws_a');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('modelChip')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mac 端版本过旧，请升级后重试'), findsOneWidget);
+    expect(find.text('模型清单获取失败'), findsNothing);
+    expect(find.text('重试'), findsNothing);
+  });
+
+  testWidgets('shows a loading hint while the catalog is pending', (
+    tester,
+  ) async {
+    final container = await pumpChat(
+      tester,
+      catalogFuture: Completer<ModelCatalog>().future,
+    );
+    chatOf(container)
+        .attachSession('session_01', model: 'opus', workspaceId: 'ws_a');
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('modelChip')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('正在获取模型清单…'), findsOneWidget);
+    expect(find.text('模型清单获取失败'), findsNothing);
+    expect(find.text('重试'), findsNothing);
   });
 }

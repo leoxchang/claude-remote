@@ -206,20 +206,27 @@ export class DurableAgentOperations implements AgentOperations {
         throw new AgentError('INVALID_MESSAGE');
       }
     }
-    const updated: StoredSession = { ...session, model };
-    const summary = this.summary(updated);
-    this.deps.journal.commit((tx, append) => {
+    // 目录查询期间时间线可能追加了事件并推进 lastSeq；在事务内重读会话，
+    // 只替换 model，其余字段（含 lastSeq）取最新值，避免写回旧快照撞序号。
+    const { value: summary } = this.deps.journal.commit((tx, append) => {
+      const current = this.requireSession(sessionId);
+      if (current.lifecycle === 'archived') {
+        throw new AgentError('SESSION_ARCHIVED');
+      }
+      const updated: StoredSession = { ...current, model };
       this.deps.sessions.update(updated);
+      const committed = this.summary(updated);
       append({
         sessionId,
         type: 'session.status',
         payload: {
-          state: statusState(summary.status),
-          status: summary.status,
-          title: session.title,
+          state: statusState(committed.status),
+          status: committed.status,
+          title: updated.title,
           model,
         },
       });
+      return committed;
     });
     return summary;
   }

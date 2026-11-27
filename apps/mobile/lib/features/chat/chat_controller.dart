@@ -674,10 +674,12 @@ final class ChatController extends Notifier<ChatState> {
   }
 
   /// 切换会话模型；只影响后续 run，null 表示跟随 Mac 端默认模型。
+  /// 命令在途时若已切换会话，结果与错误都不得写到新会话。
   Future<void> setSessionModel(String? model) async {
     final sessionId = _sessionId;
     if (sessionId == null) return;
     final client = await ref.read(commandClientProvider.future);
+    if (_sessionId != sessionId) return;
     if (client == null) {
       state = state.copyWith(error: '尚未连接 Mac');
       return;
@@ -691,14 +693,17 @@ final class ChatController extends Notifier<ChatState> {
           model: model,
         ),
       );
+      if (_sessionId != sessionId) return;
       state = state.copyWith(model: summary.model, error: null);
     } on CommandFailure catch (error) {
+      if (_sessionId != sessionId) return;
       state = state.copyWith(
         error: error.code == 'UNKNOWN_MESSAGE_TYPE'
             ? 'Mac 端版本过旧，请升级后重试'
             : '切换失败（${error.code}）',
       );
     } on CommandTimeout {
+      if (_sessionId != sessionId) return;
       state = state.copyWith(error: '切换模型超时，请重试');
     }
   }

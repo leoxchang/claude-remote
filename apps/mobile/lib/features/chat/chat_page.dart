@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../connection/chat_session_runtime.dart';
+import '../../connection/command_client.dart';
 import '../../data/providers.dart';
 import '../../domain/model_option.dart';
 import '../../protocol/s03_messages.dart';
@@ -88,19 +89,41 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 
   /// 打开模型选择面板；归档会话在点击时不响应。
-  /// workspace 缺失或清单不可用时显示失败提示，可重试拉取清单。
+  /// 清单加载中显示进度提示；旧 Agent 提示升级；其余失败允许重试拉取清单。
   Future<void> _showModelPicker() async {
     final state = ref.read(chatControllerProvider);
     if (state.archived) return;
     final controller = ref.read(chatControllerProvider.notifier);
     final workspaceId = state.workspaceId;
     if (workspaceId == null) {
-      await _showCatalogFailure();
+      await _showCatalogNotice('模型清单获取失败');
       return;
     }
-    final models = ref.read(modelCatalogProvider(workspaceId)).value?.models;
+    final AsyncValue<ModelCatalog> catalog = ref.read(
+      modelCatalogProvider(workspaceId),
+    );
+    // Riverpod 3 失败后自动重试期间状态是 AsyncLoading 且仍带 error；
+    // 因此先看 error 再看 isLoading，避免把旧 Agent 的拒绝误判为加载中。
+    final error = catalog.error;
+    if (error is CommandFailure && error.code == 'UNKNOWN_MESSAGE_TYPE') {
+      await _showCatalogNotice('Mac 端版本过旧，请升级后重试');
+      return;
+    }
+    if (error != null) {
+      await _showCatalogNotice(
+        '模型清单获取失败',
+        retry: () => ref.invalidate(modelCatalogProvider(workspaceId)),
+      );
+      return;
+    }
+    if (catalog.isLoading) {
+      await _showCatalogNotice('正在获取模型清单…');
+      return;
+    }
+    final models = catalog.value?.models;
     if (models == null) {
-      await _showCatalogFailure(
+      await _showCatalogNotice(
+        '模型清单获取失败',
         retry: () => ref.invalidate(modelCatalogProvider(workspaceId)),
       );
       return;
@@ -116,16 +139,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
-  Future<void> _showCatalogFailure({void Function()? retry}) async {
+  Future<void> _showCatalogNotice(
+    String message, {
+    void Function()? retry,
+  }) async {
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('模型清单获取失败'),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(message),
             ),
             if (retry != null)
               Padding(
