@@ -43,6 +43,8 @@ const COMMAND_TYPES: readonly string[] = [
   'permission.respond',
   'run.requeue',
   'session.sync',
+  'models.list',
+  'session.set-model',
 ];
 
 /** 命令路由依赖；幂等表可注入以便测试。 */
@@ -189,6 +191,18 @@ export class CommandRouter {
         case 'session.archive': {
           const sessionId = requirePayloadString(command.payload, 'sessionId');
           return ok(this.operations.archiveSession(sessionId));
+        }
+        case 'models.list': {
+          const workspaceId = requirePayloadString(
+            command.payload,
+            'workspaceId',
+          );
+          return ok({ models: await this.operations.listModels(workspaceId) });
+        }
+        case 'session.set-model': {
+          const sessionId = requireString(command.sessionId, 'SESSION_NOT_FOUND');
+          const model = readModelValue(command.payload);
+          return ok(await this.operations.setSessionModel(sessionId, model));
         }
         case 'prompt.send': {
           const payload = asRecord(command.payload);
@@ -472,6 +486,16 @@ function optionalPayloadString(
 ): string | undefined {
   const value = asRecord(payload)[key];
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** 解析 set-model 的模型值；缺失或非法按 INVALID_MESSAGE 拒绝，null 原样通过。 */
+function readModelValue(payload: unknown): string | null {
+  const model = asRecord(payload)['model'];
+  if (model === null) return null;
+  if (typeof model !== 'string' || model.length === 0) {
+    throw new AgentError('INVALID_MESSAGE');
+  }
+  return model;
 }
 
 function requireString(

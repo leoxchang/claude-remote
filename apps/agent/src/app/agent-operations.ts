@@ -28,6 +28,10 @@ import {
   SessionSummary,
   toSessionSummary,
 } from '../session/session-summary.js';
+import {
+  ModelCatalogService,
+  ModelOption,
+} from '../model/model-catalog.js';
 import { WorkspaceManager } from '../workspace/workspace-manager.js';
 import { WorkspaceSummary } from '../workspace/workspace-types.js';
 
@@ -55,6 +59,10 @@ export interface AgentOperations {
   resumeSession(sessionId: string): SessionSummary;
   renameSession(sessionId: string, title: string): SessionSummary;
   archiveSession(sessionId: string): SessionSummary;
+  /** 当前 workspace 可用的模型目录。 */
+  listModels(workspaceId: string): Promise<ModelOption[]>;
+  /** 设置会话模型；null 表示跟随 Mac 默认。 */
+  setSessionModel(sessionId: string, model: string | null): Promise<SessionSummary>;
   /** S01 兼容：零个创建、一个附着、多个要求选择。 */
   startSession(workspaceId: string): SessionSummary;
   sendPrompt(
@@ -85,6 +93,8 @@ export interface AgentOperationsDependencies {
   approvalBroker: PermissionBroker;
   approvalStore: ApprovalStore;
   currentEpoch: () => number;
+  /** 模型目录服务；models.list 与 session.set-model 校验使用。 */
+  models: ModelCatalogService;
   /** S04：存在时 prompt.send 走持久 queued 接受，不再同步启动 driver。 */
   promptAdmission?: PromptAdmission;
 }
@@ -133,6 +143,33 @@ export class AgentOperationsImpl implements AgentOperations {
   archiveSession(sessionId: string): SessionSummary {
     this.assertSessionUsable(sessionId);
     return this.deps.sessions.archive(sessionId);
+  }
+
+  async listModels(workspaceId: string): Promise<ModelOption[]> {
+    const workspace = this.deps.workspaces.assertUsable(workspaceId);
+    return this.catalog(workspace.rootPath);
+  }
+
+  async setSessionModel(
+    sessionId: string,
+    model: string | null,
+  ): Promise<SessionSummary> {
+    const record = this.deps.sessions.get(sessionId);
+    if (record.lifecycle === 'archived') {
+      throw new AgentError('SESSION_ARCHIVED');
+    }
+    const workspace = this.deps.workspaces.assertUsable(record.workspaceId);
+    if (model !== null) {
+      const catalog = await this.catalog(workspace.rootPath);
+      if (!catalog.some((entry) => entry.value === model)) {
+        throw new AgentError('INVALID_MESSAGE');
+      }
+    }
+    const updated = this.deps.sessions.update(sessionId, (current) => ({
+      ...current,
+      model,
+    }));
+    return toSessionSummary(updated);
   }
 
   startSession(workspaceId: string): SessionSummary {
@@ -223,5 +260,15 @@ export class AgentOperationsImpl implements AgentOperations {
   private assertSessionUsable(sessionId: string): void {
     const record = this.deps.sessions.get(sessionId);
     this.deps.workspaces.assertUsable(record.workspaceId);
+  }
+
+  /** 查询目录；目录实现抛出的 AgentError 原样透传，其余按可重试内部错误上报。 */
+  private async catalog(cwd: string): Promise<ModelOption[]> {
+    try {
+      return await this.deps.models.list(cwd);
+    } catch (error: unknown) {
+      if (error instanceof AgentError) throw error;
+      throw new AgentError('INTERNAL_ERROR', 'INTERNAL_ERROR', true);
+    }
   }
 }

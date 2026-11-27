@@ -18,6 +18,7 @@ import {
 import { SessionListInput, SessionPage } from '../src/session/session-list.js';
 import { SessionSummary } from '../src/session/session-summary.js';
 import { SessionSnapshotEvent } from '../src/session/session-controller.js';
+import { ModelOption } from '../src/model/model-catalog.js';
 import { PromptAccepted } from '../src/run/run-scheduler.js';
 
 function example(name: string): unknown {
@@ -62,6 +63,14 @@ class StubOperations implements AgentOperations {
 
   archiveSession(): SessionSummary {
     throw new AgentError('INVALID_MESSAGE');
+  }
+
+  listModels(): Promise<ModelOption[]> {
+    return Promise.resolve([]);
+  }
+
+  setSessionModel(): Promise<SessionSummary> {
+    throw new AgentError('SESSION_NOT_FOUND');
   }
 
   startSession(): SessionSummary {
