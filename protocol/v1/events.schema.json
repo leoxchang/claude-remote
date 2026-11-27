@@ -118,6 +118,13 @@
                         "waiting_approval",
                         "archived"
                       ]
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1
                     }
                   }
                 },
@@ -341,6 +348,13 @@
                     "awaiting_approval",
                     "closed"
                   ]
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
                 }
               }
             }

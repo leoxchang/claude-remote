@@ -614,6 +614,72 @@
           }
         }
       ]
+    },
+    "models.list": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "type": "object",
+          "required": [
+            "commandId",
+            "traceId"
+          ],
+          "properties": {
+            "type": {
+              "const": "models.list"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "workspaceId"
+              ],
+              "properties": {
+                "workspaceId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.set-model": {
+      "allOf": [
+        {
+          "$ref": "https://s00.local/envelope.schema.json#/$defs/envelope"
+        },
+        {
+          "type": "object",
+          "required": [
+            "commandId",
+            "traceId",
+            "sessionId"
+          ],
+          "properties": {
+            "type": {
+              "const": "session.set-model"
+            },
+            "payload": {
+              "type": "object",
+              "required": [
+                "model"
+              ],
+              "properties": {
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

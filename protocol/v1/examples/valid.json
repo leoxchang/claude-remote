@@ -116,8 +116,36 @@
       "timestamp": 1762432800007,
       "type": "session.status",
       "payload": {
-        "state": "running"
+        "state": "running",
+        "model": null
       }
+    }
+  },
+  {
+    "name": "models.list",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_models_list",
+      "commandId": "cmd_models_list",
+      "traceId": "trace_models_list",
+      "sourceDeviceId": "device_phone_01",
+      "timestamp": 1762432800019,
+      "type": "models.list",
+      "payload": { "workspaceId": "ws_default" }
+    }
+  },
+  {
+    "name": "session.set-model",
+    "message": {
+      "protocolVersion": 1,
+      "messageId": "msg_set_model",
+      "commandId": "cmd_set_model",
+      "traceId": "trace_set_model",
+      "sourceDeviceId": "device_phone_01",
+      "sessionId": "session_01",
+      "timestamp": 1762432800020,
+      "type": "session.set-model",
+      "payload": { "model": "opus" }
     }
   },
   {
