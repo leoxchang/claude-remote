@@ -215,6 +215,7 @@ export class SnapshotService {
             claudeSessionId: session.claudeSessionId,
             title: session.title,
             status: session.status,
+            model: session.model ?? null,
           },
           activeRun:
             active === undefined

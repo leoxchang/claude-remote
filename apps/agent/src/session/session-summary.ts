@@ -17,6 +17,8 @@ export interface SessionSummary {
   pendingApprovalCount: number;
   createdAt: number;
   lastActivityAt: number;
+  /** 会话使用的模型；null 表示跟随 Mac 默认。 */
+  model: string | null;
 }
 
 /** 按 spec §7.2 计算会话公开状态。 */
@@ -57,5 +59,6 @@ export function toSessionSummary(record: SessionRecord): SessionSummary {
     pendingApprovalCount: record.activeRun?.pendingApprovalCount ?? 0,
     createdAt: record.createdAt,
     lastActivityAt: record.lastActivityAt,
+    model: record.model ?? null,
   };
 }

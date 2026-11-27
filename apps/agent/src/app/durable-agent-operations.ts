@@ -323,6 +323,7 @@ export class DurableAgentOperations implements AgentOperations {
       pendingApprovalCount: active?.pendingApprovalCount ?? 0,
       createdAt: session.createdAt,
       lastActivityAt: session.lastActivityAt,
+      model: session.model ?? null,
     };
   }
 }
