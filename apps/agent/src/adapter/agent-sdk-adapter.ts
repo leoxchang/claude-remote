@@ -15,14 +15,12 @@ import {
 } from '../attachment/attachment-store.js';
 import { SdkPermissionRequest } from '../approval/approval-types.js';
 import { AdapterEvent } from '../events/adapter-events.js';
+import { baseQueryOptions } from './query-options.js';
 import {
   ManagedRunDriver,
   ManagedRunHandle,
   ManagedRunStart,
 } from './managed-run-driver.js';
-
-/** S00 验证过的完整设置来源。 */
-const SETTING_SOURCES = ['user', 'project', 'local'] as const;
 
 /** 注入 SDK 的 query 工厂，便于测试。 */
 export interface QueryFactoryParams {
@@ -64,18 +62,15 @@ export class AgentSdkAdapter implements ManagedRunDriver {
    */
   startRun(input: ManagedRunStart): ManagedRunHandle {
     const options: Options = {
-      cwd: input.cwd,
-      permissionMode: 'default',
+      ...baseQueryOptions(input.cwd),
       persistSession: true,
       includePartialMessages: true,
-      settingSources: [...SETTING_SOURCES],
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
-      tools: { type: 'preset', preset: 'claude_code' },
       canUseTool: (toolName, toolInput, toolOptions) =>
         input.permissionBroker.request(
           input.runId,
           mapPermissionRequest(toolName, toolInput, toolOptions),
         ),
+      ...(input.model === undefined ? {} : { model: input.model }),
       ...(input.claudeSessionId === null
         ? {}
         : { resume: input.claudeSessionId }),

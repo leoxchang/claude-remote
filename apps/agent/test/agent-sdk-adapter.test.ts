@@ -116,6 +116,20 @@ describe('AgentSdkAdapter options', () => {
     expect(calls[1]?.options.resume).toBe('claude_01');
   });
 
+  it('passes model to the SDK options only when set', async () => {
+    const { adapter, calls } = adapterWith([]);
+    start(adapter, input({ model: 'opus' }));
+
+    expect(calls[0]?.options.model).toBe('opus');
+  });
+
+  it('omits model from the SDK options when unset', async () => {
+    const { adapter, calls } = adapterWith([]);
+    start(adapter, input());
+
+    expect('model' in (calls[0]?.options ?? {})).toBe(false);
+  });
+
   it('delegates permission requests to the injected gate without wrapping', async () => {
     let resolveResult: (result: PermissionResult) => void = () => undefined;
     const shared = new Promise<PermissionResult>((resolve) => {

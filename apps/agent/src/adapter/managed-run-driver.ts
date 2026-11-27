@@ -21,6 +21,8 @@ export interface ManagedRunStart {
   adapterGeneration: number;
   text: string;
   cwd: string;
+  /** 会话选定的模型 id；缺省表示跟随 Mac 默认，不做任何回退。 */
+  model?: string;
   /** 发起该 run 的已认证设备；审批绑定到该设备。 */
   deviceId: string;
   permissionBroker: PermissionGate;
