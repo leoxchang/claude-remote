@@ -134,4 +134,104 @@ void main() {
     expect(state.status, 'running');
     expect(state.activeRunId, 'run_1');
   });
+
+  test('session.status with model updates the session model', () {
+    final next = applyEventToSession(
+      base(),
+      event(type: 'session.status', payload: {'state': 'idle', 'model': 'opus'}),
+    );
+
+    expect(next.model, 'opus');
+  });
+
+  test('session.status without model keeps the previous model', () {
+    final withModel = applyEventToSession(
+      base(),
+      event(type: 'session.status', payload: {'state': 'idle', 'model': 'opus'}),
+    );
+    final next = applyEventToSession(
+      withModel,
+      event(type: 'session.status', payload: {'state': 'running'}),
+    );
+
+    expect(next.model, 'opus');
+  });
+
+  test('session.status with explicit null clears the model', () {
+    final withModel = applyEventToSession(
+      base(),
+      event(type: 'session.status', payload: {'state': 'idle', 'model': 'opus'}),
+    );
+    final next = applyEventToSession(
+      withModel,
+      event(type: 'session.status', payload: {'state': 'idle', 'model': null}),
+    );
+
+    expect(next.model, isNull);
+  });
+
+  test('snapshot model applies explicit null and keeps on missing key', () {
+    final withModel = applyEventToSession(
+      base(),
+      event(type: 'session.status', payload: {'state': 'idle', 'model': 'opus'}),
+    );
+
+    final cleared = applySnapshotToSession(
+      withModel,
+      SessionSnapshot(
+        sessionId: 'session_a',
+        events: const <TimelineEvent>[],
+        lastSeq: 1,
+        model: null,
+        hasModel: true,
+      ),
+    );
+    expect(cleared.model, isNull);
+
+    final kept = applySnapshotToSession(
+      withModel,
+      SessionSnapshot(
+        sessionId: 'session_a',
+        events: const <TimelineEvent>[],
+        lastSeq: 1,
+      ),
+    );
+    expect(kept.model, 'opus');
+  });
+
+  test('SessionSummary.fromWire parses the session model', () {
+    final summary = SessionSummary.fromWire(<String, Object?>{
+      'sessionId': 's1',
+      'workspaceId': 'ws',
+      'title': 'T',
+      'createdAt': 1,
+      'lastActivityAt': 2,
+      'model': 'opus',
+    });
+    expect(summary.model, 'opus');
+
+    final plain = SessionSummary.fromWire(<String, Object?>{
+      'sessionId': 's1',
+      'workspaceId': 'ws',
+      'title': 'T',
+      'createdAt': 1,
+      'lastActivityAt': 2,
+    });
+    expect(plain.model, isNull);
+  });
+
+  test('SessionSummary copyWith sets and explicitly clears the model', () {
+    const summary = SessionSummary(
+      sessionId: 's1',
+      workspaceId: 'ws',
+      title: 'T',
+      createdAt: 0,
+      lastActivityAt: 0,
+      model: 'opus',
+    );
+
+    expect(summary.copyWith(model: 'sonnet').model, 'sonnet');
+    expect(summary.copyWith(model: null).model, 'opus');
+    expect(summary.copyWith(clearModel: true).model, isNull);
+  });
 }

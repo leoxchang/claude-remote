@@ -18,6 +18,8 @@ const Set<String> _commandTypes = {
   'permission.respond',
   'run.requeue',
   'session.sync',
+  'models.list',
+  'session.set-model',
 };
 
 const Set<String> _eventTypes = {
@@ -120,6 +122,12 @@ abstract final class ProtocolDecoder {
     if (type == 'permission.respond' &&
         (approvalId == null || sessionId == null || runId == null)) {
       throw const ProtocolDecodeException('INVALID_MESSAGE', 'approvalId');
+    }
+    if (type == 'session.set-model') {
+      final model = payload['model'];
+      if (model != null && model is! String) {
+        throw const ProtocolDecodeException('INVALID_MESSAGE', 'payload.model');
+      }
     }
     return CommandMessage(
       messageId: messageId,
