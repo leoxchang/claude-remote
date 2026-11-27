@@ -199,6 +199,23 @@ void main() {
     expect(kept.model, 'opus');
   });
 
+  test('SessionSnapshot.fromPayload parses the workspace id', () {
+    final parsed = SessionSnapshot.fromPayload(<String, Object?>{
+      'lastSeq': 1,
+      'session': <String, Object?>{
+        'sessionId': 'session_a',
+        'workspaceId': 'ws_alpha',
+      },
+    });
+    expect(parsed.workspaceId, 'ws_alpha');
+
+    final missing = SessionSnapshot.fromPayload(<String, Object?>{
+      'lastSeq': 1,
+      'session': <String, Object?>{'sessionId': 'session_a'},
+    });
+    expect(missing.workspaceId, isNull);
+  });
+
   test('SessionSummary.fromWire parses the session model', () {
     final summary = SessionSummary.fromWire(<String, Object?>{
       'sessionId': 's1',

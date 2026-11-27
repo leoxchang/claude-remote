@@ -19,6 +19,7 @@ final class SessionSnapshot {
     this.title,
     this.model,
     this.hasModel = false,
+    this.workspaceId,
     this.queuedRuns = const <QueuedRunSummary>[],
     this.pendingApprovals = const <ApprovalSummary>[],
     this.hasPendingApprovals = false,
@@ -66,6 +67,7 @@ final class SessionSnapshot {
       title: _stringOrNull(session['title']),
       model: _stringOrNull(session['model']),
       hasModel: session.containsKey('model'),
+      workspaceId: _stringOrNull(session['workspaceId']),
       queuedRuns: queued is List
           ? queued
               .whereType<Map<dynamic, dynamic>>()
@@ -99,6 +101,9 @@ final class SessionSnapshot {
 
   /// session 对象是否携带 model 字段；缺失时 reducer 保留本地值。
   final bool hasModel;
+
+  /// 会话所属 workspace；缺失时 App 保留本地值。
+  final String? workspaceId;
   final List<QueuedRunSummary> queuedRuns;
   final List<ApprovalSummary> pendingApprovals;
   final bool hasPendingApprovals;

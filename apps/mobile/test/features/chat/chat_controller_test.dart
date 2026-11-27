@@ -5,6 +5,7 @@ import 'package:claude_remote/connection/command_client.dart';
 import 'package:claude_remote/connection/connection_controller.dart';
 import 'package:claude_remote/data/attachment_upload.dart';
 import 'package:claude_remote/data/providers.dart';
+import 'package:claude_remote/domain/session.dart';
 import 'package:claude_remote/features/chat/chat_controller.dart';
 import 'package:claude_remote/protocol/messages.dart';
 import 'package:claude_remote/recovery/user_message.dart';
@@ -533,6 +534,31 @@ void main() {
       ),
     );
     expect(state().model, isNull);
+  });
+
+  test('mergeSnapshot updates the workspace id', () {
+    controller().attachSession('session_02');
+    expect(state().workspaceId, isNull);
+
+    controller().mergeSnapshot(
+      SessionSnapshot(
+        sessionId: null,
+        events: const <TimelineEvent>[],
+        lastSeq: 1,
+        workspaceId: 'ws_b',
+      ),
+    );
+    expect(state().workspaceId, 'ws_b');
+
+    // 快照缺 workspaceId → 保留本地值。
+    controller().mergeSnapshot(
+      SessionSnapshot(
+        sessionId: null,
+        events: const <TimelineEvent>[],
+        lastSeq: 2,
+      ),
+    );
+    expect(state().workspaceId, 'ws_b');
   });
 
   test('setSessionModel sends session.set-model and adopts the returned summary', () async {

@@ -62,6 +62,7 @@ void main() {
     );
 
     expect(parsed.sessionId, 'session_alpha');
+    expect(parsed.workspaceId, 'ws_alpha');
     expect(parsed.title, '会话 2026-11-08 10:00');
     expect(parsed.queuedRuns, hasLength(1));
     expect(parsed.queuedRuns.first.runId, 'run_alpha');

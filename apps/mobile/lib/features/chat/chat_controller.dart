@@ -350,7 +350,7 @@ final class ChatController extends Notifier<ChatState> {
   /// 测试和启动流程用于注入当前会话；切换会话时重置该会话的易失状态。
   ///
   /// workspaceId 与 model 来自会话列表摘要；冷启动本地记录缺失时留空，
-  /// 之后由 session.snapshot 补齐。
+  /// 之后由 session.snapshot 补齐两者。
   void attachSession(String sessionId, {String? workspaceId, String? model}) {
     if (_sessionId == sessionId) {
       // 重新进入同一会话时不重置状态，但仍从本机存储补回提问记录。
@@ -509,6 +509,12 @@ final class ChatController extends Notifier<ChatState> {
         .toSet();
     // 快照缺 session.model 时保留本地值；显式 null 表示回到 Mac 默认。
     final nextModel = snapshot.hasModel ? snapshot.model : ChatState._unset;
+    // 快照缺 session.workspaceId 时保留本地值（冷启动后由此补齐）。
+    final snapshotWorkspaceId = snapshot.workspaceId;
+    final nextWorkspaceId =
+        snapshotWorkspaceId != null && snapshotWorkspaceId.isNotEmpty
+        ? snapshotWorkspaceId
+        : ChatState._unset;
     state = state.copyWith(
       timeline: next,
       snapshotTruncated: snapshot.snapshotTruncated,
@@ -516,6 +522,7 @@ final class ChatController extends Notifier<ChatState> {
       activeRunId: snapshot.activeRunId,
       syncing: false,
       model: nextModel,
+      workspaceId: nextWorkspaceId,
       queue: snapshot.queuedRuns,
       queuePreviews: {
         for (final entry in state.queuePreviews.entries)
